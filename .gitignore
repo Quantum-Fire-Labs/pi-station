@@ -1,0 +1,20 @@
+node_modules/
+.worktrees/
+dist/
+coverage/
+release/
+.vite/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.pi/
+.DS_Store
+*.log
+
+# Local runtime data and secrets
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+secrets/
+backups/

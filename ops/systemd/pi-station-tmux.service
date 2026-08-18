@@ -1,0 +1,11 @@
+[Unit]
+Description=Pi Station managed Session tmux server
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/tmux -L pi-station -f /dev/null start-server ";" set-option -g exit-empty off
+ExecStop=/usr/bin/tmux -L pi-station kill-server
+
+[Install]
+WantedBy=default.target

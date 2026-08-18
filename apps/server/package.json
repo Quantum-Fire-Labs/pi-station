@@ -1,0 +1,24 @@
+{
+  "name": "@pi-station/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/cli.js",
+    "dev": "npm run build && node --watch dist/cli.js",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.84.2",
+    "@pi-station/application-protocol": "0.1.0",
+    "typebox": "1.3.7",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/web-push": "^3.6.4",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}

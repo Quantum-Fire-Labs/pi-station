@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "composite": true, "noEmit": true, "jsx": "react-jsx", "moduleResolution": "Bundler", "module": "ESNext", "skipLibCheck": true, "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker"], "types": ["vite/client", "vitest/globals"] },
+  "include": ["src", "pwa-identity.ts", "pwa-identity.test.ts", "vite.config.ts"]
+}

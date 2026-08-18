@@ -1,0 +1,51 @@
+{
+  "name": "pi-station",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0",
+    "npm": ">=10"
+  },
+  "workspaces": [
+    "apps/server",
+    "apps/web",
+    "packages/application-protocol"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @pi-station/application-protocol && npm run build --workspace @pi-station/server && npm run build --workspace @pi-station/web",
+    "dev:server": "npm run dev --workspace @pi-station/server",
+    "dev:workspace": "npm run dev --workspace @pi-station/web",
+    "dev:isolated": "PI_STATION_PORT=8811 PI_STATION_WEB_ORIGIN=http://127.0.0.1:8812 PI_STATION_LOCAL_ORIGIN=http://127.0.0.1:8812 PI_STATION_DATA_DIR=$HOME/.local/share/pi-station-dev PI_STATION_SHARED_ROOT=$HOME/.local/share/pi-station-dev/shared npm run dev --workspace @pi-station/server",
+    "deploy:local": "node ops/sdk-deploy.mjs",
+    "deploy:local:worker": "node ops/sdk-deploy-worker.mjs",
+    "release:build": "node ops/build-release.mjs",
+    "start": "npm run start --workspace @pi-station/server",
+    "check": "npm run audit:open-source && npm run typecheck && npm run lint && npm run test",
+    "audit:open-source": "node ops/open-source-audit.mjs",
+    "typecheck": "npm run build --workspace @pi-station/application-protocol && npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "test": "NODE_ENV=test npm run test --workspaces --if-present && npm run test:ops",
+    "test:ops": "vitest run ops/*.test.mjs",
+    "test:watch": "NODE_ENV=test vitest --exclude '.worktrees/**'"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  },
+  "description": "A local Workspace for running and managing Pi coding agent Sessions.",
+  "author": "Quantum Fire",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Quantum-Fire-Labs/pi-station.git"
+  },
+  "homepage": "https://github.com/Quantum-Fire-Labs/pi-station#readme",
+  "bugs": {
+    "url": "https://github.com/Quantum-Fire-Labs/pi-station/issues"
+  }
+}
