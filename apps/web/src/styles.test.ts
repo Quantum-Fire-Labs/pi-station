@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const selectSource = readFileSync(resolve(process.cwd(), "src/components/ui/select.tsx"), "utf8");
 
 describe("composer width", () => {
   it("uses a separate 960px composer width and keeps the Timeline width", () => {
@@ -19,6 +20,16 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer-settings-desktop\s*{[^}]*gap: 10px;/s);
     expect(styles).toContain(".composer-model-trigger");
     expect(styles).toContain(".composer-thinking-trigger");
+  });
+
+  it("uses 12px type and opaque theme surfaces for model and thinking menus", () => {
+    expect(styles).toMatch(/\.composer-settings-desktop \.composer-model-trigger,\s*\.composer-settings-desktop \.composer-thinking-trigger\s*{[^}]*font-size: 12px;/s);
+    expect(styles).toMatch(/\.composer-setting-select-menu\s*{[^}]*background: var\(--raised\);[^}]*color: var\(--text\);/s);
+    expect(styles).toMatch(/\.composer-setting-select-menu \[data-slot="select-item"\]\s*{[^}]*font-size: 12px;/s);
+    expect(styles).toMatch(/\.composer-settings-mobile-menu\s*{[^}]*background: var\(--raised\);[^}]*color: var\(--text\);/s);
+    expect(styles).toMatch(/\.composer-settings-mobile-menu \.composer-mobile-setting-label,\s*\.composer-settings-mobile-menu \.composer-mobile-setting-option\s*{[^}]*font-size: 12px;/s);
+    expect(selectSource).toContain("bg-[var(--raised)]");
+    expect(selectSource).not.toContain("bg-popover");
   });
 });
 
