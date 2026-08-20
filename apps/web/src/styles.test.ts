@@ -49,9 +49,9 @@ describe("composer width", () => {
 });
 
 describe("Quick Session modal", () => {
-  it("uses the standard sidebar row design for its trigger", () => {
-    expect(styles).toMatch(/\.quick-session-trigger\s*{[^}]*width: 100%;[^}]*height: 36px;[^}]*border: 0;[^}]*border-radius: 6px;[^}]*background: transparent;[^}]*font: 500 13px var\(--sans\);/s);
-    expect(styles).toMatch(/\.quick-session-trigger:hover\s*{[^}]*background: var\(--raised\);/s);
+  it("places its trigger with the sidebar header actions", () => {
+    expect(styles).toMatch(/\.sidebar-header-actions\s*{[^}]*display: flex;[^}]*align-items: center;[^}]*gap: 2px;/s);
+    expect(workspaceSource).toContain('className="sidebar-header-actions"');
   });
 
   it("uses a compact opaque desktop surface without backdrop blur", () => {

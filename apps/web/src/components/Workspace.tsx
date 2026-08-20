@@ -832,24 +832,21 @@ function Sidebar({
     <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Projects and Sessions">
       <header className="sidebar-header">
         <strong>Pi Station</strong>
-        <button
-          type="button"
-          aria-label="Hide sidebar"
-          aria-keyshortcuts="Control+B Meta+B"
-          onClick={onCollapse}
-        >
-          <PanelLeftClose aria-hidden="true" size={17} />
-        </button>
+        <span className="sidebar-header-actions">
+          <button type="button" title="Quick Session" aria-label="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
+            <Zap aria-hidden="true" size={17} />
+          </button>
+          <button
+            type="button"
+            aria-label="Hide sidebar"
+            aria-keyshortcuts="Control+B Meta+B"
+            onClick={onCollapse}
+          >
+            <PanelLeftClose aria-hidden="true" size={17} />
+          </button>
+        </span>
       </header>
       <nav className="project-list">
-        <section className="quick-session-section" aria-label="Quick Session">
-          <div className="quick-session-row">
-            <button type="button" className="quick-session-trigger" title="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
-              <Zap aria-hidden="true" size={16} />
-              <span>Quick Session</span>
-            </button>
-          </div>
-        </section>
         {projects.map((project) => {
           const projectSessions = state.sessions.filter(
             (session) => session.projectId === project.projectId,
