@@ -23,8 +23,13 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
   const [keepOpen, setKeepOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number } | undefined>(undefined);
+  const [dragging, setDragging] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScroll = useRef(0);
+  const dragOffset = useRef<{ x: number; y: number } | undefined>(undefined);
+  const dragPosition = useRef<{ x: number; y: number } | undefined>(undefined);
 
   useEffect(() => client.subscribe(setState), [client]);
   useEffect(() => () => client.stop(), [client]);
@@ -33,13 +38,32 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
     setLoading(true);
     setError(undefined);
     void client.openQuickSession().then(() => {
-      requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = savedScroll.current; });
+      requestAnimationFrame(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = savedScroll.current;
+        document.querySelector<HTMLElement>(".quick-session-dialog #prompt")?.focus();
+      });
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Quick Session could not open."))
       .finally(() => setLoading(false));
   }, [client, open]);
 
   const quickKey = state.sessions.find(({ quickSession }) => quickSession)?.sessionKey ?? state.selectedSessionKey;
   const command = (action: Parameters<ApplicationClient["executeCommand"]>[0]) => quickKey === undefined ? undefined : client.executeCommand(action, quickKey);
+  const interactiveDragTarget = (target: EventTarget | null): boolean => target instanceof Element && target.closest("button, a, input, textarea, select, [role=button]") !== null;
+  const moveDialog = (event: React.PointerEvent<HTMLElement>): void => {
+    const offset = dragOffset.current;
+    const dialog = dialogRef.current;
+    if (offset === undefined || dialog === null) return;
+    const bounds = dialog.getBoundingClientRect();
+    const next = {
+      x: Math.min(Math.max(8, event.clientX - offset.x), Math.max(8, window.innerWidth - bounds.width - 8)),
+      y: Math.min(Math.max(8, event.clientY - offset.y), Math.max(8, window.innerHeight - bounds.height - 8)),
+    };
+    dragPosition.current = next;
+    dialog.style.left = "0";
+    dialog.style.top = "0";
+    dialog.style.translate = "0 0";
+    dialog.style.transform = `translate3d(${next.x}px, ${next.y}px, 0)`;
+  };
 
   return <>
     <Dialog open={open && !keepOpen} onOpenChange={(next) => {
@@ -47,7 +71,25 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
       if (!next && scrollRef.current) savedScroll.current = scrollRef.current.scrollTop;
       onOpenChange(next);
     }}>
-      <DialogContent className="quick-session-dialog gap-0 overflow-hidden p-0 sm:max-w-none" aria-describedby={undefined}>
+      <DialogContent
+        ref={dialogRef}
+        className={`quick-session-dialog gap-0 overflow-hidden p-0 sm:max-w-none${dragging ? " is-dragging" : ""}`}
+        aria-describedby={undefined}
+        initialFocus={false}
+        style={position === undefined ? undefined : { left: 0, top: 0, translate: "0 0", transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
+        onDoubleClick={(event) => { if (!interactiveDragTarget(event.target)) { dragPosition.current = undefined; setPosition(undefined); } }}
+        onPointerDown={(event) => {
+          if (event.button !== 0 || interactiveDragTarget(event.target) || window.matchMedia("(max-width: 760px)").matches || dialogRef.current === null) return;
+          const bounds = dialogRef.current.getBoundingClientRect();
+          dragOffset.current = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+          dragPosition.current = position;
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+          setDragging(true);
+        }}
+        onPointerMove={moveDialog}
+        onPointerUp={(event) => { dragOffset.current = undefined; setPosition(dragPosition.current); setDragging(false); event.currentTarget.releasePointerCapture?.(event.pointerId); }}
+        onPointerCancel={() => { dragOffset.current = undefined; setPosition(dragPosition.current); setDragging(false); }}
+      >
         <DialogHeader className="quick-session-dialog-header flex-row gap-1 text-left">
           <DialogTitle className="sr-only">Quick Session</DialogTitle>
           <span className="quick-session-dialog-actions">

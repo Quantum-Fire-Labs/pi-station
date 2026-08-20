@@ -76,6 +76,21 @@ describe("QuickSessionDialog", () => {
     expect(sessionHeader).toHaveTextContent("gpt-5.6-sol · medium");
   });
 
+  it("drags from the header and resets to the center on double-click", async () => {
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches: false, media: "", onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }) });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 1000 });
+    render(<Harness />); const dialog = await openDialog();
+    vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue({ x: 112, y: 100, left: 112, top: 100, right: 912, bottom: 800, width: 800, height: 700, toJSON: () => ({}) });
+    const body = dialog.querySelector(".quick-session-dialog-body")!;
+    fireEvent.pointerDown(body, { button: 0, pointerId: 1, clientX: 200, clientY: 150 });
+    fireEvent.pointerMove(body, { pointerId: 1, clientX: 400, clientY: 300 });
+    expect(dialog).toHaveStyle({ left: "0px", top: "0px", translate: "0 0", transform: "translate3d(312px, 250px, 0)" });
+    fireEvent.pointerUp(body, { pointerId: 1 });
+    fireEvent.doubleClick(body);
+    expect(dialog.style.left).toBe("");
+  });
+
   it("shows Clear between the actions and close buttons, then clears after confirmation", async () => {
     render(<Harness />); const dialog = await openDialog();
     const actions = within(dialog).getByRole("button", { name: "Quick Session actions" });

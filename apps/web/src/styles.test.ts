@@ -50,8 +50,9 @@ describe("composer width", () => {
 
 describe("Quick Session modal", () => {
   it("uses a compact opaque desktop surface without backdrop blur", () => {
-    expect(styles).toMatch(/\.quick-session-dialog\s*{[^}]*width: min\(800px, calc\(100vw - 48px\)\);[^}]*height: 75dvh;[^}]*border-radius: var\(--radius-lg\);[^}]*background: var\(--background\);/s);
-    expect(dialogSource).toContain("z-[80] bg-black/50");
+    expect(styles).toMatch(/\.quick-session-dialog\s*{[^}]*width: min\(800px, calc\(100vw - 48px\)\);[^}]*height: 65dvh;[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 22px;[^}]*background: var\(--page\);[^}]*animation: none;[^}]*transition: none;/s);
+    expect(styles).toMatch(/\.quick-session-dialog-header\s*{[^}]*background: var\(--page\);/s);
+    expect(dialogSource).toContain("z-[80] bg-transparent");
     expect(dialogSource).toContain("rounded-lg border border-border bg-background p-6");
     expect(dialogSource).not.toContain("backdrop-blur");
   });
@@ -60,7 +61,7 @@ describe("Quick Session modal", () => {
     expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*\.quick-session-dialog\s*\{[^}]*width: 100vw;[^}]*height: 100dvh;[^}]*translate: 0 0 !important;/);
     expect(styles).toContain("padding-top: env(safe-area-inset-top)");
     expect(styles).toMatch(/\.quick-session-dialog\s*\{[^}]*translate: 0 0 !important;/s);
-    expect(styles).toMatch(/\.quick-session-dialog-body \.embedded-session \.composer-shell\s*{[^}]*position: sticky;/s);
+    expect(styles).toMatch(/\.quick-session-dialog-body \.embedded-session \.composer-shell\s*{[^}]*position: sticky;[^}]*padding: 8px;/s);
   });
 });
 
