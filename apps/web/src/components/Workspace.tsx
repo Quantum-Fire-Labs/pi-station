@@ -60,7 +60,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import type { SettingsRoute } from "./SettingsPage";
 
 const ProjectPage = lazy(async () => ({
@@ -847,9 +847,11 @@ function Sidebar({
             <DropdownMenu>
               <DropdownMenuTrigger render={<button type="button" className="quick-session-menu-trigger" aria-label="Quick Session actions" />}><Ellipsis aria-hidden="true" size={16} /></DropdownMenuTrigger>
               <DropdownMenuContent aria-label="Quick Session actions">
-                <DropdownMenuItem onClick={onOpenQuickSession}>Open Quick Session</DropdownMenuItem>
-                <DropdownMenuItem onClick={onClearQuickSession}>Clear Session</DropdownMenuItem>
-                <DropdownMenuItem onClick={onKeepQuickSession}>Keep Session</DropdownMenuItem>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={onOpenQuickSession}>Open Quick Session</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onClearQuickSession}>Clear Session</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onKeepQuickSession}>Keep Session</DropdownMenuItem>
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

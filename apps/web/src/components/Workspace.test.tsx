@@ -90,9 +90,10 @@ describe("Workspace", () => {
   });
 
   it("shows a Project-or-directory selector for Keep", async () => {
+    enableDesktopViewport();
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Quick Session actions" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Keep Session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quick Session actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Keep Session" }));
     expect(screen.getByRole("dialog", { name: "Keep Quick Session" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Project" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Directory" })).toBeVisible();
