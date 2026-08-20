@@ -53,6 +53,11 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Sheet, SheetTrigger } from "./ui/sheet";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "./ui/alert-dialog";
 import type { SettingsRoute } from "./SettingsPage";
 
 const ProjectPage = lazy(async () => ({
@@ -3007,6 +3012,7 @@ export function Workspace({
 
   return (
     <>
+    <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
     <main
       className={`workspace${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
       style={{ "--rail": `${activeSidebarWidth}px` } as CSSProperties}
@@ -3085,13 +3091,9 @@ export function Workspace({
                       if (requestId !== undefined) setDevelopmentServerRequestId(requestId);
                     }}>Start server</button>
             )}
-            <button
-              className="more"
-              onClick={() => setDetailsOpen(true)}
-              aria-label="Session details"
-            >
+            <SheetTrigger render={<Button className="more" variant="ghost" size="icon" aria-label="Session details" />}>
               <Ellipsis aria-hidden="true" size={20} />
-            </button>
+            </SheetTrigger>
           </div>
         </header>
 
@@ -3436,7 +3438,6 @@ export function Workspace({
             const requestId = onViewDevelopmentServerOutput?.(selectedDevelopmentServer.projectId);
             if (requestId !== undefined) setDevelopmentServerRequestId(requestId);
           }}
-          onClose={() => setDetailsOpen(false)}
           onRequestCloseSession={() => {
             setCloseSessionRequestId(undefined);
             setCloseSessionTarget(undefined);
@@ -3467,6 +3468,7 @@ export function Workspace({
             if (sessionKey === undefined || generationId === undefined) return;
             setRestartSessionRequestId(undefined);
             setRestartSessionLaunchError(undefined);
+            setDetailsOpen(false);
             setRestartSessionTarget({ sessionKey, generationId });
           }}
           onRenameSession={(name) => {
@@ -3551,51 +3553,26 @@ export function Workspace({
         </label>
       </Modal>
 
-      <Modal
-        open={closeSessionConfirmOpen}
-        title={closeSessionTitle}
-        busy={closeSessionPending}
-        onClose={() => {
-          if (!closeSessionPending) {
-            setCloseSessionConfirmOpen(false);
-            setCloseSessionTarget(undefined);
-          }
-        }}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (closeSessionPending) return;
-          requestSessionClose();
-        }}
-        actions={(
-          <>
-            <button
-              type="button"
-              className="modal-button secondary"
-              disabled={closeSessionPending}
-              onClick={() => {
-                setCloseSessionConfirmOpen(false);
-                setCloseSessionTarget(undefined);
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="modal-button danger"
-              disabled={closeSessionPending}
-            >
-              {closeSessionPending ? "Closing…" : "Close Session"}
-            </button>
-          </>
-        )}
-      >
-        <p className="close-session-copy">
-          Pi will close this Session. The saved conversation will remain available.
-        </p>
-        {closeSessionError !== undefined && (
-          <p className="modal-error" role="alert">{closeSessionError}</p>
-        )}
-      </Modal>
+      <AlertDialog open={closeSessionConfirmOpen} onOpenChange={(open) => {
+        if (closeSessionPending) return;
+        setCloseSessionConfirmOpen(open);
+        if (!open) setCloseSessionTarget(undefined);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{closeSessionTitle}</AlertDialogTitle>
+            <AlertDialogDescription>Pi will close this Session. The saved conversation will remain available.</AlertDialogDescription>
+          </AlertDialogHeader>
+          {closeSessionError !== undefined && <p className="modal-error" role="alert">{closeSessionError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={closeSessionPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={closeSessionPending} onClick={(event) => {
+              event.preventDefault();
+              if (!closeSessionPending) requestSessionClose();
+            }}>{closeSessionPending ? "Closing…" : "Close Session"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Modal
         open={restartSessionTarget !== undefined}
@@ -3786,6 +3763,7 @@ export function Workspace({
         />
       )}
     </main>
+    </Sheet>
     {contextMenu}
     </>
   );

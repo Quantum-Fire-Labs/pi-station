@@ -471,7 +471,7 @@ describe("Workspace", () => {
 
     fireEvent.contextMenu(screen.getByRole("button", { name: /Application client/ }));
     await user.click(screen.getByRole("menuitem", { name: "Close" }));
-    expect(screen.getByRole("dialog", { name: "Close Application client?" })).toBeVisible();
+    expect(screen.getByRole("alertdialog", { name: "Close Application client?" })).toBeVisible();
   });
 
   it("nests a delegated Session directly under its parent", async () => {
@@ -1185,7 +1185,7 @@ describe("Workspace", () => {
     fireEvent(window, event);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(screen.getByRole("dialog", { name: "Close Workspace shell?" })).toBeVisible();
+    expect(screen.getByRole("alertdialog", { name: "Close Workspace shell?" })).toBeVisible();
     expect(onCommand).not.toHaveBeenCalled();
   });
 
@@ -1202,7 +1202,7 @@ describe("Workspace", () => {
     fireEvent(window, event);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(screen.getByRole("dialog", { name: "Close Workspace shell?" })).toBeVisible();
+    expect(screen.getByRole("alertdialog", { name: "Close Workspace shell?" })).toBeVisible();
   });
 
   it("ignores the close shortcut when an editable control has focus", () => {
@@ -2098,7 +2098,7 @@ describe("Workspace", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Session details" }));
-    expect(screen.getByRole("complementary", { name: "Workspace shell" }))
+    expect(screen.getByRole("dialog", { name: "Workspace shell" }))
       .toBeVisible();
     expect(screen.getByText("Session ID")).toBeVisible();
     expect(screen.getByText("Project").parentElement?.nextElementSibling).toBe(screen.getByText("Updated").parentElement);
@@ -2131,13 +2131,27 @@ describe("Workspace", () => {
     expect(screen.queryByRole("button", { name: "Change thinking level" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Close Session" }));
-    const confirmation = screen.getByRole("dialog", { name: "Close Workspace shell?" });
+    const confirmation = screen.getByRole("alertdialog", { name: "Close Workspace shell?" });
     await user.click(within(confirmation).getByRole("button", { name: "Close Session" }));
     expect(onCommand).toHaveBeenCalledWith({ kind: "session.close" });
     await user.click(within(confirmation).getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Close Session details" }));
-    expect(screen.queryByRole("complementary", { name: "Workspace shell" }))
+    expect(screen.queryByRole("dialog", { name: "Workspace shell" }))
       .not.toBeInTheDocument();
+  });
+
+  it("closes Session details with Escape and restores focus to its trigger", async () => {
+    const user = userEvent.setup();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    const trigger = screen.getByRole("button", { name: "Session details" });
+    await user.click(trigger);
+    expect(screen.getByRole("dialog", { name: "Workspace shell" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Environment/ })).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByRole("button", { name: /Environment/ }));
+    expect(screen.getByRole("button", { name: /Environment/ })).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Workspace shell" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("preserves transcript whitespace and native tool disclosure", () => {
