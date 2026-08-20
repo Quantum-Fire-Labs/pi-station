@@ -4,6 +4,7 @@ import { ModelRuntime } from "@earendil-works/pi-coding-agent"
 import { AgentMessagingBridge } from "./agent-messaging.js"
 import { DelegationEvents, DelegationStore } from "./delegations.js"
 import { createSdkSessionRuntime } from "./session-runtime.js"
+import { NewAgentInProjectBridge } from "./new-agent-in-project.js"
 import { PublicSessionIndex } from "./domain.js"
 import { LOCAL_ORIGIN, WEB_ORIGIN } from "./http.js"
 import { normalizeSharedFileOrigin, SharedFileService } from "./shared-files.js"
@@ -25,6 +26,7 @@ const port = Number.parseInt(process.env.PI_STATION_PORT ?? "8801", 10)
 if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) throw new Error("Pi Station port is invalid")
 const delegationEvents = new DelegationEvents()
 const agentMessaging = new AgentMessagingBridge()
+const newAgentInProject = new NewAgentInProjectBridge()
 const delegationStore = new DelegationStore(dataDir)
 const sessionMetadata = new SessionMetadataStore(dataDir)
 const sessionDefaults = new SessionDefaultsStore(dataDir)
@@ -70,6 +72,7 @@ const server = createPiStationServer({
     agentMessaging,
     listProjects: () => projectStore.read(),
     sessionMoves,
+    newAgentInProject,
   }),
   delegationStore,
   delegationEvents,
@@ -80,6 +83,7 @@ const server = createPiStationServer({
   scheduledJobAgentBridge,
   agentMessaging,
   sessionMoves,
+  newAgentInProject,
   sessionDefaultModels: () => modelRuntime.getAvailableSnapshot().map((model) => ({
     provider: model.provider,
     modelId: model.id,

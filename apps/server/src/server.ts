@@ -5,6 +5,7 @@ import { homedir } from "node:os"
 import { basename, dirname, extname, relative, resolve, sep } from "node:path"
 import { SessionManager } from "@earendil-works/pi-coding-agent"
 import type { AgentMessagingBridge } from "./agent-messaging.js"
+import type { NewAgentInProjectBridge } from "./new-agent-in-project.js"
 import type { SessionRuntime } from "./session-runtime.js"
 import {
   encodeSse,
@@ -91,6 +92,7 @@ export interface PiStationServerOptions {
   readonly scheduledJobAgentBridge?: ScheduledJobAgentBridge
   readonly agentMessaging?: AgentMessagingBridge
   readonly sessionMoves?: SessionMoveAgentBridge
+  readonly newAgentInProject?: NewAgentInProjectBridge
   readonly webRoot?: string
   /** Test seam for the opaque process epoch. Production uses a random UUID. */
   readonly phaseEpoch?: string
@@ -261,6 +263,38 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
     await publishSession(saved)
     return options.index.timeline(indexed)
   }
+
+  options.newAgentInProject?.bind(async (input) => {
+    const project = (await projectStore.read()).find((item) => item.id === input.projectId)
+    if (project === undefined) throw new Error(`Project not found: ${input.projectId}`)
+    if (!isProjectName(input.name)) throw new Error("Session name is invalid")
+    let root: Awaited<ReturnType<typeof stat>>
+    try {
+      root = await stat(project.root)
+    } catch {
+      throw new Error(`Project is unavailable: ${input.projectId}`)
+    }
+    if (!root.isDirectory()) throw new Error(`Project is unavailable: ${input.projectId}`)
+
+    const sessionId = randomUUID()
+    const key = { projectId: project.id, sessionId }
+    await metadata.set(key, "open")
+    try {
+      const started = turns.startTracked({
+        ...key,
+        cwd: project.root,
+        prompt: input.prompt,
+        name: input.name,
+        mode: "new",
+        settledTimeline: settledTimeline(key, project),
+      })
+      if (!started.accepted) throw new Error("New Session did not accept the prompt")
+    } catch (error) {
+      await metadata.set(key, "closed").catch(() => undefined)
+      throw error
+    }
+    return { status: "started", sessionId, projectId: project.id }
+  })
 
   options.agentMessaging?.bind(async (input) => {
     const matches = (await sessions()).filter((session) => session.id === input.sessionId && session.state === "open")
