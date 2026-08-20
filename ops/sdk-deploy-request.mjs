@@ -8,7 +8,12 @@ export function shouldRequestDetachedDeployment(environment) {
     && environment.PI_STATION_DEPLOY_DETACHED !== "1"
 }
 
-export function detachedDeploymentArguments({ root, node, npmCli }) {
+export const DEPLOYMENT_ORIGIN_VARIABLES = ["PI_STATION_WEB_ORIGIN", "PI_STATION_LOCAL_ORIGIN"]
+
+export function detachedDeploymentArguments({ root, node, npmCli, environment = {} }) {
+  const configuredOrigins = DEPLOYMENT_ORIGIN_VARIABLES.flatMap((name) => (
+    environment[name] === undefined ? [] : [`--setenv=${name}=${environment[name]}`]
+  ))
   return [
     "--user",
     `--unit=${DEPLOYMENT_UNIT}`,
@@ -17,6 +22,7 @@ export function detachedDeploymentArguments({ root, node, npmCli }) {
     "--property=TimeoutStartSec=15min",
     `--working-directory=${root}`,
     "--setenv=PI_STATION_DEPLOY_DETACHED=1",
+    ...configuredOrigins,
     node,
     npmCli,
     "run",

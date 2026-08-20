@@ -24,6 +24,53 @@ export function deployAfterValidation({ runNpm, deploy }) {
 const systemdQuote = (value) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`
 const systemdWorkingDirectory = (value) => value.replaceAll("\\", "\\x5c").replaceAll("%", "%%").replaceAll(" ", "\\x20").replaceAll("\t", "\\x09")
 
+export function parseSystemdEnvironment(value) {
+  const entries = []
+  let entry = ""
+  let quote
+  let escaped = false
+  for (const character of value) {
+    if (escaped) { entry += character; escaped = false; continue }
+    if (character === "\\") { escaped = true; continue }
+    if (quote !== undefined) {
+      if (character === quote) quote = undefined
+      else entry += character
+      continue
+    }
+    if (character === '"' || character === "'") { quote = character; continue }
+    if (/\s/u.test(character)) {
+      if (entry !== "") { entries.push(entry); entry = "" }
+      continue
+    }
+    entry += character
+  }
+  if (escaped) entry += "\\"
+  if (entry !== "") entries.push(entry)
+  return Object.fromEntries(entries.flatMap((item) => {
+    const separator = item.indexOf("=")
+    return separator < 1 ? [] : [[item.slice(0, separator), item.slice(separator + 1)]]
+  }))
+}
+
+function deploymentOrigin(value, fallback, name) {
+  const candidate = value ?? fallback
+  let parsed
+  try { parsed = new URL(candidate) } catch { throw new Error(`${name} must be an HTTP or HTTPS origin`) }
+  if (!(["http:", "https:"].includes(parsed.protocol)) || parsed.username !== "" || parsed.password !== "" || parsed.pathname !== "/" || parsed.search !== "" || parsed.hash !== "") {
+    throw new Error(`${name} must be an HTTP or HTTPS origin`)
+  }
+  return parsed.origin
+}
+
+export function resolveDeploymentOrigins({ environment = {}, effectiveEnvironment = "", port = "8801" }) {
+  const existing = parseSystemdEnvironment(effectiveEnvironment)
+  const loopback = `http://127.0.0.1:${port}`
+  return {
+    webOrigin: deploymentOrigin(environment.PI_STATION_WEB_ORIGIN, existing.PI_STATION_WEB_ORIGIN ?? loopback, "PI_STATION_WEB_ORIGIN"),
+    localOrigin: deploymentOrigin(environment.PI_STATION_LOCAL_ORIGIN, existing.PI_STATION_LOCAL_ORIGIN ?? loopback, "PI_STATION_LOCAL_ORIGIN"),
+  }
+}
+
 export function buildSystemdService({ root, node, dataDir, sharedRoot, port = "8801", webOrigin, localOrigin, path }) {
   const loopbackOrigin = `http://127.0.0.1:${port}`
   return `[Unit]

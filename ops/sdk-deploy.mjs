@@ -13,7 +13,7 @@ if (npmCli === undefined) throw new Error("Deployment must run through npm")
 if (shouldRequestDetachedDeployment(process.env)) {
   execFileSync(
     "systemd-run",
-    detachedDeploymentArguments({ root, node: process.execPath, npmCli }),
+    detachedDeploymentArguments({ root, node: process.execPath, npmCli, environment: process.env }),
     { stdio: "inherit" },
   )
   console.log("Pi Station deployment was handed to the user service manager and will start after this Session becomes idle.")
