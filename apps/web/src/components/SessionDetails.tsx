@@ -33,6 +33,9 @@ export function SessionDetails({
   onSetThinking,
   onOpenProject,
   onNewSession,
+  projects,
+  onMoveSession,
+  onCancelMove,
   onSetBookmark,
   developmentServer,
   developmentServerOutput,
@@ -72,6 +75,9 @@ export function SessionDetails({
   onSetThinking: (level: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
   onOpenProject: () => void;
   onNewSession: () => void;
+  projects: readonly ProjectSummary[];
+  onMoveSession: (projectId: string) => void;
+  onCancelMove: () => void;
   onSetBookmark: (bookmarked: boolean) => void;
   developmentServer?: ApplicationState["developmentServers"][number];
   developmentServerOutput?: string;
@@ -87,6 +93,7 @@ export function SessionDetails({
   const [nameDraft, setNameDraft] = useState("");
   const [editingModel, setEditingModel] = useState(false);
   const [editingThinking, setEditingThinking] = useState(false);
+  const [moveProjectId, setMoveProjectId] = useState(summary.projectId ?? "");
   const details = state.selected.details;
   const projection = state.selected.projection ?? summary.projection;
   const name = details?.name ?? summary.name ?? "Untitled Session";
@@ -308,6 +315,26 @@ export function SessionDetails({
               </li>
             ))}</ul>
           ) : <p>No shared files.</p>}
+        </section>
+
+        <section className="session-details-section">
+          <h2>Move Session</h2>
+          {summary.pendingProjectMove === undefined ? (
+            <form className="session-setting-form" onSubmit={(event) => {
+              event.preventDefault();
+              const target = projects.find((item) => item.projectId === moveProjectId);
+              if (target === undefined) return;
+              const timing = projection.run === "working" ? " after the current turn is complete" : " now";
+              if (window.confirm(`Move this Session to ${target.name}${timing}?`)) onMoveSession(target.projectId);
+            }}>
+              <label><span>Destination Project</span><select aria-label="Move Session Project" value={moveProjectId} onChange={(event) => setMoveProjectId(event.target.value)}>
+                {projects.filter((item) => item.available).map((item) => <option key={item.projectId} value={item.projectId}>{item.name}</option>)}
+              </select></label>
+              <div><button type="submit" disabled={moveProjectId === ""}>Move Session</button></div>
+            </form>
+          ) : (
+            <div><p role="status">Move scheduled for {summary.pendingProjectMove.projectName}.</p><button type="button" onClick={onCancelMove}>Cancel scheduled move</button></div>
+          )}
         </section>
 
         <section className="session-details-section">

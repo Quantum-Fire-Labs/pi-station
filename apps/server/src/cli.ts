@@ -13,6 +13,7 @@ import { SessionMetadataStore } from "./session-metadata.js"
 import { createPiStationServer, listenLocal, shutdownPiStationServer } from "./server.js"
 import { resolveDataDirectory } from "./data-directory.js"
 import { ScheduledJobAgentBridge, ScheduledJobStore, SettingsStore } from "./scheduled-jobs.js"
+import { SessionMoveAgentBridge } from "./session-moves.js"
 
 const dataDirectory = resolveDataDirectory()
 const dataDir = dataDirectory.path
@@ -31,6 +32,7 @@ const scheduledJobStore = new ScheduledJobStore(dataDir)
 const projectStore = new ProjectStore(dataDir)
 const settingsStore = new SettingsStore(dataDir)
 const scheduledJobAgentBridge = new ScheduledJobAgentBridge()
+const sessionMoves = new SessionMoveAgentBridge()
 const modelRuntime = await ModelRuntime.create()
 const sharedFiles = new SharedFileService(sharedRoot)
 const sharedOrigins = {
@@ -67,6 +69,7 @@ const server = createPiStationServer({
     scheduledJobs: scheduledJobAgentBridge,
     agentMessaging,
     listProjects: () => projectStore.read(),
+    sessionMoves,
   }),
   delegationStore,
   delegationEvents,
@@ -76,6 +79,7 @@ const server = createPiStationServer({
   settingsStore,
   scheduledJobAgentBridge,
   agentMessaging,
+  sessionMoves,
   sessionDefaultModels: () => modelRuntime.getAvailableSnapshot().map((model) => ({
     provider: model.provider,
     modelId: model.id,

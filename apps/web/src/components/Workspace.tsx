@@ -3486,6 +3486,9 @@ export function Workspace({
             setNewSessionProject(selectedProject);
             setDetailsOpen(false);
           }}
+          projects={state.projects}
+          onMoveSession={(projectId) => { onCommand?.({ kind: "session.move", projectId }); }}
+          onCancelMove={() => { onCommand?.({ kind: "session.move.cancel" }); }}
           onOpenSharedMarkdown={openSharedMarkdown}
           onSetBookmark={(bookmarked) => {
             if (selectedProject === undefined) return;
