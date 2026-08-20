@@ -14,6 +14,7 @@ import {
   Folder,
   Keyboard,
   LayoutDashboard,
+  Zap,
   LoaderCircle,
   Mic,
   Paperclip,
@@ -652,6 +653,9 @@ function Sidebar({
   onSettings,
   onOpenProject,
   onSessionContextMenu,
+  onOpenQuickSession,
+  onClearQuickSession,
+  onKeepQuickSession,
   activeRoute,
   activeProjectId,
   shortcutsVisible,
@@ -666,6 +670,9 @@ function Sidebar({
   onSettings: () => void;
   onOpenProject: (projectId: ProjectId) => void;
   onSessionContextMenu: (session: SessionSummary, x: number, y: number) => void;
+  onOpenQuickSession: () => void;
+  onClearQuickSession: () => void;
+  onKeepQuickSession: () => void;
   activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor";
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
@@ -827,6 +834,23 @@ function Sidebar({
         </button>
       </header>
       <nav className="project-list">
+        <section className="quick-session-section" aria-label="Quick Session">
+          <div className="quick-session-row">
+            <button type="button" className="project-name-link" title="Quick Session" onClick={onOpenQuickSession}>
+              <Zap aria-hidden="true" size={16} />
+              <span>Quick Session</span>
+            </button>
+            <details className="quick-session-menu">
+              <summary role="button" aria-label="Quick Session actions"><Ellipsis aria-hidden="true" size={16} /></summary>
+              <div role="menu" aria-label="Quick Session actions">
+                <button type="button" role="menuitem" onClick={onOpenQuickSession}>Open Quick Session</button>
+                <button type="button" role="menuitem" onClick={onClearQuickSession}>Clear Session</button>
+                <button type="button" role="menuitem" onClick={onKeepQuickSession}>Keep Session</button>
+              </div>
+            </details>
+          </div>
+          {state.sessions.find(({ quickSession }) => quickSession === true)?.quickSessionPending !== undefined && <small role="status">Action pending until Pi finishes.</small>}
+        </section>
         {projects.map((project) => {
           const projectSessions = state.sessions.filter(
             (session) => session.projectId === project.projectId,
@@ -2729,6 +2753,14 @@ export function Workspace({
         setSelectedProjectId(projectId);
         setRoute("project");
       }}
+      onOpenQuickSession={() => { void client?.openQuickSession(); }}
+      onClearQuickSession={() => {
+        if (window.confirm("Clear Quick Session history and managed files?")) void client?.clearQuickSession();
+      }}
+      onKeepQuickSession={() => {
+        const destination = window.prompt("Enter the destination directory for this Session.");
+        if (destination !== null && destination.trim() !== "") void client?.keepQuickSession(destination.trim());
+      }}
       onSessionContextMenu={(session, x, y) => setSessionContextMenu({
         session,
         x: Math.max(8, Math.min(x, window.innerWidth - 220)),
@@ -3105,9 +3137,9 @@ export function Workspace({
                       if (requestId !== undefined) setDevelopmentServerRequestId(requestId);
                     }}>Start server</button>
             )}
-            <SheetTrigger render={<Button ref={detailsTriggerRef} className="session-details-trigger size-10 rounded-md" variant="outline" size="icon" aria-label="Session details" />}>
+            {selectedSummary?.quickSession !== true && <SheetTrigger render={<Button ref={detailsTriggerRef} className="session-details-trigger size-10 rounded-md" variant="outline" size="icon" aria-label="Session details" />}>
               <Ellipsis aria-hidden="true" size={20} />
-            </SheetTrigger>
+            </SheetTrigger>}
           </div>
         </header>
 
@@ -3397,7 +3429,7 @@ export function Workspace({
         </Suspense>
       )}
 
-      {detailsOpen && selectedSummary !== undefined && (
+      {detailsOpen && selectedSummary !== undefined && selectedSummary.quickSession !== true && (
         <Suspense fallback={<p className="page-loading" role="status">Loading…</p>}>
         <SessionDetails
           state={state}

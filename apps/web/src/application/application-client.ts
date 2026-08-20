@@ -213,6 +213,29 @@ export class ApplicationClient extends ApplicationClientBase {
     return true;
   }
 
+  async openQuickSession(): Promise<SessionKey> {
+    const response = await mutate("/v2/quick-session", "POST", {}) as { session: SavedSession };
+    await this.refresh();
+    const key = keyFromSession(response.session);
+    this.select(key);
+    return key;
+  }
+
+  async clearQuickSession(): Promise<void> {
+    const before = this.rpcState.sessions.find(({ quickSession }) => quickSession === true)?.sessionKey.piSessionId;
+    const response = await mutate("/v2/quick-session/clear", "POST", {}) as { pending?: boolean };
+    if (response.pending === true) await waitForQuickSession((session) => session !== undefined && session.id !== before);
+    await this.refresh();
+    const quick = this.rpcState.sessions.find(({ quickSession }) => quickSession === true);
+    if (quick !== undefined) this.select(quick.sessionKey);
+  }
+
+  async keepQuickSession(destination: string): Promise<void> {
+    const response = await mutate("/v2/quick-session/keep", "POST", { destination }) as { pending?: boolean };
+    if (response.pending === true) await waitForQuickSession((session) => session === undefined);
+    await this.refresh();
+  }
+
   async getPiStationSettings(): Promise<PiStationSettings> { return (await request<{ settings: PiStationSettings }>("/v2/settings")).settings; }
   async setPiStationTimezone(timezone: string): Promise<PiStationSettings> { return (await mutate("/v2/settings", "PUT", { timezone }) as { settings: PiStationSettings }).settings; }
   async listScheduledJobs(projectId: string): Promise<readonly ScheduledJob[]> { return (await request<{ jobs: ScheduledJob[] }>(`/v2/scheduled-jobs?projectId=${encodeURIComponent(projectId)}`)).jobs; }
@@ -1088,6 +1111,15 @@ export class ApplicationClient extends ApplicationClientBase {
   }
 }
 
+async function waitForQuickSession(done: (session: SavedSession | undefined) => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 480; attempt += 1) {
+    const response = await request<{ session?: SavedSession }>("/v2/quick-session");
+    if (done(response.session)) return;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error("The pending Quick Session action did not finish.");
+}
+
 function projectSummary(project: Project): ProjectSummary {
   return {
     projectId: project.id,
@@ -1124,6 +1156,8 @@ function sessionSummary(session: SavedSession): SessionSummary {
     projection: projectionFor(session, session.delegationStatus === "working" ? "working" : "idle"),
     ...(session.delegationStatus === undefined ? {} : { delegationStatus: session.delegationStatus }),
     ...(session.pendingProjectMove === undefined ? {} : { pendingProjectMove: session.pendingProjectMove }),
+    ...(session.quickSession === true ? { quickSession: true as const } : {}),
+    ...(session.quickSessionPending === undefined ? {} : { quickSessionPending: session.quickSessionPending }),
   };
 }
 
@@ -1137,7 +1171,9 @@ function projectionFor(session: SavedSession, phase: SessionPhase): SessionSumma
       ? { hasUnread: true, ...(session.unread.latestAttentionId === undefined ? {} : { latestUnreadTurnId: session.unread.latestAttentionId }) }
       : { hasUnread: false },
     management: { kind: "unmanaged" },
-    capabilities: session.state === "open" ? [...RPC_CAPABILITIES] : [],
+    capabilities: session.state !== "open" ? [] : session.quickSession === true
+      ? ["session.prompt.text", "session.prompt.steer", "session.prompt.follow-up", "session.abort"]
+      : [...RPC_CAPABILITIES],
   };
 }
 

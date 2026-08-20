@@ -62,6 +62,17 @@ const swipe = (
 };
 
 describe("Workspace", () => {
+  it("shows the fixed accessible Quick Session row and action menu", () => {
+    enableDesktopViewport();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    expect(screen.getByRole("region", { name: "Quick Session" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Quick Session" })).toHaveAttribute("title", "Quick Session");
+    expect(screen.getByRole("button", { name: "Quick Session actions" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Open Quick Session" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Clear Session" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Keep Session" })).toBeInTheDocument();
+  });
+
   it("shows the default desktop sidebar and can collapse and expand it", async () => {
     enableDesktopViewport();
     const { container } = render(<Workspace state={fixtureState} onSelect={vi.fn()} />);

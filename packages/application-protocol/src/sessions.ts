@@ -43,6 +43,9 @@ export interface SavedSession {
   readonly name?: string
   readonly parentSessionId?: string
   readonly delegationStatus?: "working" | "completed" | "failed" | "cancelled" | "interrupted"
+  /** True only for the host singleton scratch Session. */
+  readonly quickSession?: true
+  readonly quickSessionPending?: "clear" | "keep"
   readonly unread?: SessionUnreadState
   readonly modifiedAt: string
   readonly state: SessionState

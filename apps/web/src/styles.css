@@ -3966,3 +3966,14 @@ body.sidebar-resizing {
   .settings-link { min-height: 72px; }
   .settings-link-copy small { white-space: normal; }
 }
+
+.quick-session-section { border-bottom: 1px solid var(--border); padding: .45rem .5rem .65rem; }
+.quick-session-row { display: flex; align-items: center; gap: .25rem; }
+.quick-session-row > .project-name-link { display: flex; flex: 1; align-items: center; gap: .5rem; min-width: 0; }
+.quick-session-menu { position: relative; }
+.quick-session-menu > summary { display: grid; place-items: center; border-radius: .375rem; cursor: pointer; list-style: none; padding: .4rem; }
+.quick-session-menu > summary::-webkit-details-marker { display: none; }
+.quick-session-menu > div { position: absolute; z-index: 30; top: calc(100% + .25rem); right: 0; min-width: 11rem; padding: .25rem; border: 1px solid var(--border); border-radius: .5rem; background: var(--background); box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+.quick-session-menu [role="menuitem"] { display: block; width: 100%; padding: .45rem .55rem; border-radius: .3rem; text-align: left; }
+.quick-session-menu [role="menuitem"]:hover { background: var(--muted); }
+.quick-session-section > small { display: block; padding: .3rem .5rem 0; color: var(--muted-foreground); }
