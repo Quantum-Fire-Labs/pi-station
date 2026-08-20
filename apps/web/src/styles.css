@@ -3966,3 +3966,9 @@ body.sidebar-resizing {
   .settings-link { min-height: 72px; }
   .settings-link-copy small { white-space: normal; }
 }
+
+.quick-session-section { border-bottom: 1px solid var(--border); padding: .45rem .5rem .65rem; }
+.quick-session-row { display: flex; align-items: center; gap: .25rem; }
+.quick-session-row > .project-name-link { display: flex; flex: 1; align-items: center; gap: .5rem; min-width: 0; }
+.quick-session-menu-trigger { display: grid; place-items: center; border-radius: .375rem; padding: .4rem; }
+.quick-session-section > small { display: block; padding: .3rem .5rem 0; color: var(--muted-foreground); }

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import { readdir, readFile, realpath, stat } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, dirname, extname, resolve, sep } from "node:path"
+import { basename, dirname, extname, relative, resolve, sep } from "node:path"
 import { SessionManager } from "@earendil-works/pi-coding-agent"
 import type { AgentMessagingBridge } from "./agent-messaging.js"
 import type { SessionRuntime } from "./session-runtime.js"
@@ -64,6 +64,7 @@ import type { ScheduledJobAgentBridge } from "./scheduled-jobs.js"
 import { VoiceSettingsError, VoiceSettingsStore } from "./voice-settings.js"
 import { SystemThemeService } from "./system-theme.js"
 import { rewriteSessionCwd, type SessionMoveAgentBridge } from "./session-moves.js"
+import { QuickSessionStore, QUICK_SESSION_PROJECT_ID } from "./quick-session.js"
 
 const HOST = "127.0.0.1"
 const shutdownContexts = new WeakMap<Server, { shutdown: (timeoutMs: number) => Promise<void> }>()
@@ -121,6 +122,9 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const scheduledJobs = options.scheduledJobStore ?? new ScheduledJobStore(options.dataDir)
   const voiceSettings = new VoiceSettingsStore(options.dataDir)
   const systemTheme = options.systemThemeService ?? new SystemThemeService()
+  const quickSessions = new QuickSessionStore(options.dataDir)
+  type QuickAction = { readonly token: string; readonly type: "clear" | "keep"; readonly status: "pending" } | { readonly token: string; readonly type: "clear" | "keep"; readonly status: "failed"; readonly error: string }
+  const quickActions = new Map<string, QuickAction>()
   const disassociatedProjects = new Map<string, Project>()
   const pendingSessionMoves = new Map<string, { readonly projectId: string; readonly projectName: string }>()
   const eventStreams = new Set<ServerResponse>()
@@ -145,10 +149,22 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   }
 
   const sessions = async (): Promise<readonly SavedSession[]> => {
-    return decorateSessions(await metadata.decorate(await options.index.list(await projectStore.read())))
+    const ordinary = await metadata.decorate(await options.index.list(await projectStore.read()))
+    const quickRecord = await quickSessions.read()
+    const quick = quickRecord === undefined ? undefined : await quickSessions.saved(quickRecord)
+    const action = quick === undefined ? undefined : quickActions.get(quick.id)
+    const listed = quick === undefined ? ordinary : [...ordinary.filter(({ id }) => id !== quick.id), { ...quick, ...(action?.status === "pending" ? { quickSessionPending: action.type } : {}) }]
+    return decorateSessions(listed)
   }
 
   const findSession = async (key: SessionKey): Promise<SavedSession | undefined> => {
+    if (key.projectId === QUICK_SESSION_PROJECT_ID) {
+      const record = await quickSessions.read()
+      if (record?.sessionId !== key.sessionId) return undefined
+      const quick = await quickSessions.saved(record)
+      const action = quick === undefined ? undefined : quickActions.get(quick.id)
+      return quick === undefined ? undefined : (await decorateSessions([{ ...quick, ...(action?.status === "pending" ? { quickSessionPending: action.type } : {}) }]))[0]
+    }
     const indexed = await options.index.get(key, await projectStore.read())
     if (indexed === undefined) return undefined
     return (await decorateSessions(await metadata.decorate([indexed])))[0]
@@ -156,6 +172,10 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
 
   const resolveProject = async (key: SessionKey, saved?: SavedSession): Promise<Project> => {
     const projectId = saved?.projectId ?? key.projectId
+    if (projectId === QUICK_SESSION_PROJECT_ID) {
+      const record = await quickSessions.read()
+      if (record?.sessionId === key.sessionId) return quickSessions.project(record)
+    }
     const configured = (await projectStore.read()).find((project) => project.id === projectId)
     if (configured !== undefined) return configured
     const cwd = (saved as SavedSession & { readonly cwd?: string } | undefined)?.cwd
@@ -613,6 +633,70 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (request.method === "GET" && url.pathname === "/v2/directories") {
         sendJson(response, 200, await listDirectories(url.searchParams.get("path"), url.searchParams.get("hidden") === "true"))
         return
+      }
+      if (url.pathname === "/v2/quick-session" && request.method === "GET") {
+        const record = await quickSessions.read()
+        const session = record === undefined ? undefined : await findSession({ projectId: QUICK_SESSION_PROJECT_ID, sessionId: record.sessionId })
+        const action = record === undefined ? undefined : quickActions.get(record.sessionId)
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...(session === undefined ? {} : { session }), ...(action === undefined ? {} : { action }) })
+        return
+      }
+      if (url.pathname === "/v2/quick-session" && request.method === "POST") {
+        assertJsonMutation(request)
+        await requireEmptyJsonObject(request)
+        const record = await quickSessions.open()
+        const session = await findSession({ projectId: QUICK_SESSION_PROJECT_ID, sessionId: record.sessionId })
+        if (session === undefined) throw new Error("Quick Session was not indexed")
+        sendJson(response, 200, { version: PROTOCOL_VERSION, session })
+        return
+      }
+      if (url.pathname === "/v2/quick-session/cancel" && request.method === "POST") {
+        assertJsonMutation(request); await requireEmptyJsonObject(request)
+        const record = await quickSessions.read(); if (record === undefined) throw new HttpError(404, "Quick Session not found")
+        const cancelled = quickActions.get(record.sessionId)?.status === "pending"
+        if (cancelled) quickActions.delete(record.sessionId)
+        sendJson(response, 200, { version: PROTOCOL_VERSION, cancelled })
+        return
+      }
+      if (url.pathname === "/v2/quick-session/clear" && request.method === "POST") {
+        assertJsonMutation(request); await requireEmptyJsonObject(request)
+        const record = await quickSessions.read(); if (record === undefined) throw new HttpError(404, "Quick Session not found")
+        const key = { projectId: QUICK_SESSION_PROJECT_ID, sessionId: record.sessionId }
+        const token = randomUUID(); const pending: QuickAction = { token, type: "clear", status: "pending" }
+        const apply = async (): Promise<void> => {
+          while (turns.isWorking(key) && quickActions.get(record.sessionId)?.token === token) await new Promise((done) => setTimeout(done, 50))
+          if (quickActions.get(record.sessionId)?.token !== token) return
+          try { await quickSessions.clear(record.sessionId); quickActions.delete(record.sessionId) }
+          catch (error) { quickActions.set(record.sessionId, { token, type: "clear", status: "failed", error: error instanceof Error ? error.message : "Clear failed" }) }
+        }
+        if (turns.isWorking(key)) { quickActions.set(record.sessionId, pending); void apply(); sendJson(response, 202, { version: PROTOCOL_VERSION, action: pending }); return }
+        quickActions.set(record.sessionId, pending); await apply()
+        const action = quickActions.get(record.sessionId); if (action?.status === "failed") throw new HttpError(422, action.error)
+        const fresh = await quickSessions.read(); sendJson(response, 200, { version: PROTOCOL_VERSION, session: fresh === undefined ? undefined : await findSession({ projectId: QUICK_SESSION_PROJECT_ID, sessionId: fresh.sessionId }) })
+        return
+      }
+      if (url.pathname === "/v2/quick-session/keep" && request.method === "POST") {
+        assertJsonMutation(request)
+        const value = await readJsonBody(request)
+        if (typeof value !== "object" || value === null || Array.isArray(value) || typeof (value as { destination?: unknown }).destination !== "string" || (value as { destination: string }).destination.trim() === "") throw new HttpError(400, "Destination is invalid")
+        const destination = (value as { destination: string }).destination
+        const record = await quickSessions.read(); if (record === undefined) throw new HttpError(404, "Quick Session not found")
+        const key = { projectId: QUICK_SESSION_PROJECT_ID, sessionId: record.sessionId }
+        const token = randomUUID(); const pending: QuickAction = { token, type: "keep", status: "pending" }
+        const apply = async (): Promise<void> => {
+          while (turns.isWorking(key) && quickActions.get(record.sessionId)?.token === token) await new Promise((done) => setTimeout(done, 50))
+          if (quickActions.get(record.sessionId)?.token !== token) return
+          try {
+            const kept = await quickSessions.keep(record.sessionId, destination); const target = resolve(destination)
+            const matched = (await projectStore.read()).filter(({ root }) => { const path = relative(resolve(root), target); return path === "" || (!path.startsWith("..") && !path.startsWith(sep)) }).sort((left, right) => resolve(right.root).length - resolve(left.root).length)[0]
+            const project = matched ?? kept.project; const sessionFile = await stat(kept.sessionPath)
+            await options.index.indexSession({ id: record.sessionId, projectId: project.id, path: kept.sessionPath, cwd: target, modifiedAt: sessionFile.mtime.toISOString() }); quickActions.delete(record.sessionId)
+          } catch (error) { quickActions.set(record.sessionId, { token, type: "keep", status: "failed", error: error instanceof Error ? error.message : "Keep failed" }) }
+        }
+        if (turns.isWorking(key)) { quickActions.set(record.sessionId, pending); void apply(); sendJson(response, 202, { version: PROTOCOL_VERSION, action: pending }); return }
+        quickActions.set(record.sessionId, pending); await apply()
+        const action = quickActions.get(record.sessionId); if (action?.status === "failed") throw new HttpError(422, action.error)
+        sendJson(response, 200, { version: PROTOCOL_VERSION, sessionId: record.sessionId }); return
       }
       if (request.method === "GET" && url.pathname === "/v2/sessions") {
         const listed = await sessions()

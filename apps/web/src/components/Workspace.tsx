@@ -14,6 +14,7 @@ import {
   Folder,
   Keyboard,
   LayoutDashboard,
+  Zap,
   LoaderCircle,
   Mic,
   Paperclip,
@@ -48,6 +49,7 @@ import { Modal } from "./Modal";
 import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
+import { KeepSessionModal } from "./KeepSessionModal";
 import { NotificationSettingsPage } from "./NotificationSettings";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -58,6 +60,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import type { SettingsRoute } from "./SettingsPage";
 
 const ProjectPage = lazy(async () => ({
@@ -652,6 +655,10 @@ function Sidebar({
   onSettings,
   onOpenProject,
   onSessionContextMenu,
+  onOpenQuickSession,
+  onClearQuickSession,
+  onKeepQuickSession,
+  onCancelQuickSessionAction,
   activeRoute,
   activeProjectId,
   shortcutsVisible,
@@ -666,6 +673,10 @@ function Sidebar({
   onSettings: () => void;
   onOpenProject: (projectId: ProjectId) => void;
   onSessionContextMenu: (session: SessionSummary, x: number, y: number) => void;
+  onOpenQuickSession: () => void;
+  onClearQuickSession: () => void;
+  onKeepQuickSession: () => void;
+  onCancelQuickSessionAction: () => void;
   activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor";
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
@@ -827,6 +838,26 @@ function Sidebar({
         </button>
       </header>
       <nav className="project-list">
+        <section className="quick-session-section" aria-label="Quick Session">
+          <div className="quick-session-row">
+            <button type="button" className="project-name-link" title="Quick Session" onClick={onOpenQuickSession}>
+              <Zap aria-hidden="true" size={16} />
+              <span>Quick Session</span>
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<button type="button" className="quick-session-menu-trigger" aria-label="Quick Session actions" />}><Ellipsis aria-hidden="true" size={16} /></DropdownMenuTrigger>
+              <DropdownMenuContent aria-label="Quick Session actions">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={onOpenQuickSession}>Open Quick Session</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onClearQuickSession}>Clear Session</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onKeepQuickSession}>Keep Session</DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {(state.sessions.find(({ quickSession }) => quickSession === true)?.quickSessionPending !== undefined || state.quickSessionAction?.status === "pending") && <small role="status">Action pending until Pi finishes. <button type="button" onClick={onCancelQuickSessionAction}>Cancel pending action</button></small>}
+          {state.quickSessionAction?.status === "failed" && <small role="alert">{state.quickSessionAction.error ?? "Quick Session action failed."}</small>}
+        </section>
         {projects.map((project) => {
           const projectSessions = state.sessions.filter(
             (session) => session.projectId === project.projectId,
@@ -1249,6 +1280,7 @@ export function Workspace({
   onInitialPaint,
 }: WorkspaceProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [keepQuickSessionOpen, setKeepQuickSessionOpen] = useState(false);
   const [sessionShortcutsVisible, setSessionShortcutsVisible] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(408);
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -2729,6 +2761,12 @@ export function Workspace({
         setSelectedProjectId(projectId);
         setRoute("project");
       }}
+      onOpenQuickSession={() => { void client?.openQuickSession(); }}
+      onClearQuickSession={() => {
+        if (window.confirm("Clear Quick Session history and managed files?")) void client?.clearQuickSession().catch(() => undefined);
+      }}
+      onKeepQuickSession={() => setKeepQuickSessionOpen(true)}
+      onCancelQuickSessionAction={() => { void client?.cancelQuickSessionAction().catch(() => undefined); }}
       onSessionContextMenu={(session, x, y) => setSessionContextMenu({
         session,
         x: Math.max(8, Math.min(x, window.innerWidth - 220)),
@@ -3105,9 +3143,9 @@ export function Workspace({
                       if (requestId !== undefined) setDevelopmentServerRequestId(requestId);
                     }}>Start server</button>
             )}
-            <SheetTrigger render={<Button ref={detailsTriggerRef} className="session-details-trigger size-10 rounded-md" variant="outline" size="icon" aria-label="Session details" />}>
+            {selectedSummary?.quickSession !== true && <SheetTrigger render={<Button ref={detailsTriggerRef} className="session-details-trigger size-10 rounded-md" variant="outline" size="icon" aria-label="Session details" />}>
               <Ellipsis aria-hidden="true" size={20} />
-            </SheetTrigger>
+            </SheetTrigger>}
           </div>
         </header>
 
@@ -3397,7 +3435,7 @@ export function Workspace({
         </Suspense>
       )}
 
-      {detailsOpen && selectedSummary !== undefined && (
+      {detailsOpen && selectedSummary !== undefined && selectedSummary.quickSession !== true && (
         <Suspense fallback={<p className="page-loading" role="status">Loading…</p>}>
         <SessionDetails
           state={state}
@@ -3778,6 +3816,13 @@ export function Workspace({
       )}
     </main>
     </Sheet>
+    {keepQuickSessionOpen && <KeepSessionModal
+      open={true}
+      state={state}
+      onClose={() => setKeepQuickSessionOpen(false)}
+      onListDirectory={(path, hidden) => onListDirectory?.(path, hidden) ?? client?.listDirectory(path, hidden)}
+      onKeep={(destination) => { setKeepQuickSessionOpen(false); void client?.keepQuickSession(destination).catch(() => undefined); }}
+    />}
     {contextMenu}
     </>
   );

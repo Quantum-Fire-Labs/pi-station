@@ -89,6 +89,8 @@ export interface DevelopmentServerRequestState {
     | DevelopmentServerOutputResult["outcome"];
 }
 
+export interface QuickSessionActionState { readonly type: "clear" | "keep"; readonly status: "pending" | "failed"; readonly error?: string }
+
 export interface ApplicationState {
   readonly connection:
     | "connecting"
@@ -118,6 +120,7 @@ export interface ApplicationState {
   readonly developmentServerRequests: Readonly<Record<string, DevelopmentServerRequestState>>;
   readonly developmentServerOutput: Readonly<Record<string, string>>;
   readonly historyLoading: boolean;
+  readonly quickSessionAction?: QuickSessionActionState | undefined;
   readonly malformedFrames: number;
 }
 
