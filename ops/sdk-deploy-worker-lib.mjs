@@ -22,6 +22,7 @@ export function deployAfterValidation({ runNpm, deploy }) {
 }
 
 const systemdQuote = (value) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`
+const systemdWorkingDirectory = (value) => value.replaceAll("\\", "\\x5c").replaceAll(" ", "\\x20")
 
 export function buildSystemdService({ root, node, dataDir, sharedRoot, port = "8801", webOrigin, localOrigin, path }) {
   const loopbackOrigin = `http://127.0.0.1:${port}`
@@ -31,7 +32,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=${systemdQuote(root)}
+WorkingDirectory=${systemdWorkingDirectory(root)}
 ExecStart=${systemdQuote(node)} apps/server/dist/cli.js
 Restart=on-failure
 RestartSec=2
