@@ -22,7 +22,7 @@ export function deployAfterValidation({ runNpm, deploy }) {
 }
 
 const systemdQuote = (value) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`
-const systemdWorkingDirectory = (value) => value.replaceAll("\\", "\\x5c").replaceAll(" ", "\\x20")
+const systemdWorkingDirectory = (value) => value.replaceAll("\\", "\\x5c").replaceAll("%", "%%").replaceAll(" ", "\\x20").replaceAll("\t", "\\x09")
 
 export function buildSystemdService({ root, node, dataDir, sharedRoot, port = "8801", webOrigin, localOrigin, path }) {
   const loopbackOrigin = `http://127.0.0.1:${port}`

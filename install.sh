@@ -31,6 +31,7 @@ port=${PI_STATION_PORT:-8801}
 local_origin=${PI_STATION_LOCAL_ORIGIN:-"http://127.0.0.1:$port"}
 web_origin=${PI_STATION_WEB_ORIGIN:-"$local_origin"}
 unit_quote() { printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"; }
+unit_path() { local value=$1; value=${value//\\/\\x5c}; value=${value//%/%%}; value=${value// /\\x20}; value=${value//$'\t'/\\x09}; printf '%s' "$value"; }
 
 [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || fail "PI_STATION_PORT is invalid"
 
@@ -105,13 +106,13 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$(unit_quote "$current_link")
+WorkingDirectory=$(unit_path "$current_link")
 ExecStart=$(unit_quote "$node_bin") apps/server/dist/cli.js
 Restart=on-failure
 RestartSec=2
 KillMode=process
 Environment=NODE_ENV=production
-EnvironmentFile=$(unit_quote "$environment_file")
+EnvironmentFile=$(unit_path "$environment_file")
 
 [Install]
 WantedBy=default.target
