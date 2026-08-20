@@ -2,6 +2,9 @@
 
 Pi Station is a local Workspace UI for Pi. It uses the public Pi SDK directly. Pi owns Session files, history, model settings, and runtime metadata. Pi Station stores only its application metadata.
 
+> [!WARNING]
+> Pi Station is a new, pre-1.0 project. Expect defects, incomplete platform coverage, and breaking changes to installation, configuration, application metadata, and APIs. Back up important data before an update and review release notes before you install a new version.
+
 ## Production architecture
 
 There is one production path:

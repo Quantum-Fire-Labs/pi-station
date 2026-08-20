@@ -47,5 +47,8 @@
   "homepage": "https://github.com/Quantum-Fire-Labs/pi-station#readme",
   "bugs": {
     "url": "https://github.com/Quantum-Fire-Labs/pi-station/issues"
+  },
+  "overrides": {
+    "sharp": "^0.35.3"
   }
 }

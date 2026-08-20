@@ -17,6 +17,8 @@ import {
   LoaderCircle,
   Mic,
   Paperclip,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
   Plus,
   Settings,
@@ -610,6 +612,7 @@ function Sidebar({
   activeRoute,
   activeProjectId,
   shortcutsVisible,
+  onCollapse,
 }: {
   state: ApplicationState;
   onSelect: (key: SessionKey) => void;
@@ -623,6 +626,7 @@ function Sidebar({
   activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor";
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
+  onCollapse: () => void;
 }) {
   const [showingClosed, setShowingClosed] = useState<ReadonlySet<string>>(
     new Set(),
@@ -768,6 +772,17 @@ function Sidebar({
   };
   return (
     <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Projects and Sessions">
+      <header className="sidebar-header">
+        <strong>Pi Station</strong>
+        <button
+          type="button"
+          aria-label="Hide sidebar"
+          aria-keyshortcuts="Control+B Meta+B"
+          onClick={onCollapse}
+        >
+          <PanelLeftClose aria-hidden="true" size={17} />
+        </button>
+      </header>
       <nav className="project-list">
         {projects.map((project) => {
           const projectSessions = state.sessions.filter(
@@ -1192,8 +1207,37 @@ export function Workspace({
 }: WorkspaceProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sessionShortcutsVisible, setSessionShortcutsVisible] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(408);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [resizingSidebar, setResizingSidebar] = useState(false);
   const paletteOpenRef = useRef(paletteOpen);
   paletteOpenRef.current = paletteOpen;
+  useEffect(() => {
+    const toggleSidebar = (event: KeyboardEvent): void => {
+      if (event.key.toLowerCase() !== "b" || event.altKey || event.shiftKey || event.isComposing) return;
+      const expectedModifier = /Mac|iPhone|iPad/u.test(navigator.platform) ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+      if (!expectedModifier || !isDesktopViewport()) return;
+      event.preventDefault();
+      setSidebarVisible((visible) => !visible);
+    };
+    window.addEventListener("keydown", toggleSidebar);
+    return () => window.removeEventListener("keydown", toggleSidebar);
+  }, []);
+  useEffect(() => {
+    if (!resizingSidebar) return;
+    const resize = (event: PointerEvent): void => setSidebarWidth(Math.min(500, Math.max(280, event.clientX)));
+    const stop = (): void => setResizingSidebar(false);
+    document.body.classList.add("sidebar-resizing");
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", stop, { once: true });
+    window.addEventListener("pointercancel", stop, { once: true });
+    return () => {
+      document.body.classList.remove("sidebar-resizing");
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+  }, [resizingSidebar]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const editorIdentity = state.selectedSessionKey === undefined
     ? undefined
@@ -1333,6 +1377,8 @@ export function Workspace({
   const previousTimelineLength = useRef(state.selected.timeline.length);
   const initialPaintReported = useRef(false);
   const composerInput = useRef<HTMLTextAreaElement | null>(null);
+  const composerShell = useRef<HTMLElement | null>(null);
+  const sessionContainer = useRef<HTMLElement | null>(null);
   const newSessionNameInput = useRef<HTMLInputElement | null>(null);
   const renameSessionNameInput = useRef<HTMLInputElement | null>(null);
   const focusComposerForSession = useRef<SessionKey | undefined>(undefined);
@@ -1509,6 +1555,25 @@ export function Workspace({
       desktop?.removeEventListener("change", resize);
     };
   }, [draft, route, selectedSessionIdentity, voiceMode]);
+
+  useLayoutEffect(() => {
+    const shell = composerShell.current;
+    const session = sessionContainer.current;
+    if (shell === null || session === null) return;
+
+    const updateSpacing = (): void => {
+      session.style.setProperty("--composer-shell-height", `${shell.getBoundingClientRect().height}px`);
+    };
+    updateSpacing();
+
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(updateSpacing);
+    observer?.observe(shell);
+    window.addEventListener("resize", updateSpacing);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateSpacing);
+    };
+  }, [route, selectedSessionIdentity]);
 
   useEffect(() => {
     const query = window.matchMedia?.("(max-width: 1099px)");
@@ -2627,6 +2692,7 @@ export function Workspace({
       })}
       activeRoute={route}
       shortcutsVisible={sessionShortcutsVisible}
+      onCollapse={() => setSidebarVisible(false)}
       {...(selectedProjectId === undefined ? {} : { activeProjectId: selectedProjectId })}
       onNewSession={(project) => {
         setNewSessionName("");
@@ -2636,10 +2702,53 @@ export function Workspace({
       }}
     />
   );
+  const activeSidebarWidth = sidebarVisible ? sidebarWidth : 0;
+  const resizeSidebarWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    let next = sidebarWidth;
+    if (event.key === "ArrowLeft") next -= 10;
+    else if (event.key === "ArrowRight") next += 10;
+    else if (event.key === "Home") next = 280;
+    else if (event.key === "End") next = 500;
+    else return;
+    event.preventDefault();
+    setSidebarWidth(Math.min(500, Math.max(280, next)));
+  };
   const renderPage = (page: ReactNode): ReactNode => (
     <>
-      <main className="workspace">
-        {sidebar}
+      <main
+        className={`workspace${sidebarVisible ? "" : " sidebar-hidden"}`}
+        style={{ "--rail": `${activeSidebarWidth}px` } as CSSProperties}
+      >
+        {sidebarVisible && sidebar}
+        {sidebarVisible && (
+          <div
+            className="sidebar-resize-handle"
+            role="separator"
+            aria-label="Resize sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={280}
+            aria-valuemax={500}
+            aria-valuenow={sidebarWidth}
+            tabIndex={0}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              event.preventDefault();
+              setResizingSidebar(true);
+            }}
+            onKeyDown={resizeSidebarWithKeyboard}
+          />
+        )}
+        {!sidebarVisible && (
+          <button
+            className="sidebar-expand-control"
+            type="button"
+            aria-label="Show sidebar"
+            aria-keyshortcuts="Control+B Meta+B"
+            onClick={() => setSidebarVisible(true)}
+          >
+            <PanelLeftOpen aria-hidden="true" size={18} />
+          </button>
+        )}
         <div className="workspace-page">
           <Suspense fallback={<p className="page-loading" role="status">Loading…</p>}>
             {page}
@@ -2870,9 +2979,41 @@ export function Workspace({
 
   return (
     <>
-    <main className={`workspace${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}`}>
-      {sidebar}
-      <section className="session" aria-label="Selected Session">
+    <main
+      className={`workspace${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
+      style={{ "--rail": `${activeSidebarWidth}px` } as CSSProperties}
+    >
+      {sidebarVisible && sidebar}
+      {sidebarVisible && (
+        <div
+          className="sidebar-resize-handle"
+          role="separator"
+          aria-label="Resize sidebar"
+          aria-orientation="vertical"
+          aria-valuemin={280}
+          aria-valuemax={500}
+          aria-valuenow={sidebarWidth}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            setResizingSidebar(true);
+          }}
+          onKeyDown={resizeSidebarWithKeyboard}
+        />
+      )}
+      {!sidebarVisible && (
+        <button
+          className="sidebar-expand-control"
+          type="button"
+          aria-label="Show sidebar"
+          aria-keyshortcuts="Control+B Meta+B"
+          onClick={() => setSidebarVisible(true)}
+        >
+          <PanelLeftOpen aria-hidden="true" size={18} />
+        </button>
+      )}
+      <section ref={sessionContainer} className="session" aria-label="Selected Session">
         <header className="session-header">
           <button
             className="mobile-back"
@@ -3015,7 +3156,7 @@ export function Workspace({
           )}
         </section>
 
-        <footer className="composer-shell">
+        <footer ref={composerShell} className="composer-shell">
           {showJumpToLatest && (
             <button
               className="jump-to-latest"

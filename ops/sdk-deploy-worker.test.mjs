@@ -17,7 +17,7 @@ describe("SDK deployment worker", () => {
       path: "/usr/local/bin:/usr/bin",
     })
 
-    expect(service).toContain('WorkingDirectory="/home/example/Pi Station"')
+    expect(service).toContain("WorkingDirectory=/home/example/Pi\\x20Station")
     expect(service).toContain('ExecStart="/usr/bin/node" apps/server/dist/cli.js')
     expect(service).toContain('Environment="PI_STATION_PORT=9900"')
     expect(service).toContain("http://127.0.0.1:9900")
