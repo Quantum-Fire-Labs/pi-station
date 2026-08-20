@@ -223,17 +223,37 @@ export class ApplicationClient extends ApplicationClientBase {
 
   async clearQuickSession(): Promise<void> {
     const before = this.rpcState.sessions.find(({ quickSession }) => quickSession === true)?.sessionKey.piSessionId;
-    const response = await mutate("/v2/quick-session/clear", "POST", {}) as { pending?: boolean };
-    if (response.pending === true) await waitForQuickSession((session) => session !== undefined && session.id !== before);
+    const response = await mutate("/v2/quick-session/clear", "POST", {}) as QuickSessionResponse;
+    if (response.action?.status === "pending") await this.waitForQuickSession((session) => session !== undefined && session.id !== before);
     await this.refresh();
     const quick = this.rpcState.sessions.find(({ quickSession }) => quickSession === true);
     if (quick !== undefined) this.select(quick.sessionKey);
   }
 
   async keepQuickSession(destination: string): Promise<void> {
-    const response = await mutate("/v2/quick-session/keep", "POST", { destination }) as { pending?: boolean };
-    if (response.pending === true) await waitForQuickSession((session) => session === undefined);
+    const response = await mutate("/v2/quick-session/keep", "POST", { destination }) as QuickSessionResponse;
+    if (response.action?.status === "pending") await this.waitForQuickSession((session) => session === undefined);
     await this.refresh();
+  }
+
+  async cancelQuickSessionAction(): Promise<void> {
+    await mutate("/v2/quick-session/cancel", "POST", {});
+    this.updateRpcState({ quickSessionAction: undefined });
+    await this.refresh();
+  }
+
+  private async waitForQuickSession(done: (session: SavedSession | undefined) => boolean): Promise<void> {
+    for (;;) {
+      const response = await request<QuickSessionResponse>("/v2/quick-session");
+      if (response.action?.status === "failed") {
+        this.updateRpcState({ quickSessionAction: { type: response.action.type, status: "failed", error: response.action.error ?? "Quick Session action failed." } });
+        throw new Error(response.action.error ?? "Quick Session action failed.");
+      }
+      if (done(response.session)) { this.updateRpcState({ quickSessionAction: undefined }); return; }
+      if (response.action?.status === "pending") this.updateRpcState({ quickSessionAction: { type: response.action.type, status: "pending" } });
+      else { this.updateRpcState({ quickSessionAction: undefined }); return; }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
   }
 
   async getPiStationSettings(): Promise<PiStationSettings> { return (await request<{ settings: PiStationSettings }>("/v2/settings")).settings; }
@@ -1111,14 +1131,7 @@ export class ApplicationClient extends ApplicationClientBase {
   }
 }
 
-async function waitForQuickSession(done: (session: SavedSession | undefined) => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 480; attempt += 1) {
-    const response = await request<{ session?: SavedSession }>("/v2/quick-session");
-    if (done(response.session)) return;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error("The pending Quick Session action did not finish.");
-}
+interface QuickSessionResponse { readonly session?: SavedSession; readonly action?: { readonly type: "clear" | "keep"; readonly status: "pending" | "failed"; readonly error?: string } }
 
 function projectSummary(project: Project): ProjectSummary {
   return {
