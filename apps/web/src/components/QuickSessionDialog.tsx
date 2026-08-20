@@ -47,17 +47,17 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
       if (!next && scrollRef.current) savedScroll.current = scrollRef.current.scrollTop;
       onOpenChange(next);
     }}>
-      <DialogContent className="quick-session-dialog" aria-describedby={undefined}>
-        <DialogHeader className="quick-session-dialog-header">
-          <DialogTitle>Quick Session</DialogTitle>
+      <DialogContent className="quick-session-dialog gap-0 overflow-hidden p-0 sm:max-w-none" aria-describedby={undefined}>
+        <DialogHeader className="quick-session-dialog-header flex-row gap-1 text-left">
+          <DialogTitle className="sr-only">Quick Session</DialogTitle>
           <span className="quick-session-dialog-actions">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Quick Session actions" />}><Ellipsis aria-hidden="true" size={18} /></DropdownMenuTrigger>
               <DropdownMenuContent className="z-[90] bg-popover" positionerClassName="z-[90]" align="end">
-                <DropdownMenuItem onClick={() => setClearOpen(true)}>Clear Session</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setKeepOpen(true)}>Keep Session</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setClearOpen(true)}>Clear</Button>
             <DialogCloseButton />
           </span>
         </DialogHeader>

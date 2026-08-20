@@ -3075,20 +3075,22 @@ export function Workspace({
           </button>
           <div className="session-heading">
             <span className="session-heading-copy">
-              <span className="session-title">
+              {!embeddedSession && <span className="session-title">
                 <i className={working ? "working" : ""} />
                 <span className="session-title-text">
                   {state.selected.details?.name ??
                     selectedSummary?.name ??
                     "Session"}
                 </span>
-              </span>
+              </span>}
               <small>
-                {selectedProject?.name ??
-                  state.selected.details?.currentDirectoryDisplay ??
-                  selectedSummary?.displayPath ??
-                  "Synchronizing"}
-                {" · "}
+                {!embeddedSession && <>
+                  {selectedProject?.name ??
+                    state.selected.details?.currentDirectoryDisplay ??
+                    selectedSummary?.displayPath ??
+                    "Synchronizing"}
+                  {" · "}
+                </>}
                 {state.selected.details?.model?.modelId ?? "gpt-5.6-sol"}
                 {" · "}
                 {state.selected.details?.thinkingLevel ?? "Medium"}

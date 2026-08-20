@@ -4025,21 +4025,21 @@ body.sidebar-resizing {
 .quick-session-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(960px, calc(100vw - 48px));
-  height: 85dvh;
+  width: min(800px, calc(100vw - 48px));
+  height: 75dvh;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--page);
-  box-shadow: 0 24px 80px rgb(0 0 0 / 35%);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%);
 }
 .quick-session-dialog-header {
   z-index: 2;
-  min-height: 58px;
-  justify-content: space-between;
+  min-height: 52px;
+  justify-content: flex-end;
   border-bottom: 1px solid var(--border);
-  padding: 8px 12px 8px 20px;
-  background: var(--page);
+  padding: 8px 12px;
+  background: var(--background);
 }
 .quick-session-dialog-actions { display: flex; align-items: center; gap: 4px; }
 .quick-session-dialog-body { position: relative; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--page); }

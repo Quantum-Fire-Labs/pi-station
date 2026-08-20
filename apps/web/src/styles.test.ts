@@ -49,9 +49,10 @@ describe("composer width", () => {
 });
 
 describe("Quick Session modal", () => {
-  it("uses an opaque 960px desktop surface without backdrop blur", () => {
-    expect(styles).toMatch(/\.quick-session-dialog\s*{[^}]*width: min\(960px, calc\(100vw - 48px\)\);[^}]*height: 85dvh;[^}]*background: var\(--page\);/s);
-    expect(dialogSource).toContain("z-[80] bg-black/45");
+  it("uses a compact opaque desktop surface without backdrop blur", () => {
+    expect(styles).toMatch(/\.quick-session-dialog\s*{[^}]*width: min\(800px, calc\(100vw - 48px\)\);[^}]*height: 75dvh;[^}]*border-radius: var\(--radius-lg\);[^}]*background: var\(--background\);/s);
+    expect(dialogSource).toContain("z-[80] bg-black/50");
+    expect(dialogSource).toContain("rounded-lg border border-border bg-background p-6");
     expect(dialogSource).not.toContain("backdrop-blur");
   });
 

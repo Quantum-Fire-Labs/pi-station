@@ -66,9 +66,24 @@ async function openDialog() { await userEvent.click(screen.getByRole("button", {
 async function openActions() { fireEvent.click(screen.getByRole("button", { name: "Quick Session actions" })); await screen.findByRole("menu"); }
 
 describe("QuickSessionDialog", () => {
-  it("clears after confirmation and keeps the modal open", async () => {
-    render(<Harness />); await openDialog(); await openActions(); await userEvent.click(screen.getByRole("menuitem", { name: "Clear Session" }));
-    await userEvent.click(screen.getByRole("button", { name: "Clear Session" }));
+  it("hides the Quick Session title, Session name, and file path", async () => {
+    render(<Harness />);
+    const dialog = await openDialog();
+    expect(within(dialog).getByRole("heading", { name: "Quick Session" })).toHaveClass("sr-only");
+    const sessionHeader = dialog.querySelector(".session-header")!;
+    expect(sessionHeader).not.toHaveTextContent("Workspace shell");
+    expect(sessionHeader).not.toHaveTextContent("~/workspace/pi-station");
+    expect(sessionHeader).toHaveTextContent("gpt-5.6-sol · medium");
+  });
+
+  it("shows Clear between the actions and close buttons, then clears after confirmation", async () => {
+    render(<Harness />); const dialog = await openDialog();
+    const actions = within(dialog).getByRole("button", { name: "Quick Session actions" });
+    const clear = within(dialog).getByRole("button", { name: "Clear" });
+    const close = within(dialog).getByRole("button", { name: "Close Quick Session" });
+    expect(actions.compareDocumentPosition(clear) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(clear.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(clear); await userEvent.click(screen.getByRole("button", { name: "Clear Session" }));
     expect(mock.clear).toHaveBeenCalledOnce(); expect(screen.getByRole("dialog", { name: "Quick Session" })).toBeVisible();
   });
 
