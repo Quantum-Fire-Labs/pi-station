@@ -350,10 +350,64 @@ textarea:focus-visible {
   border-right: 1px solid var(--line);
   background: var(--page);
 }
+.sidebar-header {
+  display: flex;
+  height: 52px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 0 20px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+.sidebar-header button,
+.sidebar-expand-control {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+}
+.sidebar-header button:hover,
+.sidebar-expand-control:hover { background: var(--raised); color: var(--text); }
+.sidebar-resize-handle {
+  position: fixed;
+  z-index: 31;
+  inset: 0 auto 0 calc(var(--rail) - 4px);
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sidebar-resize-handle::after {
+  position: absolute;
+  inset: 0 auto 0 3px;
+  width: 2px;
+  background: transparent;
+  content: "";
+}
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:focus-visible::after { background: var(--accent); }
+.sidebar-expand-control {
+  position: fixed;
+  z-index: 32;
+  top: 12px;
+  left: 12px;
+  border: 1px solid var(--line);
+  background: var(--page);
+}
+body.sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
 .project-list {
   flex: 1;
   overflow: auto;
-  padding: 22px 14px;
+  padding: 14px;
 }
 .project {
   margin: 0 0 16px;
@@ -3712,7 +3766,9 @@ textarea:focus-visible {
   .shared-markdown-editor > header > div { max-width: 35%; }
   .shared-markdown-editor nav a { font-size: 0; }
   .shared-markdown-editor nav a svg { width: 17px; height: 17px; }
-  .sidebar {
+  .sidebar,
+  .sidebar-resize-handle,
+  .sidebar-expand-control {
     display: none;
   }
   .details-open .session {
