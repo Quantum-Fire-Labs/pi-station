@@ -4,6 +4,16 @@ import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
+describe("composer width", () => {
+  it("uses a separate 960px composer width and keeps the Timeline width", () => {
+    expect(styles).toContain("--content: 760px;");
+    expect(styles).toContain("--composer-content: 960px;");
+    expect(styles).toMatch(/\.composer\s*{[^}]*var\(--composer-content\)/s);
+    expect(styles).toMatch(/\.follow-up-queue\s*{[^}]*var\(--composer-content\)/s);
+    expect(styles).toMatch(/\.voice-mode\s*{[^}]*var\(--composer-content\)/s);
+  });
+});
+
 describe("iOS-safe status animations", () => {
   it("keeps status animations usable when reduced motion is reported", () => {
     expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.initial-connection-mark\s*{[^}]*animation: initial-connection-spin 900ms linear infinite !important;/);
