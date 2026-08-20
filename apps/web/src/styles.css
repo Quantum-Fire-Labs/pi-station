@@ -1048,7 +1048,6 @@ textarea:focus-visible {
   right: 0;
   bottom: 0;
   left: var(--rail);
-  background: color-mix(in srgb, var(--page) 93%, transparent);
   padding: 10px 28px max(8px, env(safe-area-inset-bottom));
   backdrop-filter: blur(16px);
 }
