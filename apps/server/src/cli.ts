@@ -7,6 +7,7 @@ import { createSdkSessionRuntime } from "./session-runtime.js"
 import { PublicSessionIndex } from "./domain.js"
 import { LOCAL_ORIGIN, WEB_ORIGIN } from "./http.js"
 import { normalizeSharedFileOrigin, SharedFileService } from "./shared-files.js"
+import { ProjectStore } from "./project-store.js"
 import { SessionDefaultsStore } from "./session-defaults.js"
 import { SessionMetadataStore } from "./session-metadata.js"
 import { createPiStationServer, listenLocal, shutdownPiStationServer } from "./server.js"
@@ -27,6 +28,7 @@ const delegationStore = new DelegationStore(dataDir)
 const sessionMetadata = new SessionMetadataStore(dataDir)
 const sessionDefaults = new SessionDefaultsStore(dataDir)
 const scheduledJobStore = new ScheduledJobStore(dataDir)
+const projectStore = new ProjectStore(dataDir)
 const settingsStore = new SettingsStore(dataDir)
 const scheduledJobAgentBridge = new ScheduledJobAgentBridge()
 const modelRuntime = await ModelRuntime.create()
@@ -64,6 +66,7 @@ const server = createPiStationServer({
     sharedFiles: { directory: sharedFiles.directory, origins: sharedOrigins },
     scheduledJobs: scheduledJobAgentBridge,
     agentMessaging,
+    listProjects: () => projectStore.read(),
   }),
   delegationStore,
   delegationEvents,
