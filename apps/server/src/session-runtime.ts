@@ -14,6 +14,7 @@ import type { Project } from "@pi-station/application-protocol"
 import type { AgentMessagingBridge } from "./agent-messaging.js"
 import type { SessionMoveAgentBridge } from "./session-moves.js"
 import type { DelegationEvents, DelegationRecord } from "./delegations.js"
+import type { NewAgentInProjectBridge } from "./new-agent-in-project.js"
 import { DEFAULT_SESSION_DEFAULTS, type SessionDefaults } from "./session-defaults.js"
 import { DELEGATION_REPORT_CUSTOM_TYPE, type DelegationReportStatus } from "./delegation-report.js"
 import { sharedFileInstructions, type SharedFileOrigins } from "./shared-files.js"
@@ -165,6 +166,7 @@ export interface SdkSessionRuntimeOptions {
   readonly agentMessaging?: AgentMessagingBridge
   readonly listProjects?: () => Promise<readonly Project[]>
   readonly sessionMoves?: SessionMoveAgentBridge
+  readonly newAgentInProject?: NewAgentInProjectBridge
 }
 
 export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options: SdkSessionRuntimeOptions = {}): SessionRuntime {
@@ -573,6 +575,9 @@ async function createSdkSession(input: {
   const projectListingTools = input.projectId === undefined || options.listProjects === undefined
     ? []
     : listProjectsTools(options.listProjects, input.projectId, input.delegated === true)
+  const newAgentTools = input.projectId === undefined || options.newAgentInProject === undefined
+    ? []
+    : newAgentInProjectTools(options.newAgentInProject, input.delegated === true)
   const sharedFiles = options.sharedFiles
   const resourceLoader = sharedFiles === undefined ? undefined : new DefaultResourceLoader({
     cwd: input.cwd,
@@ -587,7 +592,7 @@ async function createSdkSession(input: {
   const { session } = await createAgentSession({
     cwd: input.cwd,
     sessionManager,
-    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...sessionMoveTools, ...scheduledJobTools, ...projectListingTools],
+    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...sessionMoveTools, ...scheduledJobTools, ...projectListingTools, ...newAgentTools],
     ...(resourceLoader === undefined ? {} : { resourceLoader }),
     ...(options.modelRuntime === undefined ? {} : { modelRuntime: options.modelRuntime }),
     excludeTools: input.delegated === true
@@ -596,6 +601,27 @@ async function createSdkSession(input: {
   })
   parent.session = session
   return session
+}
+
+export function newAgentInProjectTools(bridge: NewAgentInProjectBridge, delegated = false) {
+  if (delegated) return []
+  return [defineTool({
+    name: "new_agent_in_project",
+    label: "New agent in Project",
+    description: "Start a new independent top-level agent Session in a specified Pi Station Project. It uses the Project working directory and default model settings, and it immediately receives the prompt. It is not a delegated agent.",
+    parameters: Type.Object({
+      projectId: Type.String({ minLength: 1, maxLength: 200, description: "Exact Project ID" }),
+      name: Type.String({ minLength: 1, maxLength: 120, description: "Session name" }),
+      prompt: Type.String({ minLength: 1, maxLength: 100_000, description: "Complete initial prompt" }),
+    }, { additionalProperties: false }),
+    execute: async (_toolCallId, parameters) => {
+      const result = await bridge.invoke(parameters)
+      return {
+        content: [{ type: "text" as const, text: `Started top-level Session ${result.sessionId} in Project ${result.projectId}` }],
+        details: result,
+      }
+    },
+  })]
 }
 
 export function listProjectsTools(listProjects: () => Promise<readonly Project[]>, currentProjectId: string, delegated = false) {
