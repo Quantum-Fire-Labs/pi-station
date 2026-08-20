@@ -4,6 +4,7 @@ import { readdir, readFile, realpath, stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, dirname, extname, relative, resolve, sep } from "node:path"
 import { SessionManager } from "@earendil-works/pi-coding-agent"
+import { initializeEmptySession } from "./empty-session.js"
 import type { AgentMessagingBridge } from "./agent-messaging.js"
 import type { NewAgentInProjectBridge } from "./new-agent-in-project.js"
 import type { SessionRuntime } from "./session-runtime.js"
@@ -815,8 +816,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         if (!isOptionalSessionNameRequest(value)) throw new HttpError(400, "Session request is invalid")
         const sessionId = randomUUID()
         const manager = SessionManager.create(project.root, undefined, { id: sessionId })
-        manager.appendCustomEntry("pi-station-empty-session")
-        if (value.name !== undefined) manager.appendSessionInfo(value.name)
+        initializeEmptySession(manager, value.name)
         const indexed = await options.index.refreshSession({ projectId, sessionId }, project)
         if (indexed === undefined) throw new Error("Created Session was not indexed")
         await metadata.set({ projectId, sessionId }, "open")
