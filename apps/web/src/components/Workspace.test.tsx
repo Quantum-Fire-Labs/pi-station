@@ -55,6 +55,64 @@ const swipe = (
 };
 
 describe("Workspace", () => {
+  it("shows the default desktop sidebar and can collapse and expand it", async () => {
+    enableDesktopViewport();
+    const { container } = render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    expect(container.querySelector(".workspace")).toHaveStyle("--rail: 408px");
+    await userEvent.click(screen.getByRole("button", { name: "Hide sidebar" }));
+    expect(screen.queryByRole("complementary", { name: "Projects and Sessions" })).not.toBeInTheDocument();
+    expect(container.querySelector(".workspace")).toHaveStyle("--rail: 0px");
+
+    await userEvent.click(screen.getByRole("button", { name: "Show sidebar" }));
+    expect(screen.getByRole("complementary", { name: "Projects and Sessions" })).toBeVisible();
+    expect(container.querySelector(".workspace")).toHaveStyle("--rail: 408px");
+  });
+
+  it("toggles the desktop sidebar with Control+B and rejects extra modifiers", () => {
+    enableDesktopViewport();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    const incompatible = new KeyboardEvent("keydown", { key: "b", ctrlKey: true, shiftKey: true, cancelable: true });
+    fireEvent(window, incompatible);
+    expect(incompatible.defaultPrevented).toBe(false);
+    expect(screen.getByRole("button", { name: "Hide sidebar" })).toBeVisible();
+
+    const toggle = new KeyboardEvent("keydown", { key: "b", ctrlKey: true, cancelable: true });
+    fireEvent(window, toggle);
+    expect(toggle.defaultPrevented).toBe(true);
+    expect(screen.getByRole("button", { name: "Show sidebar" })).toBeVisible();
+  });
+
+  it("resizes the desktop sidebar within its limits with pointer and keyboard input", () => {
+    enableDesktopViewport();
+    const { container } = render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    const separator = screen.getByRole("separator", { name: "Resize sidebar" });
+
+    fireEvent.pointerDown(separator, { button: 0, clientX: 408 });
+    fireEvent.pointerMove(window, { clientX: 900 });
+    expect(container.querySelector(".workspace")).toHaveStyle("--rail: 500px");
+    fireEvent.pointerMove(window, { clientX: 100 });
+    expect(container.querySelector(".workspace")).toHaveStyle("--rail: 280px");
+    fireEvent.pointerUp(window);
+
+    fireEvent.keyDown(separator, { key: "End" });
+    expect(separator).toHaveAttribute("aria-valuenow", "500");
+    fireEvent.keyDown(separator, { key: "Home" });
+    expect(separator).toHaveAttribute("aria-valuenow", "280");
+  });
+
+  it("does not add sidebar controls to the mobile layout", () => {
+    enableMobileViewport();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    expect(screen.getByRole("separator", { name: "Resize sidebar" })).toHaveClass("sidebar-resize-handle");
+    expect(screen.queryByRole("button", { name: "Show sidebar" })).not.toBeInTheDocument();
+    const shortcut = new KeyboardEvent("keydown", { key: "b", ctrlKey: true, cancelable: true });
+    fireEvent(window, shortcut);
+    expect(shortcut.defaultPrevented).toBe(false);
+  });
+
   it("shows a dedicated initial connection screen instead of a false Session", () => {
     render(
       <Workspace
