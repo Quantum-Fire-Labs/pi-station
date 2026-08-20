@@ -1616,7 +1616,8 @@ describe("Workspace", () => {
         onCommand={onCommand}
       />,
     );
-    await user.selectOptions(screen.getByRole("combobox", { name: "Message delivery" }), "prompt.follow-up");
+    await user.click(screen.getByRole("combobox", { name: "Message delivery" }));
+    await user.click(screen.getByRole("option", { name: "Follow up" }));
     await user.type(screen.getByLabelText("Message Pi"), "Review this next");
     await user.click(screen.getByRole("button", { name: "Send message" }));
     expect(onCommand).toHaveBeenCalledWith({
@@ -2023,8 +2024,8 @@ describe("Workspace", () => {
       .toBeVisible();
     expect(screen.getByText("Session ID")).toBeVisible();
     expect(screen.getByText("Project").parentElement?.nextElementSibling).toBe(screen.getByText("Updated").parentElement);
-    expect(screen.getByText("Model").parentElement?.nextElementSibling).toBe(screen.getByText("Thinking").parentElement);
-    expect(screen.queryByText("Session settings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Model")).not.toBeInTheDocument();
+    expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
     const projectFact = screen.getByText("Project").parentElement;
     expect(projectFact).not.toBeNull();
     expect(within(projectFact!).getByRole("button", { name: fixtureState.projects[0]!.name })).toBeVisible();
@@ -2048,22 +2049,8 @@ describe("Workspace", () => {
       name: "Renamed Session",
     });
 
-    await user.click(screen.getByRole("button", { name: "Change model" }));
-    await user.selectOptions(screen.getByLabelText("Model"), "anthropic:claude-sonnet-4-5");
-    await user.click(screen.getByRole("button", { name: "Apply" }));
-    expect(onCommand).toHaveBeenCalledWith({
-      kind: "session.model.set",
-      provider: "anthropic",
-      modelId: "claude-sonnet-4-5",
-    });
-
-    await user.click(screen.getByRole("button", { name: "Change thinking level" }));
-    await user.selectOptions(screen.getByLabelText("Thinking level"), "high");
-    await user.click(screen.getByRole("button", { name: "Apply" }));
-    expect(onCommand).toHaveBeenCalledWith({
-      kind: "session.thinking.set",
-      level: "high",
-    });
+    expect(screen.queryByRole("button", { name: "Change model" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change thinking level" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Close Session" }));
     const confirmation = screen.getByRole("dialog", { name: "Close Workspace shell?" });

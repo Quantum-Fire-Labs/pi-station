@@ -41,6 +41,7 @@ import { sessionKeysEqual } from "../application/application-client-base";
 import type { ApplicationClient } from "../application/application-client";
 import { AgentMentionMenu, agentMentionLabel, filterAgentMentions, type AgentMentionOption } from "./AgentMentionMenu";
 import { CommandPalette } from "./CommandPalette";
+import { ComposerControls } from "./ComposerControls";
 import { FeedItem, isThinkingPlaceholder } from "./Timeline";
 import type { SharedMarkdownFile } from "./SharedMarkdownEditor";
 import { Modal } from "./Modal";
@@ -2210,7 +2211,7 @@ export function Workspace({
   const submitted = submittedRequestId === undefined
     ? undefined
     : state.commands?.[submittedRequestId];
-  const commandPending = submitted?.status === "queued" || submitted?.status === "accepted";
+  const commandPending = submitted?.status === "queued" || submitted?.status === "accepted" || sessionSettingPending;
 
   useEffect(() => {
     if (submittedRequestId === undefined || submitted === undefined) return
@@ -2975,7 +2976,7 @@ export function Workspace({
     if (onLoadEarlier?.()) historyScrollAnchor.current = anchor;
   };
 
-  const composerFeedback = voiceError ?? promptError ?? attachmentError;
+  const composerFeedback = sessionSettingError ?? (sessionSettingPending ? "Applying Session setting…" : undefined) ?? voiceError ?? promptError ?? attachmentError;
 
   return (
     <>
@@ -3197,13 +3198,13 @@ export function Workspace({
           {voiceMode ? (
             <section className="voice-mode" aria-label="Voice mode">
               {composerFeedback !== undefined && <p className="composer-feedback" role="alert" title={composerFeedback}>{composerFeedback}</p>}
-              <header><button className="voice-mode-icon-action" type="button" aria-label="Switch to typing mode" title="Switch to typing mode" onClick={() => { setVoiceMode(false); localStorage.setItem("pi-station:composer-mode", "text"); }}><Keyboard aria-hidden="true" size={18} /></button></header>
-              <button className="voice-mode-record" type="button" disabled={!commandAvailable || commandPending || voiceState === "transcribing"} data-state={voiceState} aria-label={voiceState === "recording" ? "Stop and send recording" : voiceState === "transcribing" ? "Transcribing and sending recording" : voiceState === "playing" ? "Stop response" : "Start recording"} onClick={() => { if (voiceState === "recording") stopVoiceRecording(true); else if (voiceState === "playing") stopSpeech(); else void startVoiceRecording(true); }}>
+              <header><Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" aria-label="Switch to typing mode" title="Switch to typing mode" onClick={() => { setVoiceMode(false); localStorage.setItem("pi-station:composer-mode", "text"); }}><Keyboard aria-hidden="true" size={18} /></Button></header>
+              <Button className="voice-mode-record" variant="ghost" type="button" disabled={!commandAvailable || commandPending || voiceState === "transcribing"} data-state={voiceState} aria-label={voiceState === "recording" ? "Stop and send recording" : voiceState === "transcribing" ? "Transcribing and sending recording" : voiceState === "playing" ? "Stop response" : "Start recording"} onClick={() => { if (voiceState === "recording") stopVoiceRecording(true); else if (voiceState === "playing") stopSpeech(); else void startVoiceRecording(true); }}>
                 <span className="voice-mode-record-icon" aria-hidden="true">{voiceState === "transcribing" ? <LoaderCircle className="composer-spinner" size={38} /> : voiceState === "recording" || voiceState === "playing" ? <Square size={33} /> : <Mic size={38} />}</span>
-              </button>
+              </Button>
               <footer>
-                <select aria-label="Message delivery" value={workingDelivery} disabled={!working || voiceState !== "idle"} onChange={(event) => setWorkingDelivery(event.target.value as "prompt.steer" | "prompt.follow-up")}><option value="prompt.steer">{working ? "Steer now" : "Send now"}</option><option value="prompt.follow-up">Follow up</option></select>
-                <button className="voice-mode-icon-action" type="button" role="switch" aria-checked={voiceAutoplay} aria-label={`Auto-play ${voiceAutoplay ? "on" : "off"}`} title={`Auto-play ${voiceAutoplay ? "on" : "off"}`} onClick={() => setVoiceAutoplay((value) => !value)}>{voiceAutoplay ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}</button>
+                <ComposerControls details={state.selected.details} delivery={workingDelivery} working={working} disabled={commandPending || voiceState !== "idle"} canChangeModel={capabilities.includes("session.model.set")} canChangeThinking={capabilities.includes("session.thinking.set")} onSetModel={(provider, modelId) => { const id = onCommand?.({ kind: "session.model.set", provider, modelId }); if (id !== undefined) setSessionSettingRequestId(id); }} onSetThinking={(level) => { const id = onCommand?.({ kind: "session.thinking.set", level }); if (id !== undefined) setSessionSettingRequestId(id); }} onSetDelivery={setWorkingDelivery} />
+                <Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" role="switch" aria-checked={voiceAutoplay} aria-label={`Auto-play ${voiceAutoplay ? "on" : "off"}`} title={`Auto-play ${voiceAutoplay ? "on" : "off"}`} onClick={() => setVoiceAutoplay((value) => !value)}>{voiceAutoplay ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}</Button>
               </footer>
             </section>
           ) : <form
@@ -3302,31 +3303,22 @@ export function Workspace({
             />
             <div>
               <span>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   disabled={!commandAvailable || commandPending || images.length >= 4}
-                  aria-label="Attach images"
+                  aria-label="Attach files"
                   onClick={() => fileInput.current?.click()}
                 >
                   <Paperclip aria-hidden="true" size={17} />
-                </button>
-                {working ? (
-                  <label className="composer-delivery">
-                    <span className="sr-only">Message delivery</span>
-                    <select
-                      aria-label="Message delivery"
-                      value={workingDelivery}
-                      disabled={commandPending}
-                      onChange={(event) => setWorkingDelivery(event.target.value as "prompt.steer" | "prompt.follow-up")}
-                    >
-                      <option value="prompt.steer">Steer now</option>
-                      <option value="prompt.follow-up">Follow up</option>
-                    </select>
-                  </label>
-                ) : <span>Send now</span>}
+                </Button>
+                <ComposerControls details={state.selected.details} delivery={workingDelivery} working={working} disabled={commandPending} canChangeModel={capabilities.includes("session.model.set")} canChangeThinking={capabilities.includes("session.thinking.set")} onSetModel={(provider, modelId) => { const id = onCommand?.({ kind: "session.model.set", provider, modelId }); if (id !== undefined) setSessionSettingRequestId(id); }} onSetThinking={(level) => { const id = onCommand?.({ kind: "session.thinking.set", level }); if (id !== undefined) setSessionSettingRequestId(id); }} onSetDelivery={setWorkingDelivery} />
               </span>
               <span className="composer-primary-actions">
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className={voiceState === "recording" ? "recording" : voiceState === "transcribing" ? "processing" : ""}
                   type="button"
                   disabled={!commandAvailable || commandPending || !voiceConfiguration.configured || voiceState === "transcribing"}
@@ -3335,7 +3327,7 @@ export function Workspace({
                   onClick={() => voiceState === "recording" ? stopVoiceRecording(true) : void startVoiceRecording(false)}
                 >
                   {voiceState === "recording" ? <Square aria-hidden="true" size={15} /> : voiceState === "transcribing" ? <LoaderCircle className="composer-spinner" aria-hidden="true" size={18} /> : <Mic aria-hidden="true" size={18} />}
-                </button>
+                </Button>
                 <button
                   type={draft.trim().length === 0 && images.length === 0 && files.length === 0 ? "button" : "submit"}
                   disabled={!commandAvailable || commandPending || voiceState !== "idle" || images.some((image) => image.status !== "ready") || files.some((file) => file.status !== "ready") || (!voiceConfiguration.configured && draft.trim().length === 0 && images.length === 0 && files.length === 0)}
@@ -3387,20 +3379,11 @@ export function Workspace({
           canRenameSession={state.selected.projection?.capabilities.some(
             (capability) => capability === "session.rename",
           ) ?? false}
-          canChangeModel={state.selected.projection?.capabilities.some(
-            (capability) => capability === "session.model.set",
-          ) ?? false}
-          canChangeThinking={state.selected.projection?.capabilities.some(
-            (capability) => capability === "session.thinking.set",
-          ) ?? false}
           settingSaving={sessionSettingPending}
           reloadSaving={reloadSessionPending}
           {...(reloadSessionError === undefined
             ? {}
             : { reloadError: reloadSessionError })}
-          {...(sessionSettingError === undefined
-            ? {}
-            : { settingError: sessionSettingError })}
           {...(detailsBookmarkMutation?.result?.status === "rejected"
             || detailsBookmarkMutation?.result?.status === "retryable"
             ? { bookmarkError: detailsBookmarkMutation.result.error.message }
@@ -3461,18 +3444,6 @@ export function Workspace({
           }}
           onRenameSession={(name) => {
             const requestId = onCommand?.({ kind: "session.rename", name });
-            if (requestId !== undefined) setSessionSettingRequestId(requestId);
-          }}
-          onSetModel={(provider, modelId) => {
-            const requestId = onCommand?.({
-              kind: "session.model.set",
-              provider,
-              modelId,
-            });
-            if (requestId !== undefined) setSessionSettingRequestId(requestId);
-          }}
-          onSetThinking={(level) => {
-            const requestId = onCommand?.({ kind: "session.thinking.set", level });
             if (requestId !== undefined) setSessionSettingRequestId(requestId);
           }}
           onOpenProject={() => {
