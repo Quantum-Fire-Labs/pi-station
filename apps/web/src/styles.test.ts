@@ -71,16 +71,17 @@ describe("sidebar Session status indicator", () => {
     expect(styles).toMatch(/@media \(prefers-color-scheme: dark\)[\s\S]*:root:not\(\[data-appearance\]\)[^{]*\{[^}]*--session-status-idle: #94a3b8;/);
   });
 
-  it("keeps idle and unread static while working uses two pulse rings", () => {
-    expect(styles).toMatch(/\.session-status-indicator\s*{[^}]*box-shadow: none;/s);
-    expect(styles).toMatch(/\.session-status-indicator\.status-unread\s*{[^}]*background: var\(--session-status-unread\);/s);
-    expect(styles).toMatch(/\.status-working::before,\s*\.session-row \.session-status-indicator\.status-working::after\s*{[^}]*animation: session-status-pulse/s);
-    expect(styles).toContain("@keyframes session-status-pulse");
+  it("keeps idle and unread static while working uses one close breathing halo", () => {
+    expect(styles).toMatch(/\.session-status-indicator\s*\{[^}]*box-shadow: none;/s);
+    expect(styles).toMatch(/\.session-status-indicator\.status-unread\s*\{[^}]*background: var\(--session-status-unread\);/s);
+    expect(styles).toMatch(/\.status-working::before\s*\{[^}]*inset: -2px;[^}]*animation: session-status-breathe 1\.8s ease-in-out infinite;/s);
+    expect(styles).toMatch(/@keyframes session-status-breathe\s*\{[^}]*scale\(0\.9\)[^}]*\}[^}]*scale\(1\.12\)/s);
+    expect(styles).not.toContain("session-status-pulse");
+    expect(styles).not.toMatch(/\.status-working::after/);
     expect(styles).not.toMatch(/\.status-(?:idle|unread)[^{]*\{[^}]*(?:animation|box-shadow):/s);
   });
 
-  it("replaces motion with one static working halo", () => {
-    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.status-working::before\s*{[^}]*animation: none;/);
-    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.status-working::after\s*{[^}]*display: none;[^}]*animation: none;/);
+  it("replaces breathing motion with one static working halo", () => {
+    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.status-working::before\s*\{[^}]*opacity: 0\.38;[^}]*transform: scale\(1\);[^}]*animation: none;/);
   });
 });
