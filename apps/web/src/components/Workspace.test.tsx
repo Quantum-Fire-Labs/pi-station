@@ -1530,9 +1530,33 @@ describe("Workspace", () => {
     expect(screen.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
   });
 
+  it("opens and closes the mobile Session settings menu without removing the app", async () => {
+    enableMobileViewport();
+    const user = userEvent.setup();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Session and delivery settings" }));
+
+    const menu = await screen.findByRole("menu");
+    expect(menu).toBeVisible();
+    expect(within(menu).getByText(/Model ·/)).toBeVisible();
+    expect(within(menu).getByText(/Thinking ·/)).toBeVisible();
+    expect(screen.getByRole("region", { name: "Selected Session" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Session and delivery settings" })).toHaveFocus();
+  });
+
   it("enables the composer for a supported synchronized Session", () => {
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
     expect(screen.getByLabelText("Message Pi")).toBeEnabled();
+    const model = screen.getByRole("combobox", { name: "Model: GPT-5.6 Sol" });
+    const thinking = screen.getByRole("combobox", { name: "Thinking level: medium" });
+    expect(model).toHaveTextContent("GPT-5.6 Sol");
+    expect(thinking).toHaveTextContent("Thinking: Medium");
+    expect(model.querySelectorAll("svg")).toHaveLength(1);
+    expect(thinking.querySelectorAll("svg")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Open voice mode" })).toBeDisabled();
     expect(screen.queryByText(/follow the current run/)).not.toBeInTheDocument();
   });
