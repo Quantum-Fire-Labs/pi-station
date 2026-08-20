@@ -1333,6 +1333,8 @@ export function Workspace({
   const previousTimelineLength = useRef(state.selected.timeline.length);
   const initialPaintReported = useRef(false);
   const composerInput = useRef<HTMLTextAreaElement | null>(null);
+  const composerShell = useRef<HTMLElement | null>(null);
+  const sessionContainer = useRef<HTMLElement | null>(null);
   const newSessionNameInput = useRef<HTMLInputElement | null>(null);
   const renameSessionNameInput = useRef<HTMLInputElement | null>(null);
   const focusComposerForSession = useRef<SessionKey | undefined>(undefined);
@@ -1509,6 +1511,25 @@ export function Workspace({
       desktop?.removeEventListener("change", resize);
     };
   }, [draft, route, selectedSessionIdentity, voiceMode]);
+
+  useLayoutEffect(() => {
+    const shell = composerShell.current;
+    const session = sessionContainer.current;
+    if (shell === null || session === null) return;
+
+    const updateSpacing = (): void => {
+      session.style.setProperty("--composer-shell-height", `${shell.getBoundingClientRect().height}px`);
+    };
+    updateSpacing();
+
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(updateSpacing);
+    observer?.observe(shell);
+    window.addEventListener("resize", updateSpacing);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateSpacing);
+    };
+  }, [route, selectedSessionIdentity]);
 
   useEffect(() => {
     const query = window.matchMedia?.("(max-width: 1099px)");
@@ -2872,7 +2893,7 @@ export function Workspace({
     <>
     <main className={`workspace${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}`}>
       {sidebar}
-      <section className="session" aria-label="Selected Session">
+      <section ref={sessionContainer} className="session" aria-label="Selected Session">
         <header className="session-header">
           <button
             className="mobile-back"
@@ -3015,7 +3036,7 @@ export function Workspace({
           )}
         </section>
 
-        <footer className="composer-shell">
+        <footer ref={composerShell} className="composer-shell">
           {showJumpToLatest && (
             <button
               className="jump-to-latest"

@@ -602,7 +602,7 @@ textarea:focus-visible {
   min-height: 100dvh;
   overflow-x: clip;
   margin-left: var(--rail);
-  padding-bottom: 144px;
+  padding-bottom: calc(var(--composer-shell-height, 124px) + 20px);
 }
 .session-header {
   position: sticky;
