@@ -1,9 +1,9 @@
-import { Bot, Brain, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import type { ThinkingLevel } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
 import { Button } from "./ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "./ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 interface ComposerControlsProps {
   details: ApplicationState["selected"]["details"];
@@ -23,7 +23,10 @@ const titleCase = (value: string): string => value === "xhigh" ? "Extra high" : 
 export function ComposerControls(props: ComposerControlsProps) {
   const model = props.details?.model;
   const modelValue = model === undefined ? "" : encodeModel(model.provider, model.modelId);
-  const modelLabel = model?.displayName ?? model?.modelId ?? "Model unavailable";
+  const modelLabel = model?.displayName
+    ?? props.details?.modelInventory?.find((item) => item.provider === model?.provider && item.modelId === model.modelId)?.displayName
+    ?? model?.modelId
+    ?? "Model unavailable";
   const thinking = props.details?.thinkingLevel;
   const settingDisabled = props.disabled;
   const setModel = (value: string | null) => {
@@ -40,15 +43,15 @@ export function ComposerControls(props: ComposerControlsProps) {
   return <>
     <div className="composer-settings-desktop" aria-label="Session settings">
       <Select value={modelValue} onValueChange={setModel} disabled={settingDisabled || !props.canChangeModel}>
-        <SelectTrigger size="sm" aria-label={`Model: ${modelLabel}`} title={`Model: ${modelLabel}`}><Bot aria-hidden="true" /><SelectValue>{modelLabel}</SelectValue></SelectTrigger>
+        <SelectTrigger className="composer-model-trigger" aria-label={`Model: ${modelLabel}`} title={`Model: ${modelLabel}`}><span data-slot="select-value">{modelLabel}</span></SelectTrigger>
         <SelectContent>{props.details?.modelInventory?.map((item) => <SelectItem key={`${item.provider}:${item.modelId}`} value={encodeModel(item.provider, item.modelId)}>{item.displayName ?? item.modelId} · {item.provider}</SelectItem>)}</SelectContent>
       </Select>
       <Select value={thinking ?? ""} onValueChange={setThinking} disabled={settingDisabled || !props.canChangeThinking || !props.details?.supportedThinkingLevels?.length}>
-        <SelectTrigger size="sm" aria-label={`Thinking level: ${thinking ?? "unavailable"}`} title={`Thinking level: ${thinking ?? "unavailable"}`}><Brain aria-hidden="true" /><SelectValue>{thinking === undefined ? "Unavailable" : titleCase(thinking)}</SelectValue></SelectTrigger>
+        <SelectTrigger className="composer-thinking-trigger" aria-label={`Thinking level: ${thinking ?? "unavailable"}`} title={`Thinking level: ${thinking ?? "unavailable"}`}><span data-slot="select-value">Thinking: {thinking === undefined ? "Unavailable" : titleCase(thinking)}</span></SelectTrigger>
         <SelectContent>{props.details?.supportedThinkingLevels?.map((level) => <SelectItem key={level} value={level}>{titleCase(level)}</SelectItem>)}</SelectContent>
       </Select>
       {props.working ? <Select value={props.delivery} onValueChange={(value) => { if (value !== null) props.onSetDelivery(value); }} disabled={props.disabled}>
-        <SelectTrigger size="sm" aria-label="Message delivery"><SelectValue>{props.delivery === "prompt.steer" ? "Steer now" : "Follow up"}</SelectValue></SelectTrigger>
+        <SelectTrigger className="composer-delivery-trigger" aria-label="Message delivery"><span data-slot="select-value">{props.delivery === "prompt.steer" ? "Steer now" : "Follow up"}</span></SelectTrigger>
         <SelectContent><SelectItem value="prompt.steer">Steer now</SelectItem><SelectItem value="prompt.follow-up">Follow up</SelectItem></SelectContent>
       </Select> : <span className="composer-send-mode">Send now</span>}
     </div>
@@ -56,14 +59,20 @@ export function ComposerControls(props: ComposerControlsProps) {
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" aria-label="Session and delivery settings" disabled={settingDisabled} />}><SlidersHorizontal aria-hidden="true" /></DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-64">
-          <DropdownMenuLabel>Model · {modelLabel}</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={modelValue} onValueChange={setModel}>{props.details?.modelInventory?.map((item) => <DropdownMenuRadioItem key={`${item.provider}:${item.modelId}`} value={encodeModel(item.provider, item.modelId)} disabled={!props.canChangeModel}>{item.displayName ?? item.modelId}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Model · {modelLabel}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={modelValue} onValueChange={setModel}>{props.details?.modelInventory?.map((item) => <DropdownMenuRadioItem key={`${item.provider}:${item.modelId}`} value={encodeModel(item.provider, item.modelId)} disabled={!props.canChangeModel}>{item.displayName ?? item.modelId}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>Thinking · {thinking === undefined ? "Unavailable" : titleCase(thinking)}</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={thinking ?? ""} onValueChange={setThinking}>{props.details?.supportedThinkingLevels?.map((level) => <DropdownMenuRadioItem key={level} value={level} disabled={!props.canChangeThinking}>{titleCase(level)}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Thinking · {thinking === undefined ? "Unavailable" : titleCase(thinking)}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={thinking ?? ""} onValueChange={setThinking}>{props.details?.supportedThinkingLevels?.map((level) => <DropdownMenuRadioItem key={level} value={level} disabled={!props.canChangeThinking}>{titleCase(level)}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>Message delivery</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={props.working ? props.delivery : "prompt.send"} onValueChange={(value) => { if (value !== "prompt.send") props.onSetDelivery(value as typeof props.delivery); }}><DropdownMenuRadioItem value="prompt.send" disabled={props.working}>Send now</DropdownMenuRadioItem><DropdownMenuRadioItem value="prompt.steer" disabled={!props.working}>Steer now</DropdownMenuRadioItem><DropdownMenuRadioItem value="prompt.follow-up" disabled={!props.working}>Follow up</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Message delivery</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={props.working ? props.delivery : "prompt.send"} onValueChange={(value) => { if (value !== "prompt.send") props.onSetDelivery(value as typeof props.delivery); }}><DropdownMenuRadioItem value="prompt.send" disabled={props.working}>Send now</DropdownMenuRadioItem><DropdownMenuRadioItem value="prompt.steer" disabled={!props.working}>Steer now</DropdownMenuRadioItem><DropdownMenuRadioItem value="prompt.follow-up" disabled={!props.working}>Follow up</DropdownMenuRadioItem></DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

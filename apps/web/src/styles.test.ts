@@ -12,6 +12,14 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.follow-up-queue\s*{[^}]*var\(--composer-content\)/s);
     expect(styles).toMatch(/\.voice-mode\s*{[^}]*var\(--composer-content\)/s);
   });
+
+  it("does not override all shadcn composer buttons with circular legacy styles", () => {
+    expect(styles).not.toMatch(/\.composer button\s*{/);
+    expect(styles).toMatch(/\.composer-primary-actions > button:last-child\s*{[^}]*border-radius: 50%;/s);
+    expect(styles).toMatch(/\.composer-settings-desktop\s*{[^}]*gap: 10px;/s);
+    expect(styles).toContain(".composer-model-trigger");
+    expect(styles).toContain(".composer-thinking-trigger");
+  });
 });
 
 describe("iOS-safe status animations", () => {
