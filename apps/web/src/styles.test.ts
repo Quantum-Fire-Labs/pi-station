@@ -56,9 +56,9 @@ describe("Quick Session modal", () => {
   });
 
   it("uses a safe-area full-screen mobile layout and a sticky composer", () => {
-    expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*\.quick-session-dialog\s*{[^}]*width: 100vw;[^}]*height: 100dvh;/);
+    expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*\.quick-session-dialog\s*\{[^}]*width: 100vw;[^}]*height: 100dvh;[^}]*translate: 0 0 !important;/);
     expect(styles).toContain("padding-top: env(safe-area-inset-top)");
-    expect(styles).toMatch(/\.quick-session-dialog\s*{[^}]*translate: none;/s);
+    expect(styles).toMatch(/\.quick-session-dialog\s*\{[^}]*translate: 0 0 !important;/s);
     expect(styles).toMatch(/\.quick-session-dialog-body \.embedded-session \.composer-shell\s*{[^}]*position: sticky;/s);
   });
 });

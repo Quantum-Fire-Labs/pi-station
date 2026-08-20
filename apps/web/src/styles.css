@@ -4059,7 +4059,7 @@ body.sidebar-resizing {
     height: 100dvh;
     max-width: none;
     transform: none;
-    translate: none;
+    translate: 0 0 !important;
     border: 0;
     border-radius: 0;
     padding-top: env(safe-area-inset-top);
