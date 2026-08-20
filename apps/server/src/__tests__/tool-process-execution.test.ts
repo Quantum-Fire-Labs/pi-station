@@ -7,7 +7,7 @@ vi.mock("node:crypto", () => ({ randomUUID: () => "fixed-id" }))
 
 describe("SDK tool process isolation", () => {
   it("assigns each bash call to an owned transient service outside the production cgroup", () => {
-    const result = isolateToolProcess({ command: "npm run dev --host 127.0.0.1", cwd: "/workspace/project", env: { PI_SESSION_ID: "session-1" } })
+    const result = isolateToolProcess({ command: "npm run dev --host 127.0.0.1", cwd: "/workspace/project", env: { PI_SESSION_ID: "session-1" } }, "linux")
 
     expect(result.command).toContain("ops/tool-process-supervisor.sh")
     expect(result.command).toContain("pi-station-tool-")
