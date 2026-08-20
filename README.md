@@ -57,7 +57,7 @@ tar -xzf pi-station-VERSION-linux-ARCH.tar.gz -C pi-station-release
 
 The installer creates `pi-station.service` as a user service. It installs application files below `~/.local/share/pi-station/app`, stores application data in `~/.local/share/pi-station`, and stores shared Session files in `~/.pi/agent/pi-station/shared`. It binds the server to loopback and opens the Workspace at `http://127.0.0.1:8801/workspace`.
 
-Run the same installer from a newer release to update. The installer waits for active turns, changes the current release, restarts only Pi Station, checks service health, and confirms that Pi process IDs did not change. If validation fails, it restores the previous release and service configuration.
+Run the same installer from a newer release to update. The installer preserves the existing port, data directories, and public and local origins unless you supply replacement environment variables. It waits for active turns, changes the current release, restarts only Pi Station, checks service health, and confirms that Pi process IDs did not change. If validation fails, it restores the previous release and service configuration.
 
 Configuration is in `~/.config/pi-station/environment`. View service logs with:
 
@@ -86,7 +86,7 @@ tar -xzf pi-station-VERSION-macos-ARCH.tar.gz -C pi-station-release
 
 The installer creates the `works.pistation.server` LaunchAgent. Application files and data are below `~/Library/Application Support/Pi Station`. Logs are in `~/Library/Logs/Pi Station`. The server binds to loopback at `http://127.0.0.1:8801`.
 
-Run the installer from a newer release to update it. If validation fails, the installer restores the previous release and LaunchAgent configuration. To remove the LaunchAgent without removing Pi Station data:
+Run the installer from a newer release to update it. The installer preserves the existing port, data directories, and public and local origins unless you supply replacement environment variables. If validation fails, the installer restores the previous release and LaunchAgent configuration. To remove the LaunchAgent without removing Pi Station data:
 
 ```bash
 launchctl bootout "gui/$UID/works.pistation.server"

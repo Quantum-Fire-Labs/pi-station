@@ -13,16 +13,17 @@ version=$(tr -d '\r\n' < "$source_dir/VERSION")
 [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]] || fail "the release version is invalid"
 
 install_root=${PI_STATION_INSTALL_ROOT:-"$HOME/Library/Application Support/Pi Station/app"}
-data_dir=${PI_STATION_DATA_DIR:-"$HOME/Library/Application Support/Pi Station"}
-shared_root=${PI_STATION_SHARED_ROOT:-"$HOME/.pi/agent/pi-station/shared"}
 version_dir="$install_root/$version"
 current_link="$install_root/current"
 label=works.pistation.server
 agent_file="$HOME/Library/LaunchAgents/$label.plist"
 node_bin=$(command -v node)
-port=${PI_STATION_PORT:-8801}
-local_origin=${PI_STATION_LOCAL_ORIGIN:-"http://127.0.0.1:$port"}
-web_origin=${PI_STATION_WEB_ORIGIN:-"$local_origin"}
+agent_value() { [[ ! -f "$agent_file" ]] || /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:$1" "$agent_file" 2>/dev/null; }
+port=${PI_STATION_PORT:-$(agent_value PI_STATION_PORT || printf '8801')}
+data_dir=${PI_STATION_DATA_DIR:-$(agent_value PI_STATION_DATA_DIR || printf '%s' "$HOME/Library/Application Support/Pi Station")}
+shared_root=${PI_STATION_SHARED_ROOT:-$(agent_value PI_STATION_SHARED_ROOT || printf '%s' "$HOME/.pi/agent/pi-station/shared")}
+local_origin=${PI_STATION_LOCAL_ORIGIN:-$(agent_value PI_STATION_LOCAL_ORIGIN || printf 'http://127.0.0.1:%s' "$port")}
+web_origin=${PI_STATION_WEB_ORIGIN:-$(agent_value PI_STATION_WEB_ORIGIN || printf '%s' "$local_origin")}
 [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || fail "PI_STATION_PORT is invalid"
 xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&apos;/g"; }
 

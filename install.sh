@@ -18,8 +18,6 @@ version=$(tr -d '\r\n' < "$source_dir/VERSION")
 [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]] || fail "the release version is invalid"
 
 install_root=${PI_STATION_INSTALL_ROOT:-"$HOME/.local/share/pi-station/app"}
-data_dir=${PI_STATION_DATA_DIR:-"$HOME/.local/share/pi-station"}
-shared_root=${PI_STATION_SHARED_ROOT:-"$HOME/.pi/agent/pi-station/shared"}
 config_dir=${XDG_CONFIG_HOME:-"$HOME/.config"}/pi-station
 unit_dir=${XDG_CONFIG_HOME:-"$HOME/.config"}/systemd/user
 version_dir="$install_root/$version"
@@ -27,9 +25,23 @@ current_link="$install_root/current"
 unit_file="$unit_dir/pi-station.service"
 environment_file="$config_dir/environment"
 node_bin=$(command -v node)
-port=${PI_STATION_PORT:-8801}
-local_origin=${PI_STATION_LOCAL_ORIGIN:-"http://127.0.0.1:$port"}
-web_origin=${PI_STATION_WEB_ORIGIN:-"$local_origin"}
+environment_value() {
+  node - "$1" "$2" <<'NODE'
+const { existsSync, readFileSync } = require("node:fs")
+const [file, key] = process.argv.slice(2)
+if (!existsSync(file)) process.exit(1)
+const prefix = `${key}=`
+const line = readFileSync(file, "utf8").split(/\r?\n/u).find((entry) => entry.startsWith(prefix))
+if (line === undefined) process.exit(1)
+const raw = line.slice(prefix.length)
+process.stdout.write(raw.startsWith('"') ? JSON.parse(raw) : raw)
+NODE
+}
+port=${PI_STATION_PORT:-$(environment_value "$environment_file" PI_STATION_PORT || printf '8801')}
+data_dir=${PI_STATION_DATA_DIR:-$(environment_value "$environment_file" PI_STATION_DATA_DIR || printf '%s' "$HOME/.local/share/pi-station")}
+shared_root=${PI_STATION_SHARED_ROOT:-$(environment_value "$environment_file" PI_STATION_SHARED_ROOT || printf '%s' "$HOME/.pi/agent/pi-station/shared")}
+local_origin=${PI_STATION_LOCAL_ORIGIN:-$(environment_value "$environment_file" PI_STATION_LOCAL_ORIGIN || printf 'http://127.0.0.1:%s' "$port")}
+web_origin=${PI_STATION_WEB_ORIGIN:-$(environment_value "$environment_file" PI_STATION_WEB_ORIGIN || printf '%s' "$local_origin")}
 unit_quote() { printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"; }
 unit_path() { local value=$1; value=${value//\\/\\x5c}; value=${value//%/%%}; value=${value// /\\x20}; value=${value//$'\t'/\\x09}; printf '%s' "$value"; }
 
