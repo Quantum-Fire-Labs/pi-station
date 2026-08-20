@@ -49,6 +49,11 @@ describe("composer width", () => {
 });
 
 describe("Quick Session modal", () => {
+  it("uses the standard sidebar row design for its trigger", () => {
+    expect(styles).toMatch(/\.quick-session-trigger\s*{[^}]*width: 100%;[^}]*height: 36px;[^}]*border: 0;[^}]*border-radius: 6px;[^}]*background: transparent;[^}]*font: 500 13px var\(--sans\);/s);
+    expect(styles).toMatch(/\.quick-session-trigger:hover\s*{[^}]*background: var\(--raised\);/s);
+  });
+
   it("uses a compact opaque desktop surface without backdrop blur", () => {
     expect(styles).toMatch(/\.quick-session-dialog\s*{[^}]*width: min\(800px, calc\(100vw - 48px\)\);[^}]*height: 65dvh;[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 22px;[^}]*background: var\(--page\);[^}]*animation: none;[^}]*transition: none;/s);
     expect(styles).toMatch(/\.quick-session-dialog-header\s*{[^}]*background: var\(--page\);/s);

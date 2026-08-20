@@ -4015,11 +4015,27 @@ body.sidebar-resizing {
   .settings-link-copy small { white-space: normal; }
 }
 
-.quick-session-section { border-bottom: 1px solid var(--border); padding: .45rem .5rem .65rem; }
-.quick-session-row { display: flex; align-items: center; gap: .25rem; }
-.quick-session-row > .project-name-link { display: flex; flex: 1; align-items: center; gap: .5rem; min-width: 0; }
-.quick-session-menu-trigger { display: grid; place-items: center; border-radius: .375rem; padding: .4rem; }
-.quick-session-section > small { display: block; padding: .3rem .5rem 0; color: var(--muted-foreground); }
+.quick-session-section { margin: 0 0 14px; border-bottom: 1px solid var(--line); padding: 0 0 12px; }
+.quick-session-row { display: flex; align-items: center; }
+.quick-session-trigger {
+  display: flex;
+  width: 100%;
+  height: 36px;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 0 10px;
+  font: 500 13px var(--sans);
+  text-align: left;
+}
+.quick-session-trigger:hover { background: var(--raised); }
+.quick-session-trigger:focus-visible { background: var(--raised); outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: -2px; }
+.quick-session-trigger svg { color: var(--muted); }
+.quick-session-trigger:hover svg { color: var(--accent-strong); }
 
 /* Quick Session keeps its independent chat inside an opaque modal surface. */
 .quick-session-dialog {

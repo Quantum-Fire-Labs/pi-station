@@ -844,7 +844,7 @@ function Sidebar({
       <nav className="project-list">
         <section className="quick-session-section" aria-label="Quick Session">
           <div className="quick-session-row">
-            <button type="button" className="project-name-link" title="Quick Session" onClick={onOpenQuickSession}>
+            <button type="button" className="quick-session-trigger" title="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
               <Zap aria-hidden="true" size={16} />
               <span>Quick Session</span>
             </button>
@@ -1265,6 +1265,17 @@ export function Workspace({
     window.addEventListener("keydown", toggleSidebar);
     return () => window.removeEventListener("keydown", toggleSidebar);
   }, []);
+  useEffect(() => {
+    const openQuickSession = (event: KeyboardEvent): void => {
+      if (event.code !== "Space" || !event.shiftKey || event.altKey || event.isComposing || event.repeat) return;
+      const expectedModifier = /Mac|iPhone|iPad/u.test(navigator.platform) ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+      if (!expectedModifier || onOpenQuickSession === undefined) return;
+      event.preventDefault();
+      onOpenQuickSession();
+    };
+    window.addEventListener("keydown", openQuickSession);
+    return () => window.removeEventListener("keydown", openQuickSession);
+  }, [onOpenQuickSession]);
   useEffect(() => {
     if (!resizingSidebar) return;
     const resize = (event: PointerEvent): void => setSidebarWidth(Math.min(500, Math.max(280, event.clientX)));
@@ -3065,7 +3076,7 @@ export function Workspace({
         </button>
       )}
       <section ref={sessionContainer} className="session" aria-label="Selected Session">
-        <header className="session-header">
+        {!embeddedSession && <header className="session-header">
           <button
             className="mobile-back"
             onClick={() => setRoute("dashboard")}
@@ -3114,7 +3125,7 @@ export function Workspace({
               <Ellipsis aria-hidden="true" size={20} />
             </SheetTrigger>}
           </div>
-        </header>
+        </header>}
 
         <ConnectionNotice state={state} />
 
