@@ -69,9 +69,12 @@ describe("Workspace", () => {
     render(<Workspace state={fixtureState} onSelect={onSelect} onOpenQuickSession={onOpenQuickSession} />);
     const trigger = screen.getByRole("button", { name: "Quick Session" });
     expect(trigger).toHaveAttribute("title", "Quick Session");
+    expect(trigger).toHaveAttribute("aria-keyshortcuts", "Control+Shift+Space Meta+Shift+Space");
     expect(screen.queryByRole("button", { name: "Quick Session actions" })).not.toBeInTheDocument();
     await userEvent.click(trigger);
     expect(onOpenQuickSession).toHaveBeenCalledOnce();
+    fireEvent.keyDown(window, { key: " ", code: "Space", ctrlKey: true, shiftKey: true });
+    expect(onOpenQuickSession).toHaveBeenCalledTimes(2);
     expect(onSelect).not.toHaveBeenCalled();
   });
 

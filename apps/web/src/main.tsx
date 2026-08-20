@@ -243,6 +243,10 @@ function Root() {
       onSetSessionBookmark={setSessionBookmark}
       onReorderSessionBookmark={reorderSessionBookmark}
       onOpenQuickSession={() => {
+        if (quickSessionOpen) {
+          changeQuickSessionOpen(false);
+          return;
+        }
         quickSessionTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setQuickSessionOpen(true);
       }}

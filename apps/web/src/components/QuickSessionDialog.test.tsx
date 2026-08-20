@@ -70,10 +70,8 @@ describe("QuickSessionDialog", () => {
     render(<Harness />);
     const dialog = await openDialog();
     expect(within(dialog).getByRole("heading", { name: "Quick Session" })).toHaveClass("sr-only");
-    const sessionHeader = dialog.querySelector(".session-header")!;
-    expect(sessionHeader).not.toHaveTextContent("Workspace shell");
-    expect(sessionHeader).not.toHaveTextContent("~/workspace/pi-station");
-    expect(sessionHeader).toHaveTextContent("gpt-5.6-sol · medium");
+    expect(dialog.querySelector(".session-header")).not.toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByLabelText("Message Pi")).toHaveFocus());
   });
 
   it("drags from the header and resets to the center on double-click", async () => {
