@@ -9,7 +9,7 @@ const executable = (path, content) => { writeFileSync(path, content); chmodSync(
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 describe("Linux release installer", () => {
-  it("restores the previous release and service files when health validation fails", () => {
+  it.runIf(process.platform === "linux")("restores the previous release and service files when health validation fails", () => {
     const root = mkdtempSync(resolve(tmpdir(), "pi-station-installer-")); roots.push(root)
     const home = resolve(root, "home")
     const installRoot = resolve(root, "app")
