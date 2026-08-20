@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 import { SessionMoveAgentBridge, rewriteSessionCwd } from "../session-moves.js"
 import { moveSessionTools } from "../session-runtime.js"
 
-const execute = (tool: ReturnType<typeof moveSessionTools>[number], projectId: string) => tool!.execute("call", { projectId }, new AbortController().signal, () => undefined, {} as never)
+const execute = (tool: ReturnType<typeof moveSessionTools>[number], projectId: string) => tool.execute("call", { projectId }, new AbortController().signal, () => undefined, {} as never)
 
 describe("Session moves", () => {
   it("changes only cwd in the header and preserves identity and complete history", async () => {
@@ -19,7 +19,7 @@ describe("Session moves", () => {
 
     await rewriteSessionCwd(path, "/target")
 
-    const changed = (await readFile(path, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
+    const changed: unknown[] = (await readFile(path, "utf8")).trim().split("\n").map((line): unknown => JSON.parse(line) as unknown)
     expect(changed[0]).toEqual({ ...entries[0], cwd: "/target" })
     expect(changed[1]).toEqual(entries[1])
   })
@@ -35,7 +35,10 @@ describe("Session moves", () => {
     const result = await execute(tool, "target")
     expect(invoke).toHaveBeenCalledWith({ sessionId: "calling-session", projectId: "target" })
     expect(result.details).toEqual({ status: "scheduled", projectId: "target", projectName: "Target" })
-    expect(result.content[0]).toMatchObject({ type: "text", text: expect.stringContaining("after this complete turn ends") })
+    const content = result.content[0]
+    expect(content?.type).toBe("text")
+    if (content?.type !== "text") throw new Error("Expected text tool output")
+    expect(content.text).toContain("after this complete turn ends")
   })
 
   it("does not expose the tool outside a Project or to delegated agents", () => {
