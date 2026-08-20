@@ -645,6 +645,16 @@ function SessionRowAccessory({
   );
 }
 
+function SessionStatusIndicator({ session }: { session: SessionSummary }) {
+  const status = session.projection.run === "working"
+    ? "working"
+    : session.projection.unread.hasUnread
+      ? "unread"
+      : "idle";
+  const label = `${status[0]?.toUpperCase()}${status.slice(1)} Session`;
+  return <i className={`session-status-indicator status-${status}`} aria-label={label} />;
+}
+
 function Sidebar({
   state,
   onSelect,
@@ -943,12 +953,7 @@ function Sidebar({
                       onSessionContextMenu(session, event.clientX, event.clientY);
                     }}
                   >
-                    <i
-                      className={
-                        session.projection.run === "working" ? "working" : ""
-                      }
-                      aria-label={`${session.projection.availability === "reconnecting" ? "reconnecting" : session.projection.run} Session`}
-                    />
+                    <SessionStatusIndicator session={session} />
                     <span className="session-row-name">
                       {sessionLabel(session)}
                     </span>
@@ -966,11 +971,6 @@ function Sidebar({
                         </span>
                       )}
                     </SessionRowAccessory>
-                    <span className="session-row-unread-slot">
-                      {session.projection.unread.hasUnread && (
-                        <b aria-label="Unread">●</b>
-                      )}
-                    </span>
                   </button>
                 );
               })}
@@ -1019,10 +1019,7 @@ function Sidebar({
                       onSessionContextMenu(session, event.clientX, event.clientY);
                     }}
                   >
-                    <i
-                      className={session.projection.run === "working" ? "working" : ""}
-                      aria-label={`${session.projection.availability === "reconnecting" ? "reconnecting" : session.projection.run} Session`}
-                    />
+                    <SessionStatusIndicator session={session} />
                     <span className="session-row-name">{sessionLabel(session)}</span>
                     <SessionRowAccessory
                       shortcut={shortcut}
@@ -1036,11 +1033,6 @@ function Sidebar({
                         <Bookmark aria-hidden="true" size={13} strokeWidth={1.6} />
                       </span>
                     </SessionRowAccessory>
-                    <span className="session-row-unread-slot">
-                      {session.projection.unread.hasUnread && (
-                        <b aria-label="Unread">●</b>
-                      )}
-                    </span>
                   </button>
                 );
               })}
@@ -1095,10 +1087,7 @@ function Sidebar({
                       onSessionContextMenu(session, event.clientX, event.clientY);
                     }}
                   >
-                    <i
-                      className={session.projection.run === "working" ? "working" : ""}
-                      aria-label={`${session.projection.availability === "reconnecting" ? "reconnecting" : session.projection.run} Session`}
-                    />
+                    <SessionStatusIndicator session={session} />
                     <span className="session-row-name">{sessionLabel(session)}</span>
                     <SessionRowAccessory
                       shortcut={shortcut}
@@ -1106,11 +1095,6 @@ function Sidebar({
                     >
                       <small>{session.displayPath?.split("/").pop()}</small>
                     </SessionRowAccessory>
-                    <span className="session-row-unread-slot">
-                      {session.projection.unread.hasUnread && (
-                        <b aria-label="Unread">●</b>
-                      )}
-                    </span>
                   </button>
                 );
               })}
@@ -3400,7 +3384,8 @@ export function Workspace({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={voiceState === "recording" ? "recording" : voiceState === "transcribing" ? "processing" : ""}
+                  className="composer-transcription-button"
+                  data-state={voiceState === "transcribing" ? "processing" : voiceState}
                   type="button"
                   disabled={!commandAvailable || commandPending || !voiceConfiguration.configured || voiceState === "transcribing"}
                   aria-label={voiceState === "recording" ? "Stop and transcribe recording" : voiceState === "transcribing" ? "Transcribing recording" : "Record message"}

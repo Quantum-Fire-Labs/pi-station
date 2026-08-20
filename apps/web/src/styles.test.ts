@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const selectSource = readFileSync(resolve(process.cwd(), "src/components/ui/select.tsx"), "utf8");
+const workspaceSource = readFileSync(resolve(process.cwd(), "src/components/Workspace.tsx"), "utf8");
 
 describe("composer width", () => {
   it("uses a separate 960px composer width and keeps the Timeline width", () => {
@@ -19,6 +21,29 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer-settings-desktop\s*{[^}]*gap: 10px;/s);
     expect(styles).toContain(".composer-model-trigger");
     expect(styles).toContain(".composer-thinking-trigger");
+  });
+
+  it("keeps only the small transcription control transparent in every interaction state", () => {
+    expect(workspaceSource).toMatch(/className="composer-transcription-button"\s*data-state=/);
+    expect(styles).toMatch(/\.composer-primary-actions > \.composer-transcription-button,\s*\.composer-primary-actions > \.composer-transcription-button:hover,\s*\.composer-primary-actions > \.composer-transcription-button:focus,\s*\.composer-primary-actions > \.composer-transcription-button:focus-visible,\s*\.composer-primary-actions > \.composer-transcription-button:active,\s*\.composer-primary-actions > \.composer-transcription-button:disabled\s*{[^}]*width: 40px;[^}]*height: 40px;[^}]*background: transparent;/s);
+    expect(styles).toMatch(/\.composer-primary-actions > \.composer-transcription-button\[data-state="recording"\],\s*\.composer-primary-actions > \.composer-transcription-button\[data-state="processing"\]\s*{[^}]*color: var\(--danger\);/s);
+  });
+
+  it("does not change the Send, open-voice-mode, or full voice-mode controls", () => {
+    expect(styles).toMatch(/\.composer-primary-actions > button:last-child\s*{[^}]*background: var\(--accent\);/s);
+    expect(styles).toMatch(/\.voice-mode-record-icon\s*{[^}]*background: var\(--accent\);/s);
+    expect(styles).toMatch(/\.voice-mode-record\[data-state="recording"\] \.voice-mode-record-icon,[^{]*{[^}]*background: var\(--danger\);/s);
+    expect(workspaceSource).toContain('className="voice-mode-record"');
+  });
+
+  it("uses 12px type and opaque theme surfaces for model and thinking menus", () => {
+    expect(styles).toMatch(/\.composer-settings-desktop \.composer-model-trigger,\s*\.composer-settings-desktop \.composer-thinking-trigger\s*{[^}]*font-size: 12px;/s);
+    expect(styles).toMatch(/\.composer-setting-select-menu\s*{[^}]*background: var\(--raised\);[^}]*color: var\(--text\);/s);
+    expect(styles).toMatch(/\.composer-setting-select-menu \[data-slot="select-item"\]\s*{[^}]*font-size: 12px;/s);
+    expect(styles).toMatch(/\.composer-settings-mobile-menu\s*{[^}]*background: var\(--raised\);[^}]*color: var\(--text\);/s);
+    expect(styles).toMatch(/\.composer-settings-mobile-menu \.composer-mobile-setting-label,\s*\.composer-settings-mobile-menu \.composer-mobile-setting-option\s*{[^}]*font-size: 12px;/s);
+    expect(selectSource).toContain("bg-[var(--raised)]");
+    expect(selectSource).not.toContain("bg-popover");
   });
 });
 
@@ -44,9 +69,33 @@ describe("sidebar Session accessory layout", () => {
     expect(styles).toMatch(/\.sidebar\.shortcuts-visible \.session-row-accessory-content\s*{[^}]*z-index: 0;[^}]*visibility: hidden;/s);
   });
 
-  it("does not use a row pseudo-element that can stack the shortcut vertically", () => {
+  it("does not reserve a column for a separate unread marker", () => {
     expect(styles).not.toContain(".session-row[data-session-shortcut]:after");
-    expect(styles).toMatch(/grid-template-columns: 10px minmax\(0, 1fr\) 24px 8px;/);
-    expect(styles).toMatch(/\.session-row-unread-slot\s*{\s*grid-column: 4;/);
+    expect(styles).toMatch(/grid-template-columns: 10px minmax\(0, 1fr\) 24px;/);
+    expect(styles).not.toContain("session-row-unread-slot");
+  });
+});
+
+describe("sidebar Session status indicator", () => {
+  it("uses exact fixed status colors and the application appearance for idle", () => {
+    expect(styles).toContain("--session-status-working: #f59e0b;");
+    expect(styles).toContain("--session-status-unread: #14b86b;");
+    expect(styles).toContain("--session-status-idle: #cbd5e1;");
+    expect(styles).toMatch(/:root\[data-appearance="dark"\][^{]*\{[^}]*--session-status-idle: #94a3b8;/s);
+    expect(styles).toMatch(/@media \(prefers-color-scheme: dark\)[\s\S]*:root:not\(\[data-appearance\]\)[^{]*\{[^}]*--session-status-idle: #94a3b8;/);
+  });
+
+  it("keeps idle and unread static while working uses one close breathing halo", () => {
+    expect(styles).toMatch(/\.session-status-indicator\s*\{[^}]*box-shadow: none;/s);
+    expect(styles).toMatch(/\.session-status-indicator\.status-unread\s*\{[^}]*background: var\(--session-status-unread\);/s);
+    expect(styles).toMatch(/\.status-working::before\s*\{[^}]*inset: -2px;[^}]*animation: session-status-breathe 1\.8s ease-in-out infinite;/s);
+    expect(styles).toMatch(/@keyframes session-status-breathe\s*\{[^}]*scale\(0\.9\)[^}]*\}[^}]*scale\(1\.12\)/s);
+    expect(styles).not.toContain("session-status-pulse");
+    expect(styles).not.toMatch(/\.status-working::after/);
+    expect(styles).not.toMatch(/\.status-(?:idle|unread)[^{]*\{[^}]*(?:animation|box-shadow):/s);
+  });
+
+  it("replaces breathing motion with one static working halo", () => {
+    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.status-working::before\s*\{[^}]*opacity: 0\.38;[^}]*transform: scale\(1\);[^}]*animation: none;/);
   });
 });
