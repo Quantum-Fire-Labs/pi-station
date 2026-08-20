@@ -145,7 +145,7 @@
   --working: var(--theme-warning);
   --success: var(--theme-success);
   --raised: color-mix(in srgb, var(--theme-background) 94%, var(--theme-foreground));
-  --input: color-mix(in srgb, var(--theme-background) 89%, var(--theme-foreground));
+  --input: color-mix(in srgb, var(--theme-background) 95%, var(--theme-foreground));
   --user: color-mix(in srgb, var(--theme-background) 84%, var(--theme-accent));
   --line: color-mix(in srgb, var(--theme-background) 78%, var(--theme-foreground));
   --strong: color-mix(in srgb, var(--theme-background) 61%, var(--theme-foreground));
