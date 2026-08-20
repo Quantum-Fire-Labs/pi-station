@@ -5,12 +5,19 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 beforeEach(() => {
-  const values = new Map<string, string>();
+  const localValues = new Map<string, string>();
   vi.stubGlobal("localStorage", {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => values.set(key, value),
-    removeItem: (key: string) => values.delete(key),
-    clear: () => values.clear(),
+    getItem: (key: string) => localValues.get(key) ?? null,
+    setItem: (key: string, value: string) => localValues.set(key, value),
+    removeItem: (key: string) => localValues.delete(key),
+    clear: () => localValues.clear(),
+  });
+  const sessionValues = new Map<string, string>();
+  vi.stubGlobal("sessionStorage", {
+    getItem: (key: string) => sessionValues.get(key) ?? null,
+    setItem: (key: string, value: string) => sessionValues.set(key, value),
+    removeItem: (key: string) => sessionValues.delete(key),
+    clear: () => sessionValues.clear(),
   });
 });
 
@@ -530,6 +537,77 @@ describe("Workspace", () => {
     expect(screen.getByRole("button", { name: runningProject.name })).toBeVisible();
     expect(screen.queryByRole("button", { name: inactiveProject.name }))
       .not.toBeInTheDocument();
+  });
+
+  it("defaults the Dashboard to Projects when no saved view exists", async () => {
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("restores the saved Dashboard Projects view", async () => {
+    sessionStorage.setItem("pi-station:dashboard:view", "projects");
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("restores the saved Dashboard Open view", async () => {
+    sessionStorage.setItem("pi-station:dashboard:view", "running");
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Open" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("saves Dashboard view changes in session storage", async () => {
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    await userEvent.click(screen.getByRole("tab", { name: "Open" }));
+    expect(sessionStorage.getItem("pi-station:dashboard:view")).toBe("running");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Projects" }));
+    expect(sessionStorage.getItem("pi-station:dashboard:view")).toBe("projects");
+  });
+
+  it("uses Projects when the saved Dashboard view is invalid", async () => {
+    sessionStorage.setItem("pi-station:dashboard:view", "closed");
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("uses Projects when Dashboard session storage reads fail", async () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => { throw new Error("Storage is disabled"); },
+      setItem: vi.fn(),
+    });
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("changes Dashboard views when session storage writes fail", async () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => null,
+      setItem: () => { throw new Error("Storage is disabled"); },
+    });
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    await userEvent.click(screen.getByRole("tab", { name: "Open" }));
+
+    expect(screen.getByRole("tab", { name: "Open" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("nests delegated Sessions on the Dashboard Projects and Open views", async () => {
