@@ -1445,6 +1445,38 @@ describe("Workspace", () => {
     expect(screen.getByRole("region", { name: "Selected Session" })).toBeVisible();
   });
 
+  it("orders the mobile Dashboard menu, title, and New Session control", async () => {
+    enableMobileViewport();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Back to Dashboard" }));
+
+    const heading = screen.getByRole("heading", { name: "Dashboard" });
+    const header = heading.closest("header");
+    if (header === null) throw new Error("Dashboard header is missing");
+    const menu = within(header).getByRole("button", { name: "Open navigation menu" });
+    const newSession = header.querySelector<HTMLElement>(".dashboard-mobile-new-session");
+    if (newSession === null) throw new Error("Mobile New Session control is missing");
+
+    expect(menu.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(newSession) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(newSession).toHaveAttribute("data-slot", "button");
+    expect(newSession).toHaveAccessibleName("New Session");
+    expect(newSession).toHaveAttribute("title", "New Session");
+  });
+
+  it("starts a new Session from the mobile Dashboard header", async () => {
+    enableMobileViewport();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Back to Dashboard" }));
+    const header = screen.getByRole("heading", { name: "Dashboard" }).closest("header");
+    const newSession = header?.querySelector<HTMLElement>(".dashboard-mobile-new-session");
+    if (newSession === null || newSession === undefined) throw new Error("Mobile New Session control is missing");
+
+    await userEvent.click(newSession);
+
+    expect(screen.getByRole("heading", { name: "New Session" })).toBeVisible();
+  });
+
   it("navigates from the mobile menu on Dashboard and Projects", async () => {
     const user = userEvent.setup();
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);

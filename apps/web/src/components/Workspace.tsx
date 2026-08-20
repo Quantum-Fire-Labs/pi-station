@@ -227,6 +227,14 @@ function Dashboard({
     <main className="dashboard">
       <div className="dashboard-shell">
         <header className="dashboard-header">
+          <MobileNavigationMenu
+            current="dashboard"
+            onNewSession={onNewSession}
+            onNewProject={onAddProject}
+            onDashboard={onDashboard}
+            onProjects={onProjects}
+            onSettings={onSettings}
+          />
           <div className="dashboard-heading">
             <h1>Dashboard</h1>
             <p>Open a Project or continue a recent Session.</p>
@@ -241,14 +249,16 @@ function Dashboard({
               New Session
             </Button>
           </div>
-          <MobileNavigationMenu
-            current="dashboard"
-            onNewSession={onNewSession}
-            onNewProject={onAddProject}
-            onDashboard={onDashboard}
-            onProjects={onProjects}
-            onSettings={onSettings}
-          />
+          <Button
+            className="dashboard-mobile-new-session"
+            type="button"
+            size="icon"
+            aria-label="New Session"
+            title="New Session"
+            onClick={onNewSession}
+          >
+            <Plus aria-hidden="true" />
+          </Button>
         </header>
 
         <Tabs value={view} onValueChange={(value) => {
