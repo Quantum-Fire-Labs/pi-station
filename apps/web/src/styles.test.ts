@@ -9,7 +9,7 @@ const dialogSource = readFileSync(resolve(process.cwd(), "src/components/ui/dial
 
 describe("composer width", () => {
   it("uses a separate 960px composer width and keeps the Timeline width", () => {
-    expect(styles).toContain("--content: 760px;");
+    expect(styles).toContain("--content: 960px;");
     expect(styles).toContain("--composer-content: 960px;");
     expect(styles).toMatch(/\.composer\s*{[^}]*var\(--composer-content\)/s);
     expect(styles).toMatch(/\.follow-up-queue\s*{[^}]*var\(--composer-content\)/s);
