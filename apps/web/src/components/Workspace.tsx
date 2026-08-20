@@ -129,6 +129,29 @@ interface WorkspaceProps {
   onInitialPaint?: (timelineItems: number) => void;
 }
 
+type DashboardView = "projects" | "running";
+
+const dashboardViewStorageKey = "pi-station:dashboard:view";
+const isDashboardView = (value: unknown): value is DashboardView => value === "projects" || value === "running";
+
+const readDashboardView = (): DashboardView => {
+  try {
+    if (typeof window === "undefined") return "projects";
+    const stored = window.sessionStorage.getItem(dashboardViewStorageKey);
+    return isDashboardView(stored) ? stored : "projects";
+  } catch {
+    return "projects";
+  }
+};
+
+const writeDashboardView = (view: DashboardView): void => {
+  try {
+    if (typeof window !== "undefined") window.sessionStorage.setItem(dashboardViewStorageKey, view);
+  } catch {
+    // The Dashboard remains usable when browser storage is disabled.
+  }
+};
+
 function Dashboard({
   state,
   onOpen,
@@ -150,7 +173,7 @@ function Dashboard({
   onProjects: () => void;
   onSettings: () => void;
 }) {
-  const [view, setView] = useState<"projects" | "running">("projects");
+  const [view, setView] = useState<DashboardView>(readDashboardView);
   const [showingClosed, setShowingClosed] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -223,7 +246,11 @@ function Dashboard({
           />
         </header>
 
-        <Tabs value={view} onValueChange={(value) => setView(value as "projects" | "running")}>
+        <Tabs value={view} onValueChange={(value) => {
+          if (!isDashboardView(value)) return;
+          setView(value);
+          writeDashboardView(value);
+        }}>
           <TabsList aria-label="Dashboard view">
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="running" aria-label="Open">
