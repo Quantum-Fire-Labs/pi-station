@@ -38,6 +38,32 @@ describe("SDK deployment request", () => {
     expect(packageJson.scripts[DEPLOYMENT_WORKER_SCRIPT]).toBe("node ops/sdk-deploy-worker.mjs")
   })
 
+  it("passes explicit origins through a detached deployment", () => {
+    const arguments_ = detachedDeploymentArguments({
+      root: "/repo",
+      node: "/node",
+      npmCli: "/npm-cli.js",
+      environment: {
+        PI_STATION_WEB_ORIGIN: "https://station.example.test:9443",
+        PI_STATION_LOCAL_ORIGIN: "http://127.0.0.1:9900",
+      },
+    })
+    expect(arguments_).toContain("--setenv=PI_STATION_WEB_ORIGIN=https://station.example.test:9443")
+    expect(arguments_).toContain("--setenv=PI_STATION_LOCAL_ORIGIN=http://127.0.0.1:9900")
+    expect(arguments_.indexOf("--setenv=PI_STATION_DEPLOY_DETACHED=1")).toBeLessThan(arguments_.indexOf("/node"))
+  })
+
+  it("does not invent origin overrides during a detached deployment", () => {
+    const arguments_ = detachedDeploymentArguments({ root: "/repo", node: "/node", npmCli: "/npm-cli.js" })
+    expect(arguments_.some((argument) => argument.startsWith("--setenv=PI_STATION_WEB_ORIGIN="))).toBe(false)
+    expect(arguments_.some((argument) => argument.startsWith("--setenv=PI_STATION_LOCAL_ORIGIN="))).toBe(false)
+  })
+
+  it("passes the caller environment into the detached handoff", () => {
+    const deployment = readFileSync(resolve(root, "ops/sdk-deploy.mjs"), "utf8")
+    expect(deployment).toContain("environment: process.env")
+  })
+
   it("keeps the public handoff separate from the non-recursive worker", () => {
     expect(packageJson.scripts["deploy:local"]).toBe("node ops/sdk-deploy.mjs")
     expect(DEPLOYMENT_WORKER_SCRIPT).not.toBe("deploy:local")

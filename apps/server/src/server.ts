@@ -15,6 +15,7 @@ import {
   isProjectName,
   isPrompt,
   isProtocolId,
+  isSessionMoveRequest,
   isSessionStateRequest,
   isIanaTimezone,
   isScheduledJobMutation,
@@ -62,6 +63,7 @@ import { SessionAttachmentStore, attachmentMarker, attachmentPrompt } from "./se
 import type { ScheduledJobAgentBridge } from "./scheduled-jobs.js"
 import { VoiceSettingsError, VoiceSettingsStore } from "./voice-settings.js"
 import { SystemThemeService } from "./system-theme.js"
+import { rewriteSessionCwd, type SessionMoveAgentBridge } from "./session-moves.js"
 
 const HOST = "127.0.0.1"
 const shutdownContexts = new WeakMap<Server, { shutdown: (timeoutMs: number) => Promise<void> }>()
@@ -87,6 +89,7 @@ export interface PiStationServerOptions {
   readonly systemThemeService?: SystemThemeService
   readonly scheduledJobAgentBridge?: ScheduledJobAgentBridge
   readonly agentMessaging?: AgentMessagingBridge
+  readonly sessionMoves?: SessionMoveAgentBridge
   readonly webRoot?: string
   /** Test seam for the opaque process epoch. Production uses a random UUID. */
   readonly phaseEpoch?: string
@@ -119,6 +122,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const voiceSettings = new VoiceSettingsStore(options.dataDir)
   const systemTheme = options.systemThemeService ?? new SystemThemeService()
   const disassociatedProjects = new Map<string, Project>()
+  const pendingSessionMoves = new Map<string, { readonly projectId: string; readonly projectName: string }>()
   const eventStreams = new Set<ServerResponse>()
   let acceptingWork = true
   let shutdownStarted = false
@@ -133,7 +137,11 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   }
 
   const decorateSessions = async (listed: readonly SavedSession[]): Promise<readonly SavedSession[]> => {
-    return attentionStore.decorate(await decorateDelegations(listed))
+    const decorated = await attentionStore.decorate(await decorateDelegations(listed))
+    return decorated.map((session) => {
+      const pendingProjectMove = pendingSessionMoves.get(session.id)
+      return pendingProjectMove === undefined ? session : { ...session, pendingProjectMove }
+    })
   }
 
   const sessions = async (): Promise<readonly SavedSession[]> => {
@@ -190,6 +198,40 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
     },
     phaseEpoch,
   )
+
+  const applySessionMove = async (sessionId: string): Promise<SavedSession | undefined> => {
+    const pending = pendingSessionMoves.get(sessionId)
+    if (pending === undefined) return undefined
+    const saved = (await sessions()).find((session) => session.id === sessionId)
+    const project = (await projectStore.read()).find((item) => item.id === pending.projectId)
+    if (saved === undefined || project === undefined) { pendingSessionMoves.delete(sessionId); throw new Error("Move target Project is unavailable") }
+    if (saved.projectId === project.id) { pendingSessionMoves.delete(sessionId); return publishSession(saved) }
+    await rewriteSessionCwd(saved.path, project.root)
+    const moved = await options.index.indexSession({ ...saved, projectId: project.id, cwd: project.root, modifiedAt: new Date().toISOString() })
+    pendingSessionMoves.delete(sessionId)
+    await turns.control({ projectId: project.id, sessionId }, moved.path, project.root, { type: "reload" })
+    return publishSession({ ...moved, state: saved.state })
+  }
+
+  const requestSessionMove = async (sessionId: string, projectId: string) => {
+    const saved = (await sessions()).find((session) => session.id === sessionId)
+    if (saved === undefined) throw new Error("Session not found")
+    const project = (await projectStore.read()).find((item) => item.id === projectId)
+    if (project === undefined) throw new Error("Target Project is not configured")
+    if (saved.projectId === project.id) return { status: "unchanged" as const, projectId: project.id, projectName: project.name ?? project.root }
+    const pending = { projectId: project.id, projectName: project.name ?? project.root }
+    pendingSessionMoves.set(sessionId, pending)
+    await publishSession(saved)
+    const key = { projectId: saved.projectId, sessionId }
+    if (!turns.isWorking(key)) await applySessionMove(sessionId)
+    return { status: turns.isWorking(key) ? "scheduled" as const : "moved" as const, ...pending }
+  }
+
+  turns.onSessionIdle((key) => { if (pendingSessionMoves.has(key.sessionId)) void applySessionMove(key.sessionId).catch((error) => console.error(JSON.stringify({ event: "pi-station.session-move-failed", sessionId: key.sessionId, message: error instanceof Error ? error.message : "unknown" }))) })
+  options.sessionMoves?.bind(async ({ sessionId, projectId }) => {
+    const result = await requestSessionMove(sessionId, projectId)
+    return { status: result.status === "unchanged" ? "unchanged" : "scheduled", projectId: result.projectId, projectName: result.projectName }
+  })
 
   const settledTimeline = (key: SessionKey, project: Project) => async () => {
     const indexed = await options.index.refreshSession(key, project)
@@ -756,6 +798,24 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         return
       }
 
+      if (route.action === "move" && request.method === "POST") {
+        assertJsonMutation(request)
+        if (saved === undefined) throw new HttpError(404, "Session not found")
+        const value = await readJsonBody(request)
+        if (!isSessionMoveRequest(value)) throw new HttpError(400, "Session move request is invalid")
+        try { sendJson(response, 202, { version: PROTOCOL_VERSION, ...(await requestSessionMove(saved.id, value.projectId)) }) }
+        catch (error) { throw new HttpError(422, error instanceof Error ? error.message : "Session move failed") }
+        return
+      }
+
+      if (route.action === "move" && request.method === "DELETE") {
+        if (saved === undefined) throw new HttpError(404, "Session not found")
+        const cancelled = pendingSessionMoves.delete(saved.id)
+        if (cancelled) await publishSession(saved)
+        sendJson(response, 200, { version: PROTOCOL_VERSION, cancelled })
+        return
+      }
+
       if (request.method === "POST" && route.action === "reload") {
         assertJsonMutation(request)
         if (saved === undefined) throw new HttpError(404, "Session not found")
@@ -1034,7 +1094,7 @@ function directoryEntry(path: string): { readonly name: string; readonly path: s
 
 interface SessionRoute {
   readonly key: SessionKey
-  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "abort" | "clone" | "reload" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
+  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "abort" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
 }
 
 interface SessionAttachmentRoute { readonly key: SessionKey; readonly attachmentId?: string }
@@ -1070,7 +1130,7 @@ function decodeRouteId(value: string): string | undefined {
 }
 
 function parseSessionRoute(pathname: string): SessionRoute | undefined {
-  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|abort|clone|reload|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
+  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|abort|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
   if (match === null) return undefined
   const projectId = decodeURIComponent(match[1]!)
   const sessionId = decodeURIComponent(match[2]!)

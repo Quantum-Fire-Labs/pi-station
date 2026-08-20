@@ -5,12 +5,19 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 beforeEach(() => {
-  const values = new Map<string, string>();
+  const localValues = new Map<string, string>();
   vi.stubGlobal("localStorage", {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => values.set(key, value),
-    removeItem: (key: string) => values.delete(key),
-    clear: () => values.clear(),
+    getItem: (key: string) => localValues.get(key) ?? null,
+    setItem: (key: string, value: string) => localValues.set(key, value),
+    removeItem: (key: string) => localValues.delete(key),
+    clear: () => localValues.clear(),
+  });
+  const sessionValues = new Map<string, string>();
+  vi.stubGlobal("sessionStorage", {
+    getItem: (key: string) => sessionValues.get(key) ?? null,
+    setItem: (key: string, value: string) => sessionValues.set(key, value),
+    removeItem: (key: string) => sessionValues.delete(key),
+    clear: () => sessionValues.clear(),
   });
 });
 
@@ -530,6 +537,77 @@ describe("Workspace", () => {
     expect(screen.getByRole("button", { name: runningProject.name })).toBeVisible();
     expect(screen.queryByRole("button", { name: inactiveProject.name }))
       .not.toBeInTheDocument();
+  });
+
+  it("defaults the Dashboard to Projects when no saved view exists", async () => {
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("restores the saved Dashboard Projects view", async () => {
+    sessionStorage.setItem("pi-station:dashboard:view", "projects");
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("restores the saved Dashboard Open view", async () => {
+    sessionStorage.setItem("pi-station:dashboard:view", "running");
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Open" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("saves Dashboard view changes in session storage", async () => {
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    await userEvent.click(screen.getByRole("tab", { name: "Open" }));
+    expect(sessionStorage.getItem("pi-station:dashboard:view")).toBe("running");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Projects" }));
+    expect(sessionStorage.getItem("pi-station:dashboard:view")).toBe("projects");
+  });
+
+  it("uses Projects when the saved Dashboard view is invalid", async () => {
+    sessionStorage.setItem("pi-station:dashboard:view", "closed");
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("uses Projects when Dashboard session storage reads fail", async () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => { throw new Error("Storage is disabled"); },
+      setItem: vi.fn(),
+    });
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("changes Dashboard views when session storage writes fail", async () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => null,
+      setItem: () => { throw new Error("Storage is disabled"); },
+    });
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
+
+    await userEvent.click(screen.getByRole("tab", { name: "Open" }));
+
+    expect(screen.getByRole("tab", { name: "Open" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("nests delegated Sessions on the Dashboard Projects and Open views", async () => {
@@ -1616,7 +1694,8 @@ describe("Workspace", () => {
         onCommand={onCommand}
       />,
     );
-    await user.selectOptions(screen.getByRole("combobox", { name: "Message delivery" }), "prompt.follow-up");
+    await user.click(screen.getByRole("combobox", { name: "Message delivery" }));
+    await user.click(screen.getByRole("option", { name: "Follow up" }));
     await user.type(screen.getByLabelText("Message Pi"), "Review this next");
     await user.click(screen.getByRole("button", { name: "Send message" }));
     expect(onCommand).toHaveBeenCalledWith({
@@ -2023,8 +2102,8 @@ describe("Workspace", () => {
       .toBeVisible();
     expect(screen.getByText("Session ID")).toBeVisible();
     expect(screen.getByText("Project").parentElement?.nextElementSibling).toBe(screen.getByText("Updated").parentElement);
-    expect(screen.getByText("Model").parentElement?.nextElementSibling).toBe(screen.getByText("Thinking").parentElement);
-    expect(screen.queryByText("Session settings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Model")).not.toBeInTheDocument();
+    expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
     const projectFact = screen.getByText("Project").parentElement;
     expect(projectFact).not.toBeNull();
     expect(within(projectFact!).getByRole("button", { name: fixtureState.projects[0]!.name })).toBeVisible();
@@ -2048,22 +2127,8 @@ describe("Workspace", () => {
       name: "Renamed Session",
     });
 
-    await user.click(screen.getByRole("button", { name: "Change model" }));
-    await user.selectOptions(screen.getByLabelText("Model"), "anthropic:claude-sonnet-4-5");
-    await user.click(screen.getByRole("button", { name: "Apply" }));
-    expect(onCommand).toHaveBeenCalledWith({
-      kind: "session.model.set",
-      provider: "anthropic",
-      modelId: "claude-sonnet-4-5",
-    });
-
-    await user.click(screen.getByRole("button", { name: "Change thinking level" }));
-    await user.selectOptions(screen.getByLabelText("Thinking level"), "high");
-    await user.click(screen.getByRole("button", { name: "Apply" }));
-    expect(onCommand).toHaveBeenCalledWith({
-      kind: "session.thinking.set",
-      level: "high",
-    });
+    expect(screen.queryByRole("button", { name: "Change model" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change thinking level" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Close Session" }));
     const confirmation = screen.getByRole("dialog", { name: "Close Workspace shell?" });

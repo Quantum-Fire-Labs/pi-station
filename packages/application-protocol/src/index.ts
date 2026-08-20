@@ -16,6 +16,7 @@ export {
   isModelSettingRequest,
   isThinkingSettingRequest,
   isProtocolId,
+  isSessionMoveRequest,
   isSessionStateRequest,
   sessionKey,
 } from "./sessions.js"

@@ -71,6 +71,7 @@
   --danger: #8b3327;
   --rail: 408px;
   --content: 760px;
+  --composer-content: 960px;
   --sans: ui-sans-serif, system-ui, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -1106,7 +1107,7 @@ body.sidebar-resizing {
   backdrop-filter: blur(16px);
 }
 .follow-up-queue {
-  width: min(100%, var(--content));
+  width: min(100%, var(--composer-content));
   max-height: min(32dvh, 260px);
   overflow-y: auto;
   margin: 0 auto 8px;
@@ -1142,7 +1143,7 @@ body.sidebar-resizing {
 }
 .composer {
   position: relative;
-  width: min(100%, var(--content));
+  width: min(100%, var(--composer-content));
   margin: auto;
   border-radius: 14px;
   background: var(--input);
@@ -1248,15 +1249,11 @@ body.sidebar-resizing {
   color: var(--muted);
   font: 11px var(--mono);
 }
-.composer-delivery select {
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  cursor: pointer;
-}
-.composer-delivery select:disabled { cursor: not-allowed; opacity: 0.5; }
+.composer-settings-desktop { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.composer-settings-desktop [data-slot="select-trigger"] { max-width: 210px; color: var(--muted); font: 11px var(--mono); }
+.composer-settings-desktop [data-slot="select-value"] { overflow: hidden; text-overflow: ellipsis; }
+.composer-settings-mobile { display: none; }
+.composer-send-mode { padding: 0 4px; white-space: nowrap; }
 .composer button {
   width: 40px;
   height: 40px;
@@ -3885,7 +3882,7 @@ body.sidebar-resizing {
 .message-attachment small { opacity: .65; }
 
 .session:has(.voice-mode) { padding-bottom: 270px; }
-.voice-mode { position: relative; width: min(100%, var(--content)); min-height: 178px; margin: auto; border-radius: 14px; background: var(--input); padding: 10px; display: grid; gap: 12px; }
+.voice-mode { position: relative; width: min(100%, var(--composer-content)); min-height: 178px; margin: auto; border-radius: 14px; background: var(--input); padding: 10px; display: grid; gap: 12px; }
 .voice-mode > header, .voice-mode > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: .72rem; }
 .voice-mode > header { justify-content: flex-end; }
 .voice-mode button, .voice-mode select { border: 0; background: transparent; color: inherit; font: inherit; }
@@ -3984,6 +3981,11 @@ body.sidebar-resizing {
 .voice-settings-actions button.primary, .voice-settings-save.primary { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
 .theme-grid { gap: 14px; }
 @media (max-width: 760px) {
+  .composer-settings-desktop { display: none; }
+  .composer-settings-mobile { display: block; }
+  .composer > div > span { gap: 6px; }
+  .voice-mode .composer-settings-mobile { display: block; }
+
   .creation-page, .settings-page { padding: 24px 18px 48px; }
   .creation-page-header, .settings-page-header { margin-bottom: 22px; }
   .creation-page-header h1, .settings-page-header h1 { font-size: 24px; }

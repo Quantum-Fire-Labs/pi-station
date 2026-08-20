@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Check, Copy, ExternalLink, FileText, Pencil, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, ExternalLink, FileText, X } from "lucide-react";
 import type { ProjectSummary, SessionSummary } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
 
@@ -17,10 +17,7 @@ export function SessionDetails({
   restartSaving,
   restartError,
   canRenameSession,
-  canChangeModel,
-  canChangeThinking,
   settingSaving,
-  settingError,
   reloadSaving,
   reloadError,
   onClose,
@@ -29,10 +26,11 @@ export function SessionDetails({
   onReloadSession,
   onRestartSession,
   onRenameSession,
-  onSetModel,
-  onSetThinking,
   onOpenProject,
   onNewSession,
+  projects,
+  onMoveSession,
+  onCancelMove,
   onSetBookmark,
   developmentServer,
   developmentServerOutput,
@@ -56,10 +54,7 @@ export function SessionDetails({
   restartSaving: boolean;
   restartError?: string;
   canRenameSession: boolean;
-  canChangeModel: boolean;
-  canChangeThinking: boolean;
   settingSaving: boolean;
-  settingError?: string;
   reloadSaving: boolean;
   reloadError?: string;
   onClose: () => void;
@@ -68,10 +63,11 @@ export function SessionDetails({
   onReloadSession: () => void;
   onRestartSession: () => void;
   onRenameSession: (name: string) => void;
-  onSetModel: (provider: string, modelId: string) => void;
-  onSetThinking: (level: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
   onOpenProject: () => void;
   onNewSession: () => void;
+  projects: readonly ProjectSummary[];
+  onMoveSession: (projectId: string) => void;
+  onCancelMove: () => void;
   onSetBookmark: (bookmarked: boolean) => void;
   developmentServer?: ApplicationState["developmentServers"][number];
   developmentServerOutput?: string;
@@ -85,8 +81,7 @@ export function SessionDetails({
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
-  const [editingModel, setEditingModel] = useState(false);
-  const [editingThinking, setEditingThinking] = useState(false);
+  const [moveProjectId, setMoveProjectId] = useState(summary.projectId ?? "");
   const details = state.selected.details;
   const projection = state.selected.projection ?? summary.projection;
   const name = details?.name ?? summary.name ?? "Untitled Session";
@@ -94,10 +89,6 @@ export function SessionDetails({
   const status = projection.availability === "available"
     ? titleCase(projection.run)
     : titleCase(projection.availability);
-  const model = details?.model?.displayName
-    ?? details?.model?.modelId
-    ?? "Unavailable";
-  const thinking = details?.thinkingLevel ?? "Unavailable";
   const management = projection.management.kind === "managed"
     ? `${titleCase(projection.management.processState)} · ${projection.management.runner}`
     : "Unmanaged";
@@ -188,79 +179,13 @@ export function SessionDetails({
             </dd>
           </div>
           <div><dt>Updated</dt><dd>{updated}</dd></div>
-          <div>
-            <dt>Model</dt>
-            <dd className="session-details-value-action">
-              <span>{model}</span>
-              {canChangeModel && (
-                <button
-                  type="button"
-                  aria-label="Change model"
-                  title="Change model"
-                  disabled={settingSaving}
-                  onClick={() => setEditingModel(true)}
-                ><Pencil aria-hidden="true" size={13} /></button>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Thinking</dt>
-            <dd className="session-details-value-action">
-              <span>{thinking}</span>
-              {canChangeThinking && (
-                <button
-                  type="button"
-                  aria-label="Change thinking level"
-                  title="Change thinking level"
-                  disabled={settingSaving}
-                  onClick={() => setEditingThinking(true)}
-                ><Pencil aria-hidden="true" size={13} /></button>
-              )}
-            </dd>
-          </div>
           <div className="wide"><dt>Management</dt><dd>{management}</dd></div>
           {details?.managedLaunchDisplay !== undefined && (
             <div className="wide"><dt>Launch</dt><dd>{details.managedLaunchDisplay}</dd></div>
           )}
         </dl>
 
-        {(editingModel || editingThinking || settingError !== undefined) && (
-          <section className="session-details-section session-details-settings-editor">
-            {editingModel && (
-              <form className="session-setting-form" onSubmit={(event) => {
-                event.preventDefault();
-                const selected = new FormData(event.currentTarget).get("model");
-                if (typeof selected !== "string") return;
-                const encoded = selected;
-                const [provider, modelId] = encoded.split(":").map(decodeURIComponent);
-                if (provider === undefined || modelId === undefined) return;
-                onSetModel(provider, modelId);
-                setEditingModel(false);
-              }}>
-                <label><span>Model</span><select name="model" defaultValue={details?.model === undefined ? "" : `${encodeURIComponent(details.model.provider)}:${encodeURIComponent(details.model.modelId)}`}>
-                  {details?.modelInventory?.map((item) => <option key={`${item.provider}:${item.modelId}`} value={`${encodeURIComponent(item.provider)}:${encodeURIComponent(item.modelId)}`}>{item.displayName ?? item.modelId} · {item.provider}</option>)}
-                </select></label>
-                <div><button type="button" onClick={() => setEditingModel(false)}>Cancel</button><button type="submit" disabled={settingSaving || !details?.modelInventory?.length}>Apply</button></div>
-              </form>
-            )}
-            {editingThinking && (
-              <form className="session-setting-form" onSubmit={(event) => {
-                event.preventDefault();
-                const selected = new FormData(event.currentTarget).get("thinking");
-                if (typeof selected !== "string") return;
-                const levels = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
-                const level = levels.find((candidate) => candidate === selected);
-                if (level === undefined) return;
-                onSetThinking(level);
-                setEditingThinking(false);
-              }}>
-                <label><span>Thinking level</span><select name="thinking" defaultValue={details?.thinkingLevel}>{details?.supportedThinkingLevels?.map((level) => <option key={level} value={level}>{titleCase(level)}</option>)}</select></label>
-                <div><button type="button" onClick={() => setEditingThinking(false)}>Cancel</button><button type="submit" disabled={settingSaving || !details?.supportedThinkingLevels?.length}>Apply</button></div>
-              </form>
-            )}
-            {settingError !== undefined && <p role="alert">{settingError}</p>}
-          </section>
-        )}
+
 
         {developmentServer?.configuration !== undefined && (
           <section className="session-details-section development-server-details">
@@ -308,6 +233,26 @@ export function SessionDetails({
               </li>
             ))}</ul>
           ) : <p>No shared files.</p>}
+        </section>
+
+        <section className="session-details-section">
+          <h2>Move Session</h2>
+          {summary.pendingProjectMove === undefined ? (
+            <form className="session-setting-form" onSubmit={(event) => {
+              event.preventDefault();
+              const target = projects.find((item) => item.projectId === moveProjectId);
+              if (target === undefined) return;
+              const timing = projection.run === "working" ? " after the current turn is complete" : " now";
+              if (window.confirm(`Move this Session to ${target.name}${timing}?`)) onMoveSession(target.projectId);
+            }}>
+              <label><span>Destination Project</span><select aria-label="Move Session Project" value={moveProjectId} onChange={(event) => setMoveProjectId(event.target.value)}>
+                {projects.filter((item) => item.available).map((item) => <option key={item.projectId} value={item.projectId}>{item.name}</option>)}
+              </select></label>
+              <div><button type="submit" disabled={moveProjectId === ""}>Move Session</button></div>
+            </form>
+          ) : (
+            <div><p role="status">Move scheduled for {summary.pendingProjectMove.projectName}.</p><button type="button" onClick={onCancelMove}>Cancel scheduled move</button></div>
+          )}
         </section>
 
         <section className="session-details-section">

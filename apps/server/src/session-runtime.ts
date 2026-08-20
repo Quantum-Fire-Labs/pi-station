@@ -12,6 +12,7 @@ import {
 import { Type } from "typebox"
 import type { Project } from "@pi-station/application-protocol"
 import type { AgentMessagingBridge } from "./agent-messaging.js"
+import type { SessionMoveAgentBridge } from "./session-moves.js"
 import type { DelegationEvents, DelegationRecord } from "./delegations.js"
 import { DEFAULT_SESSION_DEFAULTS, type SessionDefaults } from "./session-defaults.js"
 import { DELEGATION_REPORT_CUSTOM_TYPE, type DelegationReportStatus } from "./delegation-report.js"
@@ -163,6 +164,7 @@ export interface SdkSessionRuntimeOptions {
   readonly scheduledJobs?: ScheduledJobAgentBridge
   readonly agentMessaging?: AgentMessagingBridge
   readonly listProjects?: () => Promise<readonly Project[]>
+  readonly sessionMoves?: SessionMoveAgentBridge
 }
 
 export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options: SdkSessionRuntimeOptions = {}): SessionRuntime {
@@ -566,6 +568,7 @@ async function createSdkSession(input: {
       }
     },
   })]
+  const sessionMoveTools = options.sessionMoves === undefined ? [] : moveSessionTools(options.sessionMoves, input.sessionId, input.projectId, input.delegated === true)
   const scheduledJobTools = input.projectId === undefined || options.scheduledJobs === undefined ? [] : scheduledTools(options.scheduledJobs, input.projectId, input.sessionId)
   const projectListingTools = input.projectId === undefined || options.listProjects === undefined
     ? []
@@ -584,7 +587,7 @@ async function createSdkSession(input: {
   const { session } = await createAgentSession({
     cwd: input.cwd,
     sessionManager,
-    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...scheduledJobTools, ...projectListingTools],
+    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...sessionMoveTools, ...scheduledJobTools, ...projectListingTools],
     ...(resourceLoader === undefined ? {} : { resourceLoader }),
     ...(options.modelRuntime === undefined ? {} : { modelRuntime: options.modelRuntime }),
     excludeTools: input.delegated === true
@@ -613,6 +616,23 @@ export function listProjectsTools(listProjects: () => Promise<readonly Project[]
         content: [{ type: "text" as const, text: JSON.stringify(projects, null, 2) }],
         details: { projects },
       }
+    },
+  })]
+}
+
+export function moveSessionTools(bridge: SessionMoveAgentBridge, sessionId: string, projectId?: string, delegated = false) {
+  if (projectId === undefined || delegated) return []
+  return [defineTool({
+    name: "move_session_to_project",
+    label: "Move Session to Project",
+    description: "Schedule this calling Session to move to another configured Pi Station Project after the complete current turn ends.",
+    parameters: Type.Object({ projectId: Type.String({ minLength: 1, maxLength: 200, description: "Exact configured Project ID" }) }, { additionalProperties: false }),
+    execute: async (_toolCallId, parameters) => {
+      const moved = await bridge.invoke({ sessionId, projectId: parameters.projectId })
+      const text = moved.status === "unchanged"
+        ? `Session is already in Project ${moved.projectName} (${moved.projectId}); no move is needed.`
+        : `Session move is scheduled for Project ${moved.projectName} (${moved.projectId}). It will apply after this complete turn ends.`
+      return { content: [{ type: "text", text }], details: moved }
     },
   })]
 }

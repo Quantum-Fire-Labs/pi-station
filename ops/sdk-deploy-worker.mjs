@@ -7,7 +7,7 @@ import {
   OBSOLETE_SERVICE,
   serviceMigrationActions,
 } from "./sdk-deploy-request.mjs"
-import { buildSystemdService, prepareAndValidate } from "./sdk-deploy-worker-lib.mjs"
+import { buildSystemdService, prepareAndValidate, resolveDeploymentOrigins } from "./sdk-deploy-worker-lib.mjs"
 
 const root = resolve(import.meta.dirname, "..")
 const userUnits = resolve(homedir(), ".config/systemd/user")
@@ -49,6 +49,16 @@ const isServiceActive = (name) => {
   }
 }
 
+const effectiveServiceEnvironment = () => {
+  for (const name of [ACTIVE_SERVICE, OBSOLETE_SERVICE]) {
+    try {
+      const environment = run("systemctl", ["--user", "show", name, "--property=Environment", "--value"])
+      if (environment !== "") return environment
+    } catch { /* A new installation has no service environment to preserve. */ }
+  }
+  return ""
+}
+
 const runNpm = (args) => run(process.execPath, [npmCli, ...args], {
   stdio: "inherit",
   env: { WATCH_REPORT_DEPENDENCIES: undefined },
@@ -60,6 +70,7 @@ const piPidsBefore = sessionPids()
 const activeServiceIsActive = isServiceActive(ACTIVE_SERVICE)
 const obsoleteServiceIsActive = isServiceActive(OBSOLETE_SERVICE)
 const serviceWasActive = activeServiceIsActive || obsoleteServiceIsActive
+const existingServiceEnvironment = effectiveServiceEnvironment()
 const migrationActions = serviceMigrationActions({ activeServiceIsActive, obsoleteServiceIsActive })
 const canonicalDataDir = resolve(homedir(), ".local/share/pi-station")
 const retiredDataDir = resolve(homedir(), ".local/share/pi-station-rpc-v2")
@@ -68,6 +79,11 @@ if (process.env.PI_STATION_DATA_DIR === undefined && process.env.PI_STATION_RPC_
 const port = process.env.PI_STATION_PORT ?? "8801"
 if (!/^\d+$/u.test(port) || Number(port) < 1 || Number(port) > 65_535) throw new Error("PI_STATION_PORT is invalid")
 const healthOrigin = `http://127.0.0.1:${port}`
+const { webOrigin, localOrigin } = resolveDeploymentOrigins({
+  environment: process.env,
+  effectiveEnvironment: existingServiceEnvironment,
+  port,
+})
 const maintenanceFile = resolve(dataDir, "maintenance.json")
 const temporaryMaintenanceFile = `${maintenanceFile}.${process.pid}.tmp`
 mkdirSync(dataDir, { recursive: true })
@@ -98,8 +114,8 @@ try {
     dataDir,
     sharedRoot,
     port,
-    webOrigin: process.env.PI_STATION_WEB_ORIGIN,
-    localOrigin: process.env.PI_STATION_LOCAL_ORIGIN,
+    webOrigin,
+    localOrigin,
     path: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
   }))
   run("systemctl", ["--user", "daemon-reload"])
@@ -123,6 +139,11 @@ try {
     throw new Error("Pi Station health check failed")
   }
   run("curl", ["--fail", "--silent", `${healthOrigin}/workspace`])
+  run("curl", [
+    "--fail", "--silent", "--output", "/dev/null", "--request", "OPTIONS",
+    "--header", `Origin: ${webOrigin}`,
+    `${healthOrigin}/v2/projects`,
+  ])
 
   if (JSON.stringify(sessionPids()) !== JSON.stringify(piPidsBefore)) {
     throw new Error("A Pi process PID changed during Pi Station deployment")
