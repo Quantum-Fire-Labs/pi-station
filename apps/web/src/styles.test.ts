@@ -4,6 +4,20 @@ import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
+describe("iOS-safe status animations", () => {
+  it("keeps status animations usable when reduced motion is reported", () => {
+    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.initial-connection-mark\s*{[^}]*animation: initial-connection-spin 900ms linear infinite !important;/);
+    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.updating-mark\s*{[^}]*animation: initial-connection-spin 1\.1s linear infinite !important;/);
+    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.thinking-dots > span\s*{[^}]*animation-duration: 1s !important;/);
+  });
+
+  it("centers the thinking dots and starts them at stable animation phases", () => {
+    expect(styles).toMatch(/\.thinking-placeholder-copy\s*{[^}]*align-items: center;/s);
+    expect(styles).toContain(".thinking-dots > span:nth-child(2) { animation-delay: -860ms; }");
+    expect(styles).toContain(".thinking-dots > span:nth-child(3) { animation-delay: -720ms; }");
+  });
+});
+
 describe("sidebar Session accessory layout", () => {
   it("overlaps content and shortcut layers in one fixed accessory slot", () => {
     expect(styles).toMatch(/\.session-row-accessory-content,\s*\.session-row-shortcut\s*{[^}]*position: absolute;[^}]*inset: 2px;[^}]*pointer-events: none;/s);

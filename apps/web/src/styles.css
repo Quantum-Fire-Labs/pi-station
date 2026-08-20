@@ -832,7 +832,7 @@ textarea:focus-visible {
 }
 .thinking-placeholder-copy {
   display: flex;
-  align-items: baseline;
+  align-items: center;
 }
 .thinking-dots {
   display: inline-flex;
@@ -855,8 +855,8 @@ textarea:focus-visible {
   transform: translate3d(0, 0, 0);
   will-change: transform;
 }
-.thinking-dots > span:nth-child(2) { animation-delay: 140ms; }
-.thinking-dots > span:nth-child(3) { animation-delay: 280ms; }
+.thinking-dots > span:nth-child(2) { animation-delay: -860ms; }
+.thinking-dots > span:nth-child(3) { animation-delay: -720ms; }
 @keyframes thinking-dot-bounce {
   0%, 20%, 55%, 100% { transform: translate3d(0, 0, 0); }
   35% { transform: translate3d(0, -0.28em, 0); }
@@ -3791,6 +3791,16 @@ textarea:focus-visible {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .initial-connection-mark {
+    animation: initial-connection-spin 900ms linear infinite !important;
+  }
+  .updating-mark {
+    animation: initial-connection-spin 1.1s linear infinite !important;
+  }
+  .thinking-dots > span {
+    animation-duration: 1s !important;
   }
 }
 
