@@ -6,6 +6,7 @@ import { ApplicationClient } from "./application/application-client";
 import { Pairing } from "./components/Pairing";
 import { UpdatingScreen } from "./components/UpdatingScreen";
 import { Workspace } from "./components/Workspace";
+import { QuickSessionDialog } from "./components/QuickSessionDialog";
 import { fixtureState, selectFixtureSession } from "./fixtures/workspace";
 import { notificationPresence } from "./notifications";
 import "./styles.css";
@@ -39,6 +40,7 @@ function Root() {
     return new ApplicationClient();
   });
   const [updating, setUpdating] = useState(false);
+  const [quickSessionOpen, setQuickSessionOpen] = useState(false);
   const [state, setState] = useState<ApplicationState>(() => {
     if (fixtureMode) {
       return fixtureState;
@@ -208,6 +210,7 @@ function Root() {
   }
 
   return (
+    <>
     <Workspace
       state={state}
       client={client}
@@ -234,7 +237,17 @@ function Root() {
       onReorderProjectBookmark={reorderProjectBookmark}
       onSetSessionBookmark={setSessionBookmark}
       onReorderSessionBookmark={reorderSessionBookmark}
+      onOpenQuickSession={() => setQuickSessionOpen(true)}
     />
+    <QuickSessionDialog
+      open={quickSessionOpen}
+      onOpenChange={setQuickSessionOpen}
+      onKept={(key) => {
+        client?.connect();
+        window.setTimeout(() => client?.select(key), 100);
+      }}
+    />
+    </>
   );
 }
 

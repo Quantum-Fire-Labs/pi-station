@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const selectSource = readFileSync(resolve(process.cwd(), "src/components/ui/select.tsx"), "utf8");
 const workspaceSource = readFileSync(resolve(process.cwd(), "src/components/Workspace.tsx"), "utf8");
+const dialogSource = readFileSync(resolve(process.cwd(), "src/components/ui/dialog.tsx"), "utf8");
 
 describe("composer width", () => {
   it("uses a separate 960px composer width and keeps the Timeline width", () => {
@@ -44,6 +45,20 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer-settings-mobile-menu \.composer-mobile-setting-label,\s*\.composer-settings-mobile-menu \.composer-mobile-setting-option\s*{[^}]*font-size: 12px;/s);
     expect(selectSource).toContain("bg-[var(--raised)]");
     expect(selectSource).not.toContain("bg-popover");
+  });
+});
+
+describe("Quick Session modal", () => {
+  it("uses an opaque 960px desktop surface without backdrop blur", () => {
+    expect(styles).toMatch(/\.quick-session-dialog\s*{[^}]*width: min\(960px, calc\(100vw - 48px\)\);[^}]*height: 85dvh;[^}]*background: var\(--page\);/s);
+    expect(dialogSource).toContain("z-[80] bg-black/45");
+    expect(dialogSource).not.toContain("backdrop-blur");
+  });
+
+  it("uses a safe-area full-screen mobile layout and a sticky composer", () => {
+    expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*\.quick-session-dialog\s*{[^}]*width: 100vw;[^}]*height: 100dvh;/);
+    expect(styles).toContain("padding-top: env(safe-area-inset-top)");
+    expect(styles).toMatch(/\.quick-session-dialog-body \.embedded-session \.composer-shell\s*{[^}]*position: sticky;/s);
   });
 });
 
