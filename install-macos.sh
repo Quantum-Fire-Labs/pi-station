@@ -26,8 +26,33 @@ web_origin=${PI_STATION_WEB_ORIGIN:-"$local_origin"}
 [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || fail "PI_STATION_PORT is invalid"
 xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&apos;/g"; }
 
-old_pi_pids=$(pgrep -f '/pi( |$)' 2>/dev/null | sort || true)
+old_release=$(readlink "$current_link" 2>/dev/null || true)
+[[ "$old_release" != "$version_dir" ]] || fail "Pi Station $version is already installed"
+rollback_dir=
+release_switched=0
 service_active=0
+rollback() {
+  local status=$?
+  trap - EXIT
+  if (( release_switched )); then
+    printf 'Pi Station installer: installation failed; restoring the previous release.\n' >&2
+    launchctl bootout "gui/$UID/$label" >/dev/null 2>&1 || true
+    if [[ -n "$old_release" && -d "$old_release" ]]; then
+      ln -sfn "$old_release" "$current_link.rollback"
+      mv -fh "$current_link.rollback" "$current_link"
+    else
+      rm -f "$current_link"
+    fi
+    if [[ -n "$rollback_dir" && -f "$rollback_dir/agent.plist" ]]; then cp "$rollback_dir/agent.plist" "$agent_file"; else rm -f "$agent_file"; fi
+    if (( service_active )) && [[ -f "$agent_file" ]]; then launchctl bootstrap "gui/$UID" "$agent_file" >/dev/null 2>&1 || true; fi
+    rm -rf -- "$version_dir"
+  fi
+  [[ -z "$rollback_dir" ]] || rm -rf -- "$rollback_dir"
+  exit "$status"
+}
+trap rollback EXIT
+
+old_pi_pids=$(pgrep -f '/pi( |$)' 2>/dev/null | sort || true)
 if launchctl print "gui/$UID/$label" >/dev/null 2>&1; then
   service_active=1
   deadline=$((SECONDS + 300))
@@ -41,6 +66,8 @@ if launchctl print "gui/$UID/$label" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$install_root" "$data_dir" "$shared_root" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/Pi Station"
+rollback_dir=$(mktemp -d "$install_root/.rollback.XXXXXX")
+[[ ! -f "$agent_file" ]] || cp "$agent_file" "$rollback_dir/agent.plist"
 rm -rf -- "$version_dir.new"
 mkdir -p "$version_dir.new"
 cp -a "$source_dir/." "$version_dir.new/"
@@ -48,7 +75,8 @@ rm -f "$version_dir.new/install.sh" "$version_dir.new/install-macos.sh"
 rm -rf -- "$version_dir"
 mv "$version_dir.new" "$version_dir"
 ln -sfn "$version_dir" "$current_link.new"
-mv -f "$current_link.new" "$current_link"
+mv -fh "$current_link.new" "$current_link"
+release_switched=1
 
 cat > "$agent_file" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -85,4 +113,8 @@ done
 curl --fail --silent "$local_origin/workspace" >/dev/null
 new_pi_pids=$(pgrep -f '/pi( |$)' 2>/dev/null | sort || true)
 [[ "$new_pi_pids" == "$old_pi_pids" ]] || fail "a Pi process PID changed during installation"
+release_switched=0
+rm -rf -- "$rollback_dir"
+rollback_dir=
+trap - EXIT
 printf 'Pi Station %s is installed.\nOpen %s/workspace\n' "$version" "$local_origin"
