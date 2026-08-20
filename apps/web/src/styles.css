@@ -717,18 +717,6 @@ body.sidebar-resizing {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.more {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  justify-self: end;
-  border: 0;
-  border-radius: 50%;
-  background: var(--raised);
-  color: var(--muted);
-  letter-spacing: 2px;
-}
 .mobile-back {
   visibility: hidden;
   border: 0;
@@ -2072,8 +2060,9 @@ body.sidebar-resizing {
   grid-column: 3;
   white-space: nowrap;
 }
-.session-header > .more {
+.session-header > .session-details-trigger {
   grid-column: 4;
+  justify-self: end;
 }
 .development-server-settings button[type="submit"] {
   border-color: var(--accent);
@@ -2631,6 +2620,9 @@ body.sidebar-resizing {
 }
 .mobile-navigation {
   position: relative;
+  display: none;
+}
+.dashboard-mobile-new-session {
   display: none;
 }
 .mobile-navigation-trigger {
@@ -3290,6 +3282,26 @@ body.sidebar-resizing {
     gap: 16px;
     margin-bottom: 24px;
   }
+  .dashboard-header {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    display: grid;
+  }
+  .dashboard-header .dashboard-heading {
+    min-width: 0;
+    text-align: center;
+  }
+  .dashboard-header .mobile-navigation {
+    margin-left: 0;
+  }
+  .dashboard-header .mobile-navigation-menu {
+    right: auto;
+    left: 0;
+  }
+  .dashboard-mobile-new-session {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+  }
   .dashboard h1,
   .projects-page-heading h1 { font-size: 24px; }
   .dashboard-heading p,
@@ -3440,17 +3452,7 @@ body.sidebar-resizing {
     width: calc(100vw - var(--rail) - 390px);
   }
 }
-.session-details {
-  position: fixed;
-  z-index: 25;
-  inset: 0 0 0 auto;
-  width: 390px;
-  overflow-y: auto;
-  border-left: 1px solid var(--line);
-  background: var(--page);
-  color: var(--text);
-}
-.session-details > header {
+.session-details-header {
   position: sticky;
   z-index: 1;
   top: 0;
@@ -3462,7 +3464,7 @@ body.sidebar-resizing {
   background: var(--page);
   padding: 10px 18px;
 }
-.session-details > header > div {
+.session-details-header > div {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3470,31 +3472,13 @@ body.sidebar-resizing {
   font-size: 12px;
   font-weight: 700;
 }
-.session-details > header > button {
-  width: 34px;
-  height: 34px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--raised);
-  color: var(--muted);
-  font-size: 20px;
-}
 .details-close-mobile {
   display: none;
 }
-.session-details-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--faint);
-}
-.session-details-dot.working {
-  background: var(--working);
-}
 .session-details-content {
   display: grid;
-  gap: 28px;
-  padding: 26px 22px 48px;
+  gap: 20px;
+  padding: 24px 22px 48px;
 }
 .session-details-name {
   display: flex;
@@ -3601,8 +3585,7 @@ body.sidebar-resizing {
 .session-details-section {
   display: grid;
   gap: 10px;
-  border-top: 1px solid var(--line);
-  padding-top: 18px;
+  padding-block: 2px;
 }
 .session-details-section h2,
 .session-details-section summary {
@@ -3619,20 +3602,11 @@ body.sidebar-resizing {
   color: var(--faint);
 }
 .session-details-actions {
-  display: grid;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
-.session-details-actions button {
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  padding: 10px 12px;
-  font-size: 11px;
-  text-align: left;
-}
+.session-details-actions button { justify-content: flex-start; }
 .session-details-actions a {
   display: flex;
   align-items: center;
@@ -3771,17 +3745,11 @@ body.sidebar-resizing {
   .details-open .session {
     display: none;
   }
-  .session-details {
-    position: static;
-    width: 100%;
-    min-height: 100dvh;
-    border-left: 0;
-  }
-  .session-details > header {
+  .session-details-header {
     justify-content: flex-start;
     gap: 12px;
   }
-  .session-details > header > button {
+  .session-details-header > button {
     order: -1;
   }
   .details-close-desktop {

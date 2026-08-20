@@ -471,7 +471,7 @@ describe("Workspace", () => {
 
     fireEvent.contextMenu(screen.getByRole("button", { name: /Application client/ }));
     await user.click(screen.getByRole("menuitem", { name: "Close" }));
-    expect(screen.getByRole("dialog", { name: "Close Application client?" })).toBeVisible();
+    expect(screen.getByRole("alertdialog", { name: "Close Application client?" })).toBeVisible();
   });
 
   it("nests a delegated Session directly under its parent", async () => {
@@ -1185,7 +1185,7 @@ describe("Workspace", () => {
     fireEvent(window, event);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(screen.getByRole("dialog", { name: "Close Workspace shell?" })).toBeVisible();
+    expect(screen.getByRole("alertdialog", { name: "Close Workspace shell?" })).toBeVisible();
     expect(onCommand).not.toHaveBeenCalled();
   });
 
@@ -1202,7 +1202,7 @@ describe("Workspace", () => {
     fireEvent(window, event);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(screen.getByRole("dialog", { name: "Close Workspace shell?" })).toBeVisible();
+    expect(screen.getByRole("alertdialog", { name: "Close Workspace shell?" })).toBeVisible();
   });
 
   it("ignores the close shortcut when an editable control has focus", () => {
@@ -1443,6 +1443,38 @@ describe("Workspace", () => {
 
     expect(screen.getByRole("dialog")).toBeVisible();
     expect(screen.getByRole("region", { name: "Selected Session" })).toBeVisible();
+  });
+
+  it("orders the mobile Dashboard menu, title, and New Session control", async () => {
+    enableMobileViewport();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Back to Dashboard" }));
+
+    const heading = screen.getByRole("heading", { name: "Dashboard" });
+    const header = heading.closest("header");
+    if (header === null) throw new Error("Dashboard header is missing");
+    const menu = within(header).getByRole("button", { name: "Open navigation menu" });
+    const newSession = header.querySelector<HTMLElement>(".dashboard-mobile-new-session");
+    if (newSession === null) throw new Error("Mobile New Session control is missing");
+
+    expect(menu.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(newSession) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(newSession).toHaveAttribute("data-slot", "button");
+    expect(newSession).toHaveAccessibleName("New Session");
+    expect(newSession).toHaveAttribute("title", "New Session");
+  });
+
+  it("starts a new Session from the mobile Dashboard header", async () => {
+    enableMobileViewport();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Back to Dashboard" }));
+    const header = screen.getByRole("heading", { name: "Dashboard" }).closest("header");
+    const newSession = header?.querySelector<HTMLElement>(".dashboard-mobile-new-session");
+    if (newSession === null || newSession === undefined) throw new Error("Mobile New Session control is missing");
+
+    await userEvent.click(newSession);
+
+    expect(screen.getByRole("heading", { name: "New Session" })).toBeVisible();
   });
 
   it("navigates from the mobile menu on Dashboard and Projects", async () => {
@@ -2098,7 +2130,7 @@ describe("Workspace", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Session details" }));
-    expect(screen.getByRole("complementary", { name: "Workspace shell" }))
+    expect(screen.getByRole("dialog", { name: "Workspace shell" }))
       .toBeVisible();
     expect(screen.getByText("Session ID")).toBeVisible();
     expect(screen.getByText("Project").parentElement?.nextElementSibling).toBe(screen.getByText("Updated").parentElement);
@@ -2131,13 +2163,46 @@ describe("Workspace", () => {
     expect(screen.queryByRole("button", { name: "Change thinking level" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Close Session" }));
-    const confirmation = screen.getByRole("dialog", { name: "Close Workspace shell?" });
+    const confirmation = screen.getByRole("alertdialog", { name: "Close Workspace shell?" });
     await user.click(within(confirmation).getByRole("button", { name: "Close Session" }));
     expect(onCommand).toHaveBeenCalledWith({ kind: "session.close" });
     await user.click(within(confirmation).getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Close Session details" }));
-    expect(screen.queryByRole("complementary", { name: "Workspace shell" }))
+    expect(screen.queryByRole("dialog", { name: "Workspace shell" }))
       .not.toBeInTheDocument();
+  });
+
+  it("renders Session details above a subtle non-blurred overlay with a shadcn trigger", async () => {
+    const user = userEvent.setup();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    const trigger = screen.getByRole("button", { name: "Session details" });
+    expect(trigger).toHaveClass("session-details-trigger", "size-10", "rounded-md", "border-border");
+    expect(trigger).not.toHaveClass("more", "rounded-full", "border-transparent");
+    await user.click(trigger);
+    const content = screen.getByRole("dialog", { name: "Workspace shell" });
+    const overlay = document.querySelector<HTMLElement>('[data-slot="sheet-overlay"]');
+    expect(content).toHaveClass("z-[60]", "fixed", "bg-background", "data-[side=right]:w-full");
+    expect(content).not.toHaveClass("session-details", "data-[side=right]:w-3/4");
+    expect(overlay).not.toBeNull();
+    expect(overlay).toHaveClass("z-50", "fixed", "bg-black/5");
+    expect(overlay?.className).not.toMatch(/backdrop|blur/);
+    await user.click(overlay!);
+    expect(screen.queryByRole("dialog", { name: "Workspace shell" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes Session details with Escape and restores focus to its trigger", async () => {
+    const user = userEvent.setup();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    const trigger = screen.getByRole("button", { name: "Session details" });
+    await user.click(trigger);
+    expect(screen.getByRole("dialog", { name: "Workspace shell" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Environment/ })).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByRole("button", { name: /Environment/ }));
+    expect(screen.getByRole("button", { name: /Environment/ })).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Workspace shell" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("preserves transcript whitespace and native tool disclosure", () => {
