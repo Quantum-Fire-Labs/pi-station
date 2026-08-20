@@ -1290,15 +1290,24 @@ body.sidebar-resizing {
   color: white;
   font-size: 20px;
 }
-.composer-primary-actions > button.recording {
-  background: var(--danger);
-  color: white;
+.composer-primary-actions > .composer-transcription-button,
+.composer-primary-actions > .composer-transcription-button:hover,
+.composer-primary-actions > .composer-transcription-button:focus,
+.composer-primary-actions > .composer-transcription-button:focus-visible,
+.composer-primary-actions > .composer-transcription-button:active,
+.composer-primary-actions > .composer-transcription-button:disabled {
+  width: 40px;
+  height: 40px;
+  background: transparent;
+}
+.composer-primary-actions > .composer-transcription-button[data-state="recording"],
+.composer-primary-actions > .composer-transcription-button[data-state="processing"] {
+  color: var(--danger);
 }
 .composer-primary-actions > button:last-child:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
-.composer button.processing:disabled { background: var(--danger); color: var(--page); opacity: 1; }
 .composer-feedback {
   position: absolute;
   z-index: 2;

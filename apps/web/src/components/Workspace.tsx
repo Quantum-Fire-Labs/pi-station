@@ -3384,7 +3384,8 @@ export function Workspace({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={voiceState === "recording" ? "recording" : voiceState === "transcribing" ? "processing" : ""}
+                  className="composer-transcription-button"
+                  data-state={voiceState === "transcribing" ? "processing" : voiceState}
                   type="button"
                   disabled={!commandAvailable || commandPending || !voiceConfiguration.configured || voiceState === "transcribing"}
                   aria-label={voiceState === "recording" ? "Stop and transcribe recording" : voiceState === "transcribing" ? "Transcribing recording" : "Record message"}

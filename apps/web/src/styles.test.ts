@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const selectSource = readFileSync(resolve(process.cwd(), "src/components/ui/select.tsx"), "utf8");
+const workspaceSource = readFileSync(resolve(process.cwd(), "src/components/Workspace.tsx"), "utf8");
 
 describe("composer width", () => {
   it("uses a separate 960px composer width and keeps the Timeline width", () => {
@@ -20,6 +21,19 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer-settings-desktop\s*{[^}]*gap: 10px;/s);
     expect(styles).toContain(".composer-model-trigger");
     expect(styles).toContain(".composer-thinking-trigger");
+  });
+
+  it("keeps only the small transcription control transparent in every interaction state", () => {
+    expect(workspaceSource).toMatch(/className="composer-transcription-button"\s*data-state=/);
+    expect(styles).toMatch(/\.composer-primary-actions > \.composer-transcription-button,\s*\.composer-primary-actions > \.composer-transcription-button:hover,\s*\.composer-primary-actions > \.composer-transcription-button:focus,\s*\.composer-primary-actions > \.composer-transcription-button:focus-visible,\s*\.composer-primary-actions > \.composer-transcription-button:active,\s*\.composer-primary-actions > \.composer-transcription-button:disabled\s*{[^}]*width: 40px;[^}]*height: 40px;[^}]*background: transparent;/s);
+    expect(styles).toMatch(/\.composer-primary-actions > \.composer-transcription-button\[data-state="recording"\],\s*\.composer-primary-actions > \.composer-transcription-button\[data-state="processing"\]\s*{[^}]*color: var\(--danger\);/s);
+  });
+
+  it("does not change the Send, open-voice-mode, or full voice-mode controls", () => {
+    expect(styles).toMatch(/\.composer-primary-actions > button:last-child\s*{[^}]*background: var\(--accent\);/s);
+    expect(styles).toMatch(/\.voice-mode-record-icon\s*{[^}]*background: var\(--accent\);/s);
+    expect(styles).toMatch(/\.voice-mode-record\[data-state="recording"\] \.voice-mode-record-icon,[^{]*{[^}]*background: var\(--danger\);/s);
+    expect(workspaceSource).toContain('className="voice-mode-record"');
   });
 
   it("uses 12px type and opaque theme surfaces for model and thinking menus", () => {

@@ -1594,6 +1594,17 @@ describe("Workspace", () => {
     expect(screen.getByRole("button", { name: "Session and delivery settings" })).toHaveFocus();
   });
 
+  it("keeps the transparent transcription control separate from the Send and open-voice control", () => {
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    const transcription = screen.getByRole("button", { name: "Record message" });
+    const openVoice = screen.getByRole("button", { name: "Open voice mode" });
+    expect(transcription).toHaveAttribute("data-slot", "button");
+    expect(transcription).toHaveClass("composer-transcription-button");
+    expect(transcription).toHaveAttribute("data-state", "idle");
+    expect(openVoice).not.toHaveClass("composer-transcription-button");
+  });
+
   it("enables the composer for a supported synchronized Session", () => {
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
     expect(screen.getByLabelText("Message Pi")).toBeEnabled();
@@ -1622,7 +1633,10 @@ describe("Workspace", () => {
 
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
 
-    expect(await screen.findByRole("button", { name: "Start recording" })).toBeEnabled();
+    const voiceModeRecord = await screen.findByRole("button", { name: "Start recording" });
+    expect(voiceModeRecord).toBeEnabled();
+    expect(voiceModeRecord).toHaveClass("voice-mode-record");
+    expect(voiceModeRecord).not.toHaveClass("composer-transcription-button");
     expect(screen.getByRole("switch", { name: "Auto-play on" })).toBeEnabled();
     expect(setActionHandler).not.toHaveBeenCalled();
   });
