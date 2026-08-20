@@ -58,6 +58,7 @@ export class TurnService {
   readonly #phaseGenerations = new Map<string, number>()
   readonly #phaseEpoch: string
   readonly #idleWaiters = new Set<() => void>()
+  readonly #sessionIdleListeners = new Set<(key: SessionKey) => void>()
 
   constructor(runner: SessionRuntime, publish: Publish, publishAttention: PublishAttention = () => undefined, phaseEpoch: string = randomUUID()) {
     this.#runner = runner
@@ -66,7 +67,12 @@ export class TurnService {
     this.#phaseEpoch = phaseEpoch
   }
 
-  dispose(): void { this.#idleWaiters.clear() }
+  dispose(): void { this.#idleWaiters.clear(); this.#sessionIdleListeners.clear() }
+
+  onSessionIdle(listener: (key: SessionKey) => void): () => void {
+    this.#sessionIdleListeners.add(listener)
+    return () => this.#sessionIdleListeners.delete(listener)
+  }
 
   phase(key: SessionKey): { readonly phase: "working" | "idle"; readonly epoch: string; readonly generation: number } {
     const id = key.sessionId
@@ -242,6 +248,7 @@ export class TurnService {
     if (this.#active.get(id) !== active) return
     this.#active.delete(id)
     this.#publishPhase(input, "idle")
+    for (const listener of this.#sessionIdleListeners) listener(input)
     this.#notifyIdle()
     const candidate = failed
       ? { kind: "needs-attention" as const }

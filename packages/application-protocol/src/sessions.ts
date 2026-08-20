@@ -46,6 +46,8 @@ export interface SavedSession {
   readonly unread?: SessionUnreadState
   readonly modifiedAt: string
   readonly state: SessionState
+  /** An in-memory move request that will apply when the current turn is idle. */
+  readonly pendingProjectMove?: { readonly projectId: string; readonly projectName: string }
 }
 
 export interface SessionUpdatedEvent {
@@ -101,6 +103,10 @@ export interface SessionSharedFiles {
 
 export function sessionKey(key: SessionKey): string {
   return `${key.projectId}:${key.sessionId}`
+}
+
+export function isSessionMoveRequest(value: unknown): value is { readonly projectId: string } {
+  return isExactRecord(value, ["projectId"]) && typeof value.projectId === "string" && isProtocolId(value.projectId)
 }
 
 export function isSessionStateRequest(

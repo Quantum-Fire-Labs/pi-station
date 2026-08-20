@@ -547,6 +547,10 @@ export class ApplicationClient extends ApplicationClientBase {
       });
     } else if (action.kind === "session.reload") {
       operation = mutate(`${sessionPath(target)}/reload`, "POST", {});
+    } else if (action.kind === "session.move") {
+      operation = mutate(`${sessionPath(target)}/move`, "POST", { projectId: action.projectId });
+    } else if (action.kind === "session.move.cancel") {
+      operation = mutate(`${sessionPath(target)}/move`, "DELETE", undefined);
     } else if (action.kind === "session.model.set") {
       operation = mutate(`${sessionPath(target)}/model`, "PUT", { provider: action.provider, modelId: action.modelId }).then((result) => {
         this.applySettings((result as { settings: SessionSettings }).settings);
@@ -771,6 +775,7 @@ export class ApplicationClient extends ApplicationClientBase {
   }
 
   private applySessionUpdate(saved: SavedSession): void {
+    const selectedBefore = this.rpcState.selectedSessionKey;
     const changed = sessionSummary(saved);
     const key = changed.sessionKey;
     const previous = this.rpcState.sessions.find((session) => session.sessionKey.piSessionId === key.piSessionId);
@@ -783,6 +788,7 @@ export class ApplicationClient extends ApplicationClientBase {
     ) {
       this.rpcState = {
         ...this.rpcState,
+        selectedSessionKey: key,
         selected: { ...this.rpcState.selected, projection: {
           ...changed.projection,
           run: this.rpcState.selected.projection?.run ?? changed.projection.run,
@@ -790,6 +796,9 @@ export class ApplicationClient extends ApplicationClientBase {
       };
     }
     this.emitRpcState();
+    if (selectedBefore?.piSessionId === key.piSessionId && selectedBefore.hostId !== key.hostId) {
+      this.openEvents({ projectId: key.hostId, sessionId: key.piSessionId }, this.selectionGeneration, 0);
+    }
     this.markSelectedAttentionRead();
   }
 
@@ -1114,6 +1123,7 @@ function sessionSummary(session: SavedSession): SessionSummary {
     lastActivityAt: session.modifiedAt,
     projection: projectionFor(session, session.delegationStatus === "working" ? "working" : "idle"),
     ...(session.delegationStatus === undefined ? {} : { delegationStatus: session.delegationStatus }),
+    ...(session.pendingProjectMove === undefined ? {} : { pendingProjectMove: session.pendingProjectMove }),
   };
 }
 

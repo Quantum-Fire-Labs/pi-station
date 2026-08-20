@@ -21,7 +21,7 @@ export interface SessionProjection {
   readonly management: { readonly kind: "unmanaged" } | { readonly kind: "managed"; readonly managedSessionId: string; readonly runner: string; readonly processState: string; readonly safeFailure?: string };
   readonly capabilities: readonly CapabilityId[];
 }
-export interface SessionSummary { readonly sessionKey: SessionKey; readonly parentSessionKey?: SessionKey; readonly name?: string | undefined; readonly displayPath?: string; readonly projectId?: ProjectId; readonly generationId?: string; readonly projection: SessionProjection; readonly createdAt?: string; readonly lastActivityAt?: string; readonly delegationStatus?: "working" | "completed" | "failed" | "cancelled" | "interrupted" }
+export interface SessionSummary { readonly sessionKey: SessionKey; readonly parentSessionKey?: SessionKey; readonly name?: string | undefined; readonly displayPath?: string; readonly projectId?: ProjectId; readonly generationId?: string; readonly projection: SessionProjection; readonly createdAt?: string; readonly lastActivityAt?: string; readonly delegationStatus?: "working" | "completed" | "failed" | "cancelled" | "interrupted"; readonly pendingProjectMove?: { readonly projectId: string; readonly projectName: string } }
 export interface SessionDetails { readonly name?: string | undefined; readonly currentDirectoryDisplay?: string | undefined; readonly projectId?: ProjectId | undefined; readonly model?: ModelChoice; readonly modelInventory?: readonly ModelChoice[]; readonly thinkingLevel?: ThinkingLevel; readonly supportedThinkingLevels?: readonly ThinkingLevel[]; readonly managedLaunchDisplay?: string; readonly sharedFiles?: readonly SharedFileInfo[]; readonly commandInventory: readonly { readonly name: string; readonly description?: string; readonly source: "extension" | "prompt-template" | "skill"; readonly invocation: "prompt" | "direct"; readonly requiredCapability?: CapabilityId }[] }
 export interface ApplicationQueueSnapshot { readonly state: SessionProjection["queue"]["state"]; readonly knownItems: readonly never[] }
 export type TimelineSource = "saved" | "live" | "optimistic";
@@ -43,6 +43,8 @@ export type TimelineItem =
 export type CommandAction =
   | { readonly kind: "prompt.send" | "prompt.steer" | "prompt.follow-up"; readonly text: string; readonly imageIds?: readonly string[]; readonly attachmentIds?: readonly string[]; readonly agentMentions?: readonly { readonly sessionId: string; readonly label: string }[] }
   | { readonly kind: "session.abort" | "session.close" | "session.clone" | "session.reload" }
+  | { readonly kind: "session.move"; readonly projectId: string }
+  | { readonly kind: "session.move.cancel" }
   | { readonly kind: "session.rename"; readonly name: string }
   | { readonly kind: "session.model.set"; readonly provider: string; readonly modelId: string }
   | { readonly kind: "session.thinking.set"; readonly level: ThinkingLevel };
