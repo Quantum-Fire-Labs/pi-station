@@ -297,7 +297,7 @@ describe("Workspace", () => {
     expect(screen.getByLabelText("Message Pi")).not.toHaveFocus();
   });
 
-  it("keeps Bookmark, selected, Working, and unread indicators distinct in sidebar rows", () => {
+  it("uses one prioritized status indicator with accessible labels in project sidebar rows", () => {
     const bookmarked = fixtureState.sessions[0];
     const unbookmarked = fixtureState.sessions[1];
     const otherProject = fixtureState.projects.find((project) => (
@@ -331,21 +331,64 @@ describe("Workspace", () => {
 
     const bookmarkedRow = screen.getByRole("button", { name: /Workspace shell/ });
     expect(bookmarkedRow).toHaveAttribute("aria-current", "page");
-    expect(within(bookmarkedRow).getByLabelText("working Session")).toBeVisible();
+    expect(within(bookmarkedRow).getByLabelText("Working Session")).toBeVisible();
     expect(within(bookmarkedRow).getByRole("img", { name: "Bookmarked" }))
       .toHaveClass("session-bookmark-indicator");
     expect(bookmarkedRow).toHaveTextContent("Workspace shell");
-    expect(within(bookmarkedRow).queryByLabelText("Unread")).not.toBeInTheDocument();
+    expect(within(bookmarkedRow).queryByLabelText("Unread Session")).not.toBeInTheDocument();
 
     const unbookmarkedRow = screen.getByRole("button", { name: /Application client/ });
     expect(within(unbookmarkedRow).queryByLabelText("Bookmarked")).not.toBeInTheDocument();
-    expect(within(unbookmarkedRow).getByLabelText("Unread")).toBeVisible();
+    expect(within(unbookmarkedRow).getByLabelText("Unread Session")).toBeVisible();
     for (const row of [bookmarkedRow, unbookmarkedRow]) {
       expect(row.querySelector(".session-row-name")).toBeInTheDocument();
       expect(row.querySelector(".session-row-accessory")).toBeInTheDocument();
-      expect(row.querySelector(".session-row-unread-slot")).toBeInTheDocument();
+      expect(row.querySelectorAll(".session-status-indicator")).toHaveLength(1);
+      expect(row.querySelector(".session-row-unread-slot")).not.toBeInTheDocument();
     }
     expect(screen.getAllByRole("button", { name: "Dashboard" })).toHaveLength(1);
+  });
+
+  it("uses the unified status indicator in projectless and bookmarked sidebar rows", () => {
+    const source = fixtureState.sessions[2];
+    if (source === undefined) throw new Error("Session fixture is missing");
+    const bookmarked = {
+      ...source,
+      sessionKey: { ...source.sessionKey, piSessionId: "projectless-bookmarked" },
+      name: "Projectless bookmarked",
+      projectId: "removed-project",
+      projection: { ...source.projection, unread: { hasUnread: true } },
+    };
+    const { projectId: sourceProjectId, ...projectlessSource } = source;
+    void sourceProjectId;
+    const other = {
+      ...projectlessSource,
+      sessionKey: { ...source.sessionKey, piSessionId: "projectless-other" },
+      name: "Projectless idle",
+    };
+    render(
+      <Workspace
+        state={{
+          ...fixtureState,
+          sessions: [...fixtureState.sessions, bookmarked, other],
+          sessionBookmarks: [{
+            projectId: "removed-project",
+            sessionKey: bookmarked.sessionKey,
+            position: 0,
+          }],
+        }}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const bookmarkedRow = screen.getByRole("button", { name: /Projectless bookmarked/ });
+    const otherRow = screen.getByRole("button", { name: /Projectless idle/ });
+    expect(within(bookmarkedRow).getByLabelText("Unread Session")).toBeVisible();
+    expect(within(otherRow).getByLabelText("Idle Session")).toBeVisible();
+    for (const row of [bookmarkedRow, otherRow]) {
+      expect(row.querySelectorAll(".session-status-indicator")).toHaveLength(1);
+      expect(row.querySelector(".session-row-unread-slot")).not.toBeInTheDocument();
+    }
   });
 
   it("keeps stable slots for long, delegated Session rows when state indicators change", () => {
@@ -380,9 +423,10 @@ describe("Workspace", () => {
     const row = screen.getByRole("button", { name: new RegExp(longName) });
     expect(row).toHaveAttribute("data-session-depth", "1");
     expect(row).toHaveAttribute("aria-current", "page");
-    expect(within(row).getByLabelText("working Session")).toBeVisible();
+    expect(within(row).getByLabelText("Working Session")).toBeVisible();
     expect(within(row).getByLabelText("Bookmarked")).toBeVisible();
-    expect(within(row).getByLabelText("Unread")).toBeVisible();
+    expect(within(row).queryByLabelText("Unread Session")).not.toBeInTheDocument();
+    expect(row.querySelectorAll(".session-status-indicator")).toHaveLength(1);
     expect(row.querySelector(".session-row-name")).toHaveTextContent(longName);
 
     rerender(
@@ -398,9 +442,10 @@ describe("Workspace", () => {
     );
     const changedRow = screen.getByRole("button", { name: new RegExp(longName) });
     expect(within(changedRow).queryByLabelText("Bookmarked")).not.toBeInTheDocument();
-    expect(within(changedRow).queryByLabelText("Unread")).not.toBeInTheDocument();
+    expect(within(changedRow).queryByLabelText("Unread Session")).not.toBeInTheDocument();
+    expect(within(changedRow).getByLabelText("Working Session")).toBeVisible();
     expect(changedRow.querySelector(".session-row-accessory")).toBeInTheDocument();
-    expect(changedRow.querySelector(".session-row-unread-slot")).toBeEmptyDOMElement();
+    expect(changedRow.querySelector(".session-row-unread-slot")).not.toBeInTheDocument();
   });
 
   it("keeps one Bookmark indicator on a delegated mobile sidebar row", () => {
@@ -439,10 +484,11 @@ describe("Workspace", () => {
 
     const childRow = screen.getByRole("button", { name: /Application client/ });
     expect(childRow).toHaveAttribute("data-session-depth", "1");
-    expect(within(childRow).getByLabelText("working Session")).toBeVisible();
-    expect(within(childRow).queryByLabelText("Unread")).not.toBeInTheDocument();
+    expect(within(childRow).getByLabelText("Working Session")).toBeVisible();
+    expect(within(childRow).queryByLabelText("Unread Session")).not.toBeInTheDocument();
     expect(childRow.querySelector(".session-row-accessory")).toBeInTheDocument();
-    expect(childRow.querySelector(".session-row-unread-slot")).toBeEmptyDOMElement();
+    expect(childRow.querySelectorAll(".session-status-indicator")).toHaveLength(1);
+    expect(childRow.querySelector(".session-row-unread-slot")).not.toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: "Bookmarked" })).toHaveLength(1);
   });
 
@@ -546,8 +592,8 @@ describe("Workspace", () => {
     expect(parentRow).toHaveAttribute("data-session-depth", "0");
     expect(childRow).toHaveAttribute("data-session-depth", "1");
     expect(rows.indexOf(childRow!)).toBe(rows.indexOf(parentRow!) + 1);
-    expect(within(parentRow as HTMLElement).getByLabelText("Unread")).toBeVisible();
-    expect(within(childRow as HTMLElement).queryByLabelText("Unread")).not.toBeInTheDocument();
+    expect(within(parentRow as HTMLElement).getByLabelText("Working Session")).toBeVisible();
+    expect(within(childRow as HTMLElement).getByLabelText("Idle Session")).toBeVisible();
 
     await userEvent.click(childRow as HTMLElement);
     expect(onSelect).toHaveBeenCalledWith(child.sessionKey);
@@ -783,7 +829,7 @@ describe("Workspace", () => {
       onSelect={vi.fn()}
     />);
 
-    expect(screen.getByLabelText("reconnecting Session")).toBeInTheDocument();
+    expect(screen.getByLabelText("Idle Session")).toBeInTheDocument();
     const project = fixtureState.projects.find(
       (candidate) => candidate.projectId === session.projectId,
     );
@@ -1353,7 +1399,7 @@ describe("Workspace", () => {
     expect(shortcutLayer?.parentElement).toBe(accessory);
     expect(shortcutLayer).toHaveAttribute("aria-hidden", "true");
     expect(within(firstSession as HTMLButtonElement).getByLabelText("Bookmarked")).toBeVisible();
-    expect(firstSession?.querySelector(".session-row-unread-slot")).toBeInTheDocument();
+    expect(firstSession?.querySelector(".session-status-indicator")).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Control", ctrlKey: true });
     expect(sidebar).toHaveClass("shortcuts-visible");
@@ -1361,7 +1407,7 @@ describe("Workspace", () => {
     expect(shortcutLayer).not.toHaveAttribute("aria-hidden");
     expect(within(firstSession as HTMLButtonElement).getByLabelText("Shortcut 1")).toBeInTheDocument();
     expect(firstSession?.querySelector(".session-row-name")).toHaveTextContent(firstSessionName ?? "");
-    expect(firstSession?.querySelector(".session-row-unread-slot")).toBeInTheDocument();
+    expect(firstSession?.querySelector(".session-status-indicator")).toBeInTheDocument();
     fireEvent.keyUp(document, { key: "Control" });
     expect(sidebar).not.toHaveClass("shortcuts-visible");
     expect(bookmarkLayer).not.toHaveAttribute("aria-hidden");

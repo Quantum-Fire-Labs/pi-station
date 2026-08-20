@@ -69,6 +69,9 @@
   --working: #cb8416;
   --success: #47734b;
   --danger: #8b3327;
+  --session-status-working: #f59e0b;
+  --session-status-unread: #14b86b;
+  --session-status-idle: #cbd5e1;
   --rail: 408px;
   --content: 760px;
   --composer-content: 960px;
@@ -108,11 +111,13 @@
     --working: #e5ad00;
     --success: #72b879;
     --danger: #ed8a87;
+    --session-status-idle: #94a3b8;
   }
 }
 :root[data-appearance="light"] { color-scheme: light; }
 :root[data-appearance="dark"] {
   color-scheme: dark;
+  --session-status-idle: #94a3b8;
   --ui-background: oklch(0.145 0 0);
   --ui-foreground: oklch(0.985 0 0);
   --ui-card: oklch(0.205 0 0);
@@ -488,7 +493,7 @@ body.sidebar-resizing {
   display: grid;
   width: 100%;
   height: 36px;
-  grid-template-columns: 10px minmax(0, 1fr) 24px 8px;
+  grid-template-columns: 10px minmax(0, 1fr) 24px;
   align-items: center;
   column-gap: 9px;
   border: 0;
@@ -508,7 +513,48 @@ body.sidebar-resizing {
   background: var(--accent);
   content: "";
 }
-.session-row i,
+.session-row .session-status-indicator {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--session-status-idle);
+  box-shadow: none;
+}
+.session-row .session-status-indicator.status-unread {
+  background: var(--session-status-unread);
+}
+.session-row .session-status-indicator.status-working {
+  background: var(--session-status-working);
+}
+.session-row .session-status-indicator.status-working::before,
+.session-row .session-status-indicator.status-working::after {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--session-status-working);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  animation: session-status-pulse 1.8s ease-out infinite;
+}
+.session-row .session-status-indicator.status-working::after {
+  animation-delay: 900ms;
+}
+@keyframes session-status-pulse {
+  0% { opacity: 0.8; transform: scale(1); }
+  75%, 100% { opacity: 0; transform: scale(2.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-row .session-status-indicator.status-working::before {
+    opacity: 0.35;
+    transform: scale(1.75);
+    animation: none;
+  }
+  .session-row .session-status-indicator.status-working::after {
+    display: none;
+    animation: none;
+  }
+}
 .session-title i {
   width: 7px;
   height: 7px;
@@ -516,7 +562,6 @@ body.sidebar-resizing {
   background: var(--strong);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--strong) 14%, transparent);
 }
-.session-row i.working,
 .session-title i.working {
   background: var(--working);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--working) 12%, transparent);
@@ -528,15 +573,12 @@ body.sidebar-resizing {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.session-row-accessory,
-.session-row-unread-slot {
+.session-row-accessory {
   position: relative;
   display: grid;
   min-width: 0;
   height: 24px;
   place-items: center;
-}
-.session-row-accessory {
   isolation: isolate;
   grid-column: 3;
 }
@@ -569,9 +611,6 @@ body.sidebar-resizing {
   z-index: 0;
   visibility: hidden;
 }
-.session-row-unread-slot {
-  grid-column: 4;
-}
 .session-row-accessory small {
   width: 100%;
   overflow: hidden;
@@ -579,10 +618,6 @@ body.sidebar-resizing {
   font: 9px var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.session-row-unread-slot b {
-  color: var(--accent);
-  font-size: 7px;
 }
 .session-bookmark-indicator {
   display: inline-flex;

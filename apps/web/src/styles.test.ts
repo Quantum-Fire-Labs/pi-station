@@ -44,9 +44,32 @@ describe("sidebar Session accessory layout", () => {
     expect(styles).toMatch(/\.sidebar\.shortcuts-visible \.session-row-accessory-content\s*{[^}]*z-index: 0;[^}]*visibility: hidden;/s);
   });
 
-  it("does not use a row pseudo-element that can stack the shortcut vertically", () => {
+  it("does not reserve a column for a separate unread marker", () => {
     expect(styles).not.toContain(".session-row[data-session-shortcut]:after");
-    expect(styles).toMatch(/grid-template-columns: 10px minmax\(0, 1fr\) 24px 8px;/);
-    expect(styles).toMatch(/\.session-row-unread-slot\s*{\s*grid-column: 4;/);
+    expect(styles).toMatch(/grid-template-columns: 10px minmax\(0, 1fr\) 24px;/);
+    expect(styles).not.toContain("session-row-unread-slot");
+  });
+});
+
+describe("sidebar Session status indicator", () => {
+  it("uses exact fixed status colors and the application appearance for idle", () => {
+    expect(styles).toContain("--session-status-working: #f59e0b;");
+    expect(styles).toContain("--session-status-unread: #14b86b;");
+    expect(styles).toContain("--session-status-idle: #cbd5e1;");
+    expect(styles).toMatch(/:root\[data-appearance="dark"\][^{]*\{[^}]*--session-status-idle: #94a3b8;/s);
+    expect(styles).toMatch(/@media \(prefers-color-scheme: dark\)[\s\S]*:root:not\(\[data-appearance\]\)[^{]*\{[^}]*--session-status-idle: #94a3b8;/);
+  });
+
+  it("keeps idle and unread static while working uses two pulse rings", () => {
+    expect(styles).toMatch(/\.session-status-indicator\s*{[^}]*box-shadow: none;/s);
+    expect(styles).toMatch(/\.session-status-indicator\.status-unread\s*{[^}]*background: var\(--session-status-unread\);/s);
+    expect(styles).toMatch(/\.status-working::before,\s*\.session-row \.session-status-indicator\.status-working::after\s*{[^}]*animation: session-status-pulse/s);
+    expect(styles).toContain("@keyframes session-status-pulse");
+    expect(styles).not.toMatch(/\.status-(?:idle|unread)[^{]*\{[^}]*(?:animation|box-shadow):/s);
+  });
+
+  it("replaces motion with one static working halo", () => {
+    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.status-working::before\s*{[^}]*animation: none;/);
+    expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.status-working::after\s*{[^}]*display: none;[^}]*animation: none;/);
   });
 });
