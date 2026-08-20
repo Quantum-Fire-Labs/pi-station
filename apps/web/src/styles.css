@@ -3068,6 +3068,9 @@ body.sidebar-resizing {
   background: color-mix(in srgb, #101612 42%, transparent);
 }
 .modal-panel {
+  display: flex;
+  max-height: inherit;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: inherit;
@@ -3097,6 +3100,8 @@ body.sidebar-resizing {
   line-height: 1.55;
 }
 .modal-body {
+  min-height: 0;
+  overflow-y: auto;
   padding: 18px 20px 20px;
 }
 .modal-field {
@@ -4045,6 +4050,7 @@ body.sidebar-resizing {
 .quick-session-dialog-body .embedded-session .feed { flex: 1 1 auto; }
 .quick-session-dialog-body .embedded-session .composer-shell { position: sticky; right: auto; bottom: 0; left: auto; margin-top: auto; background: color-mix(in srgb, var(--page) 96%, transparent); }
 .quick-session-error { margin: 0; border-bottom: 1px solid var(--destructive); background: var(--destructive); color: var(--destructive-foreground); padding: 8px 16px; font-size: 13px; }
+.quick-session-pending { display: flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; margin: 0; border-bottom: 1px solid var(--border); background: var(--raised); color: var(--muted); padding: 4px 16px; font-size: 12px; }
 @media (max-width: 760px) {
   .quick-session-dialog {
     top: 0;
@@ -4053,6 +4059,7 @@ body.sidebar-resizing {
     height: 100dvh;
     max-width: none;
     transform: none;
+    translate: none;
     border: 0;
     border-radius: 0;
     padding-top: env(safe-area-inset-top);

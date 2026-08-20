@@ -1,4 +1,4 @@
-import { lazy, StrictMode, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, StrictMode, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ApplicationState } from "./application/application-client-base";
 import { MaintenanceMonitor } from "./application/maintenance";
@@ -41,6 +41,11 @@ function Root() {
   });
   const [updating, setUpdating] = useState(false);
   const [quickSessionOpen, setQuickSessionOpen] = useState(false);
+  const quickSessionTrigger = useRef<HTMLElement | null>(null);
+  const changeQuickSessionOpen = (open: boolean): void => {
+    setQuickSessionOpen(open);
+    if (!open) queueMicrotask(() => quickSessionTrigger.current?.focus());
+  };
   const [state, setState] = useState<ApplicationState>(() => {
     if (fixtureMode) {
       return fixtureState;
@@ -237,11 +242,14 @@ function Root() {
       onReorderProjectBookmark={reorderProjectBookmark}
       onSetSessionBookmark={setSessionBookmark}
       onReorderSessionBookmark={reorderSessionBookmark}
-      onOpenQuickSession={() => setQuickSessionOpen(true)}
+      onOpenQuickSession={() => {
+        quickSessionTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setQuickSessionOpen(true);
+      }}
     />
     <QuickSessionDialog
       open={quickSessionOpen}
-      onOpenChange={setQuickSessionOpen}
+      onOpenChange={changeQuickSessionOpen}
       onKept={(key) => {
         client?.connect();
         window.setTimeout(() => client?.select(key), 100);

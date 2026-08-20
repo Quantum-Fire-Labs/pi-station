@@ -42,7 +42,7 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
   const command = (action: Parameters<ApplicationClient["executeCommand"]>[0]) => quickKey === undefined ? undefined : client.executeCommand(action, quickKey);
 
   return <>
-    <Dialog open={open} onOpenChange={(next) => {
+    <Dialog open={open && !keepOpen} onOpenChange={(next) => {
       if (!next && (clearOpen || keepOpen)) return;
       if (!next && scrollRef.current) savedScroll.current = scrollRef.current.scrollTop;
       onOpenChange(next);
@@ -53,7 +53,7 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
           <span className="quick-session-dialog-actions">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Quick Session actions" />}><Ellipsis aria-hidden="true" size={18} /></DropdownMenuTrigger>
-              <DropdownMenuContent className="z-[90] bg-popover" align="end">
+              <DropdownMenuContent className="z-[90] bg-popover" positionerClassName="z-[90]" align="end">
                 <DropdownMenuItem onClick={() => setClearOpen(true)}>Clear Session</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setKeepOpen(true)}>Keep Session</DropdownMenuItem>
               </DropdownMenuContent>
@@ -62,6 +62,8 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
           </span>
         </DialogHeader>
         {error !== undefined && <p className="quick-session-error" role="alert">{error}</p>}
+        {state.quickSessionAction?.status === "pending" && <p className="quick-session-pending" role="status">{state.quickSessionAction.type === "clear" ? "Clear" : "Keep"} waits until Pi finishes. <Button type="button" variant="ghost" size="sm" onClick={() => { void client.cancelQuickSessionAction().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "The pending action could not be cancelled.")); }}>Cancel pending action</Button></p>}
+        {state.quickSessionAction?.status === "failed" && <p className="quick-session-error" role="alert">{state.quickSessionAction.error ?? "Quick Session action failed."}</p>}
         <div ref={scrollRef} className="quick-session-dialog-body" onScroll={(event) => { savedScroll.current = event.currentTarget.scrollTop; }}>
           {loading && state.selectedSessionKey === undefined ? <p role="status" className="page-loading">Opening Quick Session…</p> : (
             <Workspace embeddedSession state={state} client={client} onSelect={(key) => client.select(key)} onCommand={command} onLoadEarlier={() => client.requestEarlierHistory()} onUploadImage={(file, signal) => client.uploadImage(file, signal)} onDeleteImage={(id) => client.deleteImage(id)} onUploadAttachment={(file, signal) => client.uploadAttachment(file, signal)} onDeleteAttachment={(id) => client.deleteAttachment(id)} />
