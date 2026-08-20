@@ -10,6 +10,7 @@ import {
   type ModelRuntime,
 } from "@earendil-works/pi-coding-agent"
 import { Type } from "typebox"
+import type { Project } from "@pi-station/application-protocol"
 import type { AgentMessagingBridge } from "./agent-messaging.js"
 import type { DelegationEvents, DelegationRecord } from "./delegations.js"
 import { DEFAULT_SESSION_DEFAULTS, type SessionDefaults } from "./session-defaults.js"
@@ -161,6 +162,7 @@ export interface SdkSessionRuntimeOptions {
   readonly sharedFiles?: { readonly directory: string; readonly origins: SharedFileOrigins }
   readonly scheduledJobs?: ScheduledJobAgentBridge
   readonly agentMessaging?: AgentMessagingBridge
+  readonly listProjects?: () => Promise<readonly Project[]>
 }
 
 export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options: SdkSessionRuntimeOptions = {}): SessionRuntime {
@@ -565,6 +567,9 @@ async function createSdkSession(input: {
     },
   })]
   const scheduledJobTools = input.projectId === undefined || options.scheduledJobs === undefined ? [] : scheduledTools(options.scheduledJobs, input.projectId, input.sessionId)
+  const projectListingTools = input.projectId === undefined || options.listProjects === undefined
+    ? []
+    : listProjectsTools(options.listProjects, input.projectId, input.delegated === true)
   const sharedFiles = options.sharedFiles
   const resourceLoader = sharedFiles === undefined ? undefined : new DefaultResourceLoader({
     cwd: input.cwd,
@@ -579,7 +584,7 @@ async function createSdkSession(input: {
   const { session } = await createAgentSession({
     cwd: input.cwd,
     sessionManager,
-    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...scheduledJobTools],
+    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...scheduledJobTools, ...projectListingTools],
     ...(resourceLoader === undefined ? {} : { resourceLoader }),
     ...(options.modelRuntime === undefined ? {} : { modelRuntime: options.modelRuntime }),
     excludeTools: input.delegated === true
@@ -588,6 +593,28 @@ async function createSdkSession(input: {
   })
   parent.session = session
   return session
+}
+
+export function listProjectsTools(listProjects: () => Promise<readonly Project[]>, currentProjectId: string, delegated = false) {
+  if (delegated) return []
+  return [defineTool({
+    name: "list_projects",
+    label: "List Pi Station Projects",
+    description: "List all Projects configured on this Pi Station host. This tool does not change any Project.",
+    parameters: Type.Object({}, { additionalProperties: false }),
+    execute: async () => {
+      const projects = (await listProjects()).map((project) => ({
+        id: project.id,
+        name: project.name ?? project.root.split("/").at(-1) ?? project.root,
+        workingDirectory: project.root,
+        current: project.id === currentProjectId,
+      })).sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(projects, null, 2) }],
+        details: { projects },
+      }
+    },
+  })]
 }
 
 export function scheduledTools(bridge: ScheduledJobAgentBridge, projectId: string, sessionId: string) {
