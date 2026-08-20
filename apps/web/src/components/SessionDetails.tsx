@@ -68,7 +68,7 @@ export function SessionDetails(props: Props) {
   }).format(new Date(summary.lastActivityAt));
 
   return (
-    <SheetContent className="session-details w-full gap-0 p-0 sm:max-w-[420px]" showCloseButton={false} aria-describedby="session-details-description">
+    <SheetContent className="w-full gap-0 p-0 sm:max-w-[420px]" showCloseButton={false} aria-describedby="session-details-description">
       <SheetHeader className="session-details-header flex-row items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <Badge variant={projection.run === "working" ? "default" : "secondary"}>{status}</Badge>

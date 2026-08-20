@@ -2140,6 +2140,25 @@ describe("Workspace", () => {
       .not.toBeInTheDocument();
   });
 
+  it("renders Session details above a subtle non-blurred overlay with a shadcn trigger", async () => {
+    const user = userEvent.setup();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    const trigger = screen.getByRole("button", { name: "Session details" });
+    expect(trigger).toHaveClass("session-details-trigger", "size-10", "rounded-md", "border-border");
+    expect(trigger).not.toHaveClass("more", "rounded-full", "border-transparent");
+    await user.click(trigger);
+    const content = screen.getByRole("dialog", { name: "Workspace shell" });
+    const overlay = document.querySelector<HTMLElement>('[data-slot="sheet-overlay"]');
+    expect(content).toHaveClass("z-[60]", "fixed", "bg-background", "data-[side=right]:w-full");
+    expect(content).not.toHaveClass("session-details", "data-[side=right]:w-3/4");
+    expect(overlay).not.toBeNull();
+    expect(overlay).toHaveClass("z-50", "fixed", "bg-black/5");
+    expect(overlay?.className).not.toMatch(/backdrop|blur/);
+    await user.click(overlay!);
+    expect(screen.queryByRole("dialog", { name: "Workspace shell" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it("closes Session details with Escape and restores focus to its trigger", async () => {
     const user = userEvent.setup();
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);

@@ -1272,6 +1272,7 @@ export function Workspace({
     };
   }, [resizingSidebar]);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsTriggerRef = useRef<HTMLButtonElement>(null);
   const editorIdentity = state.selectedSessionKey === undefined
     ? undefined
     : sessionIdentity(state.selectedSessionKey);
@@ -3012,7 +3013,10 @@ export function Workspace({
 
   return (
     <>
-    <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+    <Sheet open={detailsOpen} onOpenChange={(open) => {
+      setDetailsOpen(open);
+      if (!open) queueMicrotask(() => detailsTriggerRef.current?.focus());
+    }}>
     <main
       className={`workspace${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
       style={{ "--rail": `${activeSidebarWidth}px` } as CSSProperties}
@@ -3091,7 +3095,7 @@ export function Workspace({
                       if (requestId !== undefined) setDevelopmentServerRequestId(requestId);
                     }}>Start server</button>
             )}
-            <SheetTrigger render={<Button className="more" variant="ghost" size="icon" aria-label="Session details" />}>
+            <SheetTrigger render={<Button ref={detailsTriggerRef} className="session-details-trigger size-10 rounded-md" variant="outline" size="icon" aria-label="Session details" />}>
               <Ellipsis aria-hidden="true" size={20} />
             </SheetTrigger>
           </div>

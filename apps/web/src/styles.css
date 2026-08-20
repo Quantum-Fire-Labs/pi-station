@@ -717,18 +717,6 @@ body.sidebar-resizing {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.more {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  justify-self: end;
-  border: 0;
-  border-radius: 50%;
-  background: var(--raised);
-  color: var(--muted);
-  letter-spacing: 2px;
-}
 .mobile-back {
   visibility: hidden;
   border: 0;
@@ -2072,8 +2060,9 @@ body.sidebar-resizing {
   grid-column: 3;
   white-space: nowrap;
 }
-.session-header > .more {
+.session-header > .session-details-trigger {
   grid-column: 4;
+  justify-self: end;
 }
 .development-server-settings button[type="submit"] {
   border-color: var(--accent);
@@ -3440,16 +3429,6 @@ body.sidebar-resizing {
     width: calc(100vw - var(--rail) - 390px);
   }
 }
-.session-details {
-  position: fixed;
-  z-index: 25;
-  inset: 0 0 0 auto;
-  width: 390px;
-  overflow: hidden;
-  border-left: 1px solid var(--line);
-  background: var(--page);
-  color: var(--text);
-}
 .session-details-header {
   position: sticky;
   z-index: 1;
@@ -3470,26 +3449,8 @@ body.sidebar-resizing {
   font-size: 12px;
   font-weight: 700;
 }
-.session-details-header > button {
-  width: 34px;
-  height: 34px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--raised);
-  color: var(--muted);
-  font-size: 20px;
-}
 .details-close-mobile {
   display: none;
-}
-.session-details-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--faint);
-}
-.session-details-dot.working {
-  background: var(--working);
 }
 .session-details-content {
   display: grid;
@@ -3760,12 +3721,6 @@ body.sidebar-resizing {
   }
   .details-open .session {
     display: none;
-  }
-  .session-details {
-    position: fixed;
-    width: 100%;
-    min-height: 100dvh;
-    border-left: 0;
   }
   .session-details-header {
     justify-content: flex-start;
