@@ -22,6 +22,9 @@ export interface SessionProjection {
   readonly capabilities: readonly CapabilityId[];
 }
 export interface SessionSummary { readonly sessionKey: SessionKey; readonly parentSessionKey?: SessionKey; readonly name?: string | undefined; readonly displayPath?: string; readonly projectId?: ProjectId; readonly quickSession?: true; readonly quickSessionPending?: "clear" | "keep"; readonly generationId?: string; readonly projection: SessionProjection; readonly createdAt?: string; readonly lastActivityAt?: string; readonly delegationStatus?: "working" | "completed" | "failed" | "cancelled" | "interrupted"; readonly pendingProjectMove?: { readonly projectId: string; readonly projectName: string } }
+export function sessionsVisibleInWorkspace(sessions: readonly SessionSummary[], includeQuickSession = false): readonly SessionSummary[] {
+  return includeQuickSession ? sessions : sessions.filter(({ quickSession }) => quickSession !== true);
+}
 export interface SessionDetails { readonly name?: string | undefined; readonly currentDirectoryDisplay?: string | undefined; readonly projectId?: ProjectId | undefined; readonly model?: ModelChoice; readonly modelInventory?: readonly ModelChoice[]; readonly thinkingLevel?: ThinkingLevel; readonly supportedThinkingLevels?: readonly ThinkingLevel[]; readonly managedLaunchDisplay?: string; readonly sharedFiles?: readonly SharedFileInfo[]; readonly commandInventory: readonly { readonly name: string; readonly description?: string; readonly source: "extension" | "prompt-template" | "skill"; readonly invocation: "prompt" | "direct"; readonly requiredCapability?: CapabilityId }[] }
 export interface ApplicationQueueSnapshot { readonly state: SessionProjection["queue"]["state"]; readonly knownItems: readonly never[] }
 export type TimelineSource = "saved" | "live" | "optimistic";
