@@ -46,6 +46,7 @@ export type TimelineItem =
 export type CommandAction =
   | { readonly kind: "prompt.send" | "prompt.steer" | "prompt.follow-up"; readonly text: string; readonly imageIds?: readonly string[]; readonly attachmentIds?: readonly string[]; readonly agentMentions?: readonly { readonly sessionId: string; readonly label: string }[] }
   | { readonly kind: "session.abort" | "session.close" | "session.clone" | "session.reload" }
+  | { readonly kind: "session.undo"; readonly entryId: string }
   | { readonly kind: "session.move"; readonly projectId: string }
   | { readonly kind: "session.move.cancel" }
   | { readonly kind: "session.rename"; readonly name: string }

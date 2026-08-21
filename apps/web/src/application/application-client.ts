@@ -31,6 +31,7 @@ const RPC_CAPABILITIES = [
   "session.prompt.steer",
   "session.prompt.follow-up",
   "session.abort",
+  "session.undo",
   "session.close",
   "session.clone",
   "session.reload",
@@ -549,6 +550,8 @@ export class ApplicationClient extends ApplicationClientBase {
       });
     } else if (action.kind === "session.abort") {
       operation = mutate(`${sessionPath(target)}/abort`, "POST", {});
+    } else if (action.kind === "session.undo") {
+      operation = mutate(`${sessionPath(target)}/undo`, "POST", { entryId: action.entryId }).then(() => this.select(key));
     } else if (action.kind === "session.close") {
       operation = mutate(`${sessionPath(target)}/state`, "PUT", { state: "closed" });
     } else if (action.kind === "session.clone") {

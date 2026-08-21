@@ -48,6 +48,7 @@ export type RuntimeControlCommand =
   | { readonly type: "get_available_models" }
   | { readonly type: "get_available_thinking_levels" }
   | { readonly type: "reload" }
+  | { readonly type: "undo_user_message"; readonly entryId: string }
   | { readonly type: "set_model"; readonly provider: string; readonly modelId: string }
   | { readonly type: "set_thinking_level"; readonly level: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" }
 
@@ -120,6 +121,7 @@ export type RuntimeSession = Pick<AgentSession,
   | "model"
   | "messages"
   | "modelRuntime"
+  | "navigateTree"
   | "prompt"
   | "sendCustomMessage"
   | "reload"
@@ -310,6 +312,18 @@ export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options
       await session.setModel(model)
     } else if (command.type === "set_thinking_level") {
       session.setThinkingLevel(command.level)
+    } else if (command.type === "undo_user_message") {
+      if (session.isStreaming) throw new Error("Working Session cannot undo a message")
+      const entry = session.sessionManager.getEntry(command.entryId)
+      const activeEntryIds = new Set(session.sessionManager.getBranch().map((item) => item.id))
+      if (entry?.type !== "message" || entry.message.role !== "user" || !activeEntryIds.has(entry.id)) {
+        throw new Error("User message is not on the active Session branch")
+      }
+      if (entry.parentId === null) throw new Error("The first Session entry cannot be undone")
+      await session.navigateTree(entry.parentId, { summarize: false })
+      // Persist the new leaf. Native tree navigation is otherwise in memory until
+      // another entry is appended, which lets a Workspace refresh show the old leaf.
+      session.sessionManager.appendCustomEntry("pi-station-undo", { entryId: entry.id })
     } else if (command.type === "reload") {
       throw new Error("Reload must replace the SDK Session runtime")
     }

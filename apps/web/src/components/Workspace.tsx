@@ -3170,6 +3170,9 @@ export function Workspace({
               <FeedItem
                 item={item}
                 sessionWorking={state.selected.projection?.run === "working"}
+                onUndoUserMessage={item.category === "user-message" && item.source === "saved" && !working && synchronized && capabilities.includes("session.undo")
+                  ? () => { onCommand?.({ kind: "session.undo", entryId: item.timelineItemId }); }
+                  : undefined}
                 onOpenSharedMarkdown={(url) => openSharedMarkdown({
                   url,
                   name: decodeURIComponent(new URL(url, window.location.origin).pathname.split("/").pop() ?? "Shared file"),
