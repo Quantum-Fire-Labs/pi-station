@@ -1619,6 +1619,21 @@ describe("Workspace", () => {
     expect(screen.getByRole("switch", { name: "Auto-play on" })).toBeEnabled();
     expect(setActionHandler).not.toHaveBeenCalled();
   });
+  it("closes the agent menu after a mention is selected", async () => {
+    const user = userEvent.setup();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    const composer = screen.getByLabelText("Message Pi");
+    await user.type(composer, "Ask @");
+    await user.click(screen.getByRole("option", { name: "Application client" }));
+
+    expect(composer).toHaveValue("Ask @Pi Station: Application client ");
+    expect(screen.queryByRole("listbox", { name: "Open Sessions" })).not.toBeInTheDocument();
+    await user.type(composer, "for an update");
+    expect(composer).toHaveValue("Ask @Pi Station: Application client for an update");
+    expect(screen.queryByRole("listbox", { name: "Open Sessions" })).not.toBeInTheDocument();
+  });
+
   it("keeps each composer draft with its Session", async () => {
     const user = userEvent.setup();
     const secondSession = fixtureState.sessions[1];

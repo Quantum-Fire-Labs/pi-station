@@ -2573,8 +2573,10 @@ export function Workspace({
     const input = composerInput.current;
     const cursor = input?.selectionStart ?? draft.length;
     const label = agentMentionLabel(option);
-    const token = `@"${label}"`;
-    const next = `${draft.slice(0, agentMention.start)}${token}${draft.slice(cursor)}`;
+    const token = `@${label}`;
+    const suffix = draft.slice(cursor);
+    const separator = suffix.length === 0 || !/^\s/u.test(suffix) ? " " : "";
+    const next = `${draft.slice(0, agentMention.start)}${token}${separator}${suffix}`;
     setDraft(next);
     writeComposerDraft(selectedSessionIdentity, next);
     setSelectedAgentMentions((current) => [
@@ -2583,7 +2585,7 @@ export function Workspace({
     ]);
     setAgentMention(undefined);
     requestAnimationFrame(() => {
-      const position = agentMention.start + token.length;
+      const position = agentMention.start + token.length + separator.length;
       input?.focus();
       input?.setSelectionRange(position, position);
     });
@@ -2599,7 +2601,7 @@ export function Workspace({
     const rememberedTokens = new Set(rememberedMentions.map((mention) => mention.token));
     const restoredMentions = agentMentionOptions.flatMap((option) => {
       const label = agentMentionLabel(option);
-      const token = `@"${label}"`;
+      const token = `@${label}`;
       const uniqueLabel = agentMentionOptions.filter((candidate) => agentMentionLabel(candidate) === label).length === 1;
       return uniqueLabel && text.includes(token) && !rememberedTokens.has(token)
         ? [{ sessionId: option.sessionId, label }]
@@ -3324,9 +3326,13 @@ export function Workspace({
                 setSelectedAgentMentions((current) => current.filter((mention) => next.includes(mention.token)));
                 writeComposerDraft(selectedSessionIdentity, next);
                 const match = next.slice(0, cursor).match(/(?:^|\s)@([^@\n]*)$/u);
-                if (match === null) setAgentMention(undefined);
+                const start = match === null ? -1 : cursor - (match[1]?.length ?? 0) - 1;
+                const followsSelectedMention = selectedAgentMentions.some((mention) => (
+                  next.startsWith(mention.token, start) && cursor >= start + mention.token.length
+                ));
+                if (match === null || followsSelectedMention) setAgentMention(undefined);
                 else {
-                  setAgentMention({ start: cursor - (match[1]?.length ?? 0) - 1, query: match[1] ?? "" });
+                  setAgentMention({ start, query: match[1] ?? "" });
                   setAgentMentionIndex(0);
                 }
               }}

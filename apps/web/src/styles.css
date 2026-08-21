@@ -73,7 +73,7 @@
   --session-status-unread: #14b86b;
   --session-status-idle: #cbd5e1;
   --rail: 408px;
-  --content: 760px;
+  --content: 960px;
   --composer-content: 960px;
   --sans: ui-sans-serif, system-ui, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -145,7 +145,7 @@
   --working: var(--theme-warning);
   --success: var(--theme-success);
   --raised: color-mix(in srgb, var(--theme-background) 94%, var(--theme-foreground));
-  --input: color-mix(in srgb, var(--theme-background) 89%, var(--theme-foreground));
+  --input: color-mix(in srgb, var(--theme-background) 95%, var(--theme-foreground));
   --user: color-mix(in srgb, var(--theme-background) 84%, var(--theme-accent));
   --line: color-mix(in srgb, var(--theme-background) 78%, var(--theme-foreground));
   --strong: color-mix(in srgb, var(--theme-background) 61%, var(--theme-foreground));
