@@ -86,7 +86,7 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
         style={position === undefined ? undefined : { left: 0, top: 0, translate: "0 0", transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
         onDoubleClick={(event) => { if (!interactiveDragTarget(event.target)) { dragPosition.current = undefined; setPosition(undefined); } }}
         onPointerDown={(event) => {
-          if (event.button !== 0 || interactiveDragTarget(event.target) || window.matchMedia("(max-width: 760px)").matches || dialogRef.current === null) return;
+          if (event.button !== 0 || dialogRef.current === null || !(event.target instanceof Node) || !dialogRef.current.contains(event.target) || interactiveDragTarget(event.target) || window.matchMedia("(max-width: 760px)").matches) return;
           const bounds = dialogRef.current.getBoundingClientRect();
           dragOffset.current = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
           dragPosition.current = position;
