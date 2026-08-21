@@ -1,19 +1,24 @@
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, relative } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { QuickSessionStore } from "../quick-session.js"
 
 const roots: string[] = []
 afterEach(async () => { const { rm } = await import("node:fs/promises"); await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))) })
-async function store(): Promise<{ root: string; value: QuickSessionStore }> { const root = await mkdtemp(join(tmpdir(), "pi-quick-")); roots.push(root); return { root, value: new QuickSessionStore(root) } }
+async function store(): Promise<{ root: string; retainedSessionDirectory: string; value: QuickSessionStore }> {
+  const root = await mkdtemp(join(tmpdir(), "pi-quick-"))
+  const retainedSessionDirectory = join(root, "retained-sessions")
+  roots.push(root)
+  return { root, retainedSessionDirectory, value: new QuickSessionStore(root, retainedSessionDirectory) }
+}
 
 describe("QuickSessionStore", () => {
   it("creates one durable singleton under the Pi Station data directory", async () => {
     const { root, value } = await store()
     const [first, second] = await Promise.all([value.open(), value.open()])
     expect(second.sessionId).toBe(first.sessionId)
-    await expect(new QuickSessionStore(root).read()).resolves.toEqual(first)
+    await expect(new QuickSessionStore(root, join(root, "retained-sessions")).read()).resolves.toEqual(first)
     expect((await value.saved(first))?.quickSession).toBe(true)
   })
 
@@ -26,10 +31,11 @@ describe("QuickSessionStore", () => {
   })
 
   it("keeps history and copies work without replacing destination files", async () => {
-    const { root, value } = await store(); const current = await value.open(); const destination = join(root, "destination")
+    const { root, retainedSessionDirectory, value } = await store(); const current = await value.open(); const destination = join(root, "destination")
     await mkdir(destination); await writeFile(join(value.workDirectory(current.sessionId), "notes.txt"), "notes")
     const kept = await value.keep(current.sessionId, destination)
     expect(await readFile(join(destination, "notes.txt"), "utf8")).toBe("notes")
+    expect(relative(retainedSessionDirectory, kept.sessionPath)).not.toMatch(/^\.\.(?:\/|$)/u)
     expect(kept.record.sessionId).toBe(current.sessionId)
     await expect(value.read()).resolves.toBeUndefined()
   })
