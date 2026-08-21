@@ -202,7 +202,7 @@ describe("Workspace", () => {
     expect([...section.querySelectorAll(".session-row-name")].map((name) => name.textContent)).toEqual(["Newest other", "Older other"]);
   });
 
-  it("shows projectless Bookmarks separately from Other Sessions", () => {
+  it("opens and keeps projectless Bookmarks selected", async () => {
     const source = fixtureState.sessions[0]!;
     const bookmarked = {
       ...source,
@@ -221,6 +221,7 @@ describe("Workspace", () => {
     render(<Workspace state={{
       ...fixtureState,
       sessions: [bookmarked, other],
+      selectedSessionKey: bookmarked.sessionKey,
       sessionBookmarks: [{
         projectId: bookmarked.projectId,
         sessionKey: bookmarked.sessionKey,
@@ -232,6 +233,9 @@ describe("Workspace", () => {
     const otherSection = screen.getByText("Other Sessions").closest("section")!;
     expect(within(bookmarkedSection).getByText("Saved research")).toBeVisible();
     expect(within(bookmarkedSection).getByLabelText("Bookmarked")).toBeVisible();
+    await waitFor(() => expect(
+      within(bookmarkedSection).getByRole("button", { name: /Saved research/ }),
+    ).toHaveAttribute("aria-current", "page"));
     expect(within(bookmarkedSection).queryByText("Temporary work")).not.toBeInTheDocument();
     expect(within(otherSection).getByText("Temporary work")).toBeVisible();
     expect(within(otherSection).queryByText("Saved research")).not.toBeInTheDocument();
