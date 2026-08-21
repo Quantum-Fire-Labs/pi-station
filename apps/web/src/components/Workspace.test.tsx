@@ -202,13 +202,14 @@ describe("Workspace", () => {
     expect([...section.querySelectorAll(".session-row-name")].map((name) => name.textContent)).toEqual(["Newest other", "Older other"]);
   });
 
-  it("opens and keeps projectless Bookmarks selected", async () => {
+  it("reopens a closed projectless Bookmark", async () => {
     const source = fixtureState.sessions[0]!;
     const bookmarked = {
       ...source,
       name: "Saved research",
       projectId: "implicit-saved",
       sessionKey: { hostId: "implicit-saved", piSessionId: "saved" },
+      displayPath: "~/research/independent",
       projection: { ...source.projection, availability: "closed" as const },
     };
     const other = {
@@ -218,30 +219,32 @@ describe("Workspace", () => {
       sessionKey: { hostId: "implicit-other", piSessionId: "other" },
     };
     const onSelect = vi.fn();
+    const onCreateManagedSession = vi.fn(() => "resume-request");
     render(<Workspace state={{
       ...fixtureState,
       sessions: [bookmarked, other],
-      selectedSessionKey: bookmarked.sessionKey,
       sessionBookmarks: [{
         projectId: bookmarked.projectId,
         sessionKey: bookmarked.sessionKey,
         position: 0,
       }],
-    }} onSelect={onSelect} />);
+    }} onSelect={onSelect} onCreateManagedSession={onCreateManagedSession} />);
 
     const bookmarkedSection = screen.getByText("Bookmarked Sessions").closest("section")!;
     const otherSection = screen.getByText("Other Sessions").closest("section")!;
     expect(within(bookmarkedSection).getByText("Saved research")).toBeVisible();
     expect(within(bookmarkedSection).getByLabelText("Bookmarked")).toBeVisible();
-    await waitFor(() => expect(
-      within(bookmarkedSection).getByRole("button", { name: /Saved research/ }),
-    ).toHaveAttribute("aria-current", "page"));
     expect(within(bookmarkedSection).queryByText("Temporary work")).not.toBeInTheDocument();
     expect(within(otherSection).getByText("Temporary work")).toBeVisible();
     expect(within(otherSection).queryByText("Saved research")).not.toBeInTheDocument();
 
     fireEvent.click(within(bookmarkedSection).getByRole("button", { name: /Saved research/ }));
-    expect(onSelect).toHaveBeenCalledWith(bookmarked.sessionKey);
+    expect(onCreateManagedSession).toHaveBeenCalledWith(
+      bookmarked.displayPath,
+      bookmarked.name,
+      bookmarked.sessionKey,
+    );
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("shows desktop navigation and focuses the composer after a Session change", async () => {

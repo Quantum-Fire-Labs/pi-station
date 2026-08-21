@@ -1116,7 +1116,7 @@ function sessionSummary(session: SavedSession): SessionSummary {
   return {
     sessionKey: keyFromSession(session),
     name: session.name,
-    displayPath: session.path,
+    displayPath: session.cwd ?? session.path,
     projectId: session.projectId,
     ...(session.parentSessionId === undefined ? {} : {
       parentSessionKey: keyFromSession({ ...session, id: session.parentSessionId }),
