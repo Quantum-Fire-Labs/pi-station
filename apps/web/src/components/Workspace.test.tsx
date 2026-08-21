@@ -954,7 +954,7 @@ describe("Workspace", () => {
     await user.click(screen.getByRole("button", {
       name: `Open ${bookmarkedProject.name}`,
     }));
-    expect(screen.getByRole("heading", { name: bookmarkedProject.name, level: 1 }))
+    expect(await screen.findByRole("heading", { name: bookmarkedProject.name, level: 1 }))
       .toBeVisible();
     expect(screen.getByRole("region", { name: "Sessions" })).toBeVisible();
     await user.click(within(screen.getByRole("tablist", { name: `${bookmarkedProject.name} sections` })).getByRole("tab", { name: "Settings" }));
@@ -965,7 +965,7 @@ describe("Workspace", () => {
       false,
     );
     const projectNewSession = screen.getAllByRole("button", { name: "New Session" })
-      .find((button) => button.textContent === "New Session");
+      .find((button) => button.classList.contains("project-page-new-session"));
     if (projectNewSession === undefined) throw new Error("Project action is missing");
     await user.click(projectNewSession);
     expect(screen.getByRole("dialog", { name: `New Session in ${bookmarkedProject.name}` }))

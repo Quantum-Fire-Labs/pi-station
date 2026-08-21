@@ -51,9 +51,10 @@ describe("composer width", () => {
 });
 
 describe("Quick Session modal", () => {
-  it("places its trigger with the sidebar header actions", () => {
-    expect(styles).toMatch(/\.sidebar-header-actions\s*{[^}]*display: flex;[^}]*align-items: center;[^}]*gap: 2px;/s);
-    expect(workspaceSource).toContain('className="sidebar-header-actions"');
+  it("places Quick Session with the top navigation actions and keeps Settings in the footer", () => {
+    expect(styles).toMatch(/\.sidebar-primary-actions\s*\{[^}]*grid-template-columns: 1fr;[^}]*gap: 2px;/s);
+    expect(workspaceSource).toContain('className="sidebar-primary-actions"');
+    expect(workspaceSource).toMatch(/className={`sidebar-home[\s\S]*aria-label="Dashboard"[\s\S]*className="sidebar-primary-actions"[\s\S]*aria-label="Quick Session"[\s\S]*aria-label="New Session"[\s\S]*aria-label="Projects"[\s\S]*<footer>[\s\S]*aria-label="Settings"/);
   });
 
   it("uses a compact opaque desktop surface without backdrop blur", () => {

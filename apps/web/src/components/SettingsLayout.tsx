@@ -14,7 +14,7 @@ export function SettingsLayout({ title, description, onBack, actions, children }
       <div className="settings-page-shell">
         <header className="settings-page-header">
           <div className="settings-page-heading">
-            <Button type="button" variant="outline" size="icon" onClick={onBack} aria-label={title === "Settings" ? "Back to Workspace" : "Back to Settings"}>
+            <Button className="settings-page-back" type="button" variant="outline" size="icon" onClick={onBack} aria-label={title === "Settings" ? "Back to Workspace" : "Back to Settings"}>
               <ArrowLeft aria-hidden="true" />
             </Button>
             <div>
