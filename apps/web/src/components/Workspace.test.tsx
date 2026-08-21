@@ -1118,10 +1118,11 @@ describe("Workspace", () => {
     enableDesktopViewport();
     const user = userEvent.setup();
     const onCreateManagedSession = vi.fn(() => "create-request");
+    const onSelect = vi.fn();
     const { rerender } = render(
       <Workspace
         state={{ ...fixtureState, managedSessionCreates: {} }}
-        onSelect={vi.fn()}
+        onSelect={onSelect}
         onCreateManagedSession={onCreateManagedSession}
       />,
     );
@@ -1141,11 +1142,12 @@ describe("Workspace", () => {
             },
           },
         }}
-        onSelect={vi.fn()}
+        onSelect={onSelect}
         onCreateManagedSession={onCreateManagedSession}
       />,
     );
 
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(fixtureState.selectedSessionKey));
     await waitFor(() => expect(screen.getByLabelText("Message Pi")).toHaveFocus());
   });
 

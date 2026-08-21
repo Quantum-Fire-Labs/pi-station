@@ -3023,6 +3023,7 @@ export function Workspace({
         )}
         onStarted={(sessionKey) => {
           focusComposerForSession.current = isDesktopViewport() ? sessionKey : undefined;
+          onSelect(sessionKey);
           setRoute("workspace");
         }}
       />,

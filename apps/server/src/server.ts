@@ -810,10 +810,9 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (request.method === "POST" && sessionCollection !== null) {
         assertJsonMutation(request)
         const projectId = decodeURIComponent(sessionCollection[1] ?? "")
-        const project = (await projectStore.read()).find((item) => item.id === projectId)
-        if (project === undefined) throw new HttpError(404, "Project not found")
         const value = await readJsonBody(request)
-        if (!isOptionalSessionNameRequest(value)) throw new HttpError(400, "Session request is invalid")
+        if (!isSessionCreateRequest(value)) throw new HttpError(400, "Session request is invalid")
+        const project = await resolveNewSessionProject(projectStore, { projectId, sessionId: "new" }, value.cwd)
         const sessionId = randomUUID()
         const manager = SessionManager.create(project.root, undefined, { id: sessionId })
         initializeEmptySession(manager, value.name)
@@ -1166,6 +1165,15 @@ function isOptionalSessionNameRequest(value: unknown): value is { readonly name?
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false
   const record = value as Record<string, unknown>
   return Object.keys(record).length === 0 || isSessionNameRequest(value)
+}
+
+function isSessionCreateRequest(value: unknown): value is { readonly cwd?: string; readonly name?: string } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record)
+  return keys.every((key) => key === "cwd" || key === "name")
+    && (record.cwd === undefined || typeof record.cwd === "string")
+    && (record.name === undefined || (typeof record.name === "string" && record.name.trim().length > 0 && record.name.length <= 120))
 }
 
 function isSessionNameRequest(value: unknown): value is { readonly name: string } {
