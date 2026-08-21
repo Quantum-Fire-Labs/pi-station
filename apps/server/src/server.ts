@@ -125,7 +125,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const scheduledJobs = options.scheduledJobStore ?? new ScheduledJobStore(options.dataDir)
   const voiceSettings = new VoiceSettingsStore(options.dataDir)
   const systemTheme = options.systemThemeService ?? new SystemThemeService()
-  const quickSessions = new QuickSessionStore(options.dataDir)
+  const quickSessions = new QuickSessionStore(options.dataDir, undefined)
   type QuickAction = { readonly token: string; readonly type: "clear" | "keep"; readonly status: "pending" } | { readonly token: string; readonly type: "clear" | "keep"; readonly status: "failed"; readonly error: string }
   const quickActions = new Map<string, QuickAction>()
   const disassociatedProjects = new Map<string, Project>()

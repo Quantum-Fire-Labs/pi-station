@@ -19,9 +19,14 @@ function isRecord(value: unknown): value is QuickSessionRecord {
 export class QuickSessionStore {
   readonly #root: string
   readonly #state: AtomicJsonStore<QuickSessionRecord>
+  readonly #retainedSessionDirectory: string | undefined
   #operation: Promise<unknown> = Promise.resolve()
 
-  constructor(dataDir: string) { this.#root = resolve(dataDir, "quick-sessions"); this.#state = new AtomicJsonStore(join(dataDir, "quick-session.json"), isRecord) }
+  constructor(dataDir: string, retainedSessionDirectory: string | undefined) {
+    this.#root = resolve(dataDir, "quick-sessions")
+    this.#state = new AtomicJsonStore(join(dataDir, "quick-session.json"), isRecord)
+    this.#retainedSessionDirectory = retainedSessionDirectory === undefined ? undefined : resolve(retainedSessionDirectory)
+  }
   project(record: QuickSessionRecord): Project { return { id: QUICK_SESSION_PROJECT_ID, root: this.workDirectory(record.sessionId) } }
   workDirectory(id: string): string { return join(this.#root, id, "work") }
   historyDirectory(id: string): string { return join(this.#root, id, "history") }
@@ -44,7 +49,7 @@ export class QuickSessionStore {
       const target = resolve(destination)
       if (!(await stat(target)).isDirectory()) throw new Error("Destination is not a directory")
       for (const entry of await readdir(this.workDirectory(expectedId))) await cp(join(this.workDirectory(expectedId), entry), join(target, entry), { recursive: true, errorOnExist: true, force: false })
-      const retained = SessionManager.forkFrom(current.sessionPath, target, undefined, { id: expectedId })
+      const retained = SessionManager.forkFrom(current.sessionPath, target, this.#retainedSessionDirectory, { id: expectedId })
       const sessionPath = retained.getSessionFile()
       if (sessionPath === undefined) throw new Error("Retained Session history was not written")
       await this.#state.replace(EMPTY)
