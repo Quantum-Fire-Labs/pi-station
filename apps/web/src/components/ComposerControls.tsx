@@ -44,21 +44,21 @@ export function ComposerControls(props: ComposerControlsProps) {
     <div className="composer-settings-desktop" aria-label="Session settings">
       <Select value={modelValue} onValueChange={setModel} disabled={settingDisabled || !props.canChangeModel}>
         <SelectTrigger className="composer-model-trigger" aria-label={`Model: ${modelLabel}`} title={`Model: ${modelLabel}`}><span data-slot="select-value">{modelLabel}</span></SelectTrigger>
-        <SelectContent className="composer-setting-select-menu">{props.details?.modelInventory?.map((item) => <SelectItem key={`${item.provider}:${item.modelId}`} value={encodeModel(item.provider, item.modelId)}>{item.displayName ?? item.modelId} · {item.provider}</SelectItem>)}</SelectContent>
+        <SelectContent className="composer-setting-select-menu z-[90]" positionerClassName="z-[90]">{props.details?.modelInventory?.map((item) => <SelectItem key={`${item.provider}:${item.modelId}`} value={encodeModel(item.provider, item.modelId)}>{item.displayName ?? item.modelId} · {item.provider}</SelectItem>)}</SelectContent>
       </Select>
       <Select value={thinking ?? ""} onValueChange={setThinking} disabled={settingDisabled || !props.canChangeThinking || !props.details?.supportedThinkingLevels?.length}>
         <SelectTrigger className="composer-thinking-trigger" aria-label={`Thinking level: ${thinking ?? "unavailable"}`} title={`Thinking level: ${thinking ?? "unavailable"}`}><span data-slot="select-value">Thinking: {thinking === undefined ? "Unavailable" : titleCase(thinking)}</span></SelectTrigger>
-        <SelectContent className="composer-setting-select-menu">{props.details?.supportedThinkingLevels?.map((level) => <SelectItem key={level} value={level}>{titleCase(level)}</SelectItem>)}</SelectContent>
+        <SelectContent className="composer-setting-select-menu z-[90]" positionerClassName="z-[90]">{props.details?.supportedThinkingLevels?.map((level) => <SelectItem key={level} value={level}>{titleCase(level)}</SelectItem>)}</SelectContent>
       </Select>
       {props.working ? <Select value={props.delivery} onValueChange={(value) => { if (value !== null) props.onSetDelivery(value); }} disabled={props.disabled}>
         <SelectTrigger className="composer-delivery-trigger" aria-label="Message delivery"><span data-slot="select-value">{props.delivery === "prompt.steer" ? "Steer now" : "Follow up"}</span></SelectTrigger>
-        <SelectContent className="composer-setting-select-menu"><SelectItem value="prompt.steer">Steer now</SelectItem><SelectItem value="prompt.follow-up">Follow up</SelectItem></SelectContent>
+        <SelectContent className="composer-setting-select-menu z-[90]" positionerClassName="z-[90]"><SelectItem value="prompt.steer">Steer now</SelectItem><SelectItem value="prompt.follow-up">Follow up</SelectItem></SelectContent>
       </Select> : <span className="composer-send-mode">Send now</span>}
     </div>
     <div className="composer-settings-mobile">
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" aria-label="Session and delivery settings" disabled={settingDisabled} />}><SlidersHorizontal aria-hidden="true" /></DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="composer-settings-mobile-menu min-w-64">
+        <DropdownMenuContent align="start" className="composer-settings-mobile-menu z-[90] min-w-64" positionerClassName="z-[90]">
           <DropdownMenuGroup>
             <DropdownMenuLabel className="composer-mobile-setting-label">Model · {modelLabel}</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={modelValue} onValueChange={setModel}>{props.details?.modelInventory?.map((item) => <DropdownMenuRadioItem className="composer-mobile-setting-option" key={`${item.provider}:${item.modelId}`} value={encodeModel(item.provider, item.modelId)} disabled={!props.canChangeModel}>{item.displayName ?? item.modelId}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const selectSource = readFileSync(resolve(process.cwd(), "src/components/ui/select.tsx"), "utf8");
+const composerControlsSource = readFileSync(resolve(process.cwd(), "src/components/ComposerControls.tsx"), "utf8");
 const workspaceSource = readFileSync(resolve(process.cwd(), "src/components/Workspace.tsx"), "utf8");
 const dialogSource = readFileSync(resolve(process.cwd(), "src/components/ui/dialog.tsx"), "utf8");
 
@@ -47,6 +48,8 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer-settings-mobile-menu \.composer-mobile-setting-label,\s*\.composer-settings-mobile-menu \.composer-mobile-setting-option\s*{[^}]*font-size: 12px;/s);
     expect(selectSource).toContain("bg-[var(--raised)]");
     expect(selectSource).not.toContain("bg-popover");
+    expect(selectSource).toContain('className={cn("isolate z-50", positionerClassName)}');
+    expect(composerControlsSource).toContain('positionerClassName="z-[90]"');
   });
 });
 
