@@ -510,6 +510,7 @@ export class ApplicationClient extends ApplicationClientBase {
         },
       };
       this.emitRpcState();
+      this.select(key);
     }).catch((error: unknown) => {
       this.rpcState = {
         ...this.rpcState,

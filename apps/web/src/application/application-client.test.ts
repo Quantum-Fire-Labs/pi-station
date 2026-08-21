@@ -593,9 +593,11 @@ describe("Pi Station incremental Session summaries", () => {
   it("persists a new Session before any turn occurs", async () => {
     globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
     const persisted = { id: "persisted-session", projectId: "projectless-host", path: "/history/persisted.jsonl", cwd: "/work/new", name: "Directory Session", modifiedAt: "2026-01-01T00:00:00.000Z", state: "open" };
+    const view = { version: 2, eventCursor: 0, session: persisted, phase: "idle", phaseGeneration: 0, timeline: [], historyRevision: "empty", hasEarlierHistory: false, settings: { modelInventory: [], supportedThinkingLevels: ["off"] }, sharedFiles: [] };
     const fetchMock = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ project: { id: "projectless-host", root: "/work/new" } }))
-      .mockResolvedValueOnce(Response.json({ session: persisted }));
+      .mockResolvedValueOnce(Response.json({ session: persisted }))
+      .mockResolvedValueOnce(Response.json(view));
     globalThis.fetch = fetchMock;
     const client = new ApplicationClient();
 
@@ -613,6 +615,7 @@ describe("Pi Station incremental Session summaries", () => {
     }));
     expect(client.snapshot.sessions[0]?.sessionKey.piSessionId).toBe("persisted-session");
     expect(client.snapshot.sessions[0]?.name).toBe("Directory Session");
-    expect(client.snapshot.selectedSessionKey).toBeUndefined();
+    expect(client.snapshot.selectedSessionKey).toEqual({ hostId: "projectless-host", piSessionId: "persisted-session" });
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/v2/projects/projectless-host/sessions/persisted-session", { cache: "no-store" });
   });
 });
