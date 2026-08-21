@@ -60,8 +60,20 @@ bash install-release.sh
 Set `PI_STATION_VERSION` to install a specific release, for example:
 
 ```bash
-PI_STATION_VERSION=0.1.0 bash install-release.sh
+PI_STATION_VERSION=0.1.1 bash install-release.sh
 ```
+
+### Edge channel
+
+The opt-in edge channel contains the latest validated build of `master`. Each build uses an immutable internal version such as `0.1.1+089fb93`, installs below the normal versioned application directory, and retains the installed previous version for rollback. Edge builds can contain unstable changes.
+
+To update manually to the current edge build:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh | PI_STATION_CHANNEL=edge bash
+```
+
+The edge workflow builds and checks native Linux and macOS artifacts for x64 and ARM64 after changes reach `master`. Edge installation is manual. Pi Station does not enable automatic updates or an update timer.
 
 ### Linux
 
