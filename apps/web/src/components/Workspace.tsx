@@ -165,6 +165,7 @@ function Dashboard({
   onOpen,
   onOpenProject,
   onNewSession,
+  onOpenQuickSession,
   onNewProjectSession,
   onAddProject,
   onDashboard,
@@ -175,6 +176,7 @@ function Dashboard({
   onOpen: (key: SessionKey) => void;
   onOpenProject: (projectId: ProjectId) => void;
   onNewSession: () => void;
+  onOpenQuickSession: () => void;
   onNewProjectSession: (project: ProjectSummary) => void;
   onAddProject: () => void;
   onDashboard: () => void;
@@ -252,16 +254,21 @@ function Dashboard({
               New Session
             </Button>
           </div>
-          <Button
-            className="dashboard-mobile-new-session"
-            type="button"
-            size="icon"
-            aria-label="New Session"
-            title="New Session"
-            onClick={onNewSession}
-          >
-            <Plus aria-hidden="true" />
-          </Button>
+          <div className="dashboard-mobile-actions">
+            <Button type="button" size="icon" aria-label="Quick Session" title="Quick Session" onClick={onOpenQuickSession}>
+              <Zap aria-hidden="true" />
+            </Button>
+            <Button
+              className="dashboard-mobile-new-session"
+              type="button"
+              size="icon"
+              aria-label="New Session"
+              title="New Session"
+              onClick={onNewSession}
+            >
+              <Plus aria-hidden="true" />
+            </Button>
+          </div>
         </header>
 
         <Tabs value={view} onValueChange={(value) => {
@@ -1362,6 +1369,9 @@ export function Workspace({
   type Route = "workspace" | "dashboard" | "new-session" | "projects" | "project"
     | "add-project" | "settings" | SettingsRoute;
   const [route, setRouteState] = useState<Route>("workspace");
+  useEffect(() => {
+    if (embeddedSession && state.selectedSessionKey !== undefined) setRouteState("workspace");
+  }, [embeddedSession, state.selectedSessionKey]);
   const afterSharedMarkdownCheck = (action: () => void): void => {
     if (sharedMarkdownDirty) setDiscardSharedMarkdownAction(() => action);
     else action();
@@ -1968,6 +1978,13 @@ export function Workspace({
       return;
     }
     if (current.projection.availability !== "closed") return;
+    const isProjectlessBookmark = !state.projects.some((project) => (
+      project.projectId === current.projectId
+    )) && state.sessionBookmarks.some((bookmark) => (
+      bookmark.projectId === current.projectId
+      && sessionKeysEqual(bookmark.sessionKey, current.sessionKey)
+    ));
+    if (isProjectlessBookmark) return;
     if (handledClosedSelection.current === identity) return;
     handledClosedSelection.current = identity;
 
@@ -2006,7 +2023,7 @@ export function Workspace({
     } else {
       setRouteState("dashboard");
     }
-  }, [state.projects, state.selectedSessionKey, state.sessions]);
+  }, [state.projects, state.selectedSessionKey, state.sessionBookmarks, state.sessions]);
 
   useEffect(() => {
     const tracking = cloneSource.current;
@@ -2845,6 +2862,7 @@ export function Workspace({
           setRoute("project");
         }}
         onNewSession={() => setRoute("new-session")}
+        onOpenQuickSession={() => onOpenQuickSession?.()}
         onNewProjectSession={(project) => setNewSessionProject(project)}
         onAddProject={() => setRoute("add-project")}
         onDashboard={() => setRoute("dashboard")}
@@ -3005,6 +3023,7 @@ export function Workspace({
         )}
         onStarted={(sessionKey) => {
           focusComposerForSession.current = isDesktopViewport() ? sessionKey : undefined;
+          onSelect(sessionKey);
           setRoute("workspace");
         }}
       />,

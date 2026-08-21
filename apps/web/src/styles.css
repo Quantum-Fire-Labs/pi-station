@@ -2753,7 +2753,7 @@ body.sidebar-resizing {
   position: relative;
   display: none;
 }
-.dashboard-mobile-new-session {
+.dashboard-mobile-actions {
   display: none;
 }
 .mobile-navigation-trigger {
@@ -3419,7 +3419,7 @@ body.sidebar-resizing {
     margin-bottom: 24px;
   }
   .dashboard-header {
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     display: grid;
   }
   .dashboard-header .dashboard-heading {
@@ -3433,8 +3433,11 @@ body.sidebar-resizing {
     right: auto;
     left: 0;
   }
-  .dashboard-mobile-new-session {
-    display: inline-flex;
+  .dashboard-mobile-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .dashboard-mobile-actions [data-slot="button"] {
     width: 44px;
     height: 44px;
   }
@@ -4131,6 +4134,7 @@ body.sidebar-resizing {
 .quick-session-dialog.is-dragging { user-select: none; }
 .quick-session-dialog-actions { display: flex; align-items: center; gap: 4px; }
 .quick-session-dialog-body { position: relative; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--page); }
+.quick-session-loading { display: grid; min-height: 100%; place-items: center; background: var(--page); }
 .quick-session-dialog-body .workspace.embedded-session { min-height: 100%; height: 100%; background: var(--page); }
 .quick-session-dialog-body .embedded-session .session { display: flex; min-height: 100%; height: 100%; flex-direction: column; margin-left: 0; padding-bottom: 0; }
 .quick-session-dialog-body .embedded-session .session-header { display: none; }

@@ -494,7 +494,10 @@ export class ApplicationClient extends ApplicationClientBase {
     project: ProjectSummary,
     optionalName?: string,
   ): void {
-    void mutate(`/v2/projects/${encodeURIComponent(project.projectId)}/sessions`, "POST", optionalName === undefined ? {} : { name: optionalName }).then((result) => {
+    void mutate(`/v2/projects/${encodeURIComponent(project.projectId)}/sessions`, "POST", {
+      cwd: project.displayPath,
+      ...(optionalName === undefined ? {} : { name: optionalName }),
+    }).then((result) => {
       const response = result as { session: SavedSession };
       const summary = sessionSummary(response.session);
       const key = summary.sessionKey;

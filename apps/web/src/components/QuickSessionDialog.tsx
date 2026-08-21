@@ -30,18 +30,25 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
   const savedScroll = useRef(0);
   const dragOffset = useRef<{ x: number; y: number } | undefined>(undefined);
   const dragPosition = useRef<{ x: number; y: number } | undefined>(undefined);
+  const initialized = useRef(false);
 
   useEffect(() => client.subscribe(setState), [client]);
   useEffect(() => () => client.stop(), [client]);
   useEffect(() => {
-    if (!open) { client.stop(); return; }
-    setLoading(true);
-    setError(undefined);
-    void client.openQuickSession().then(() => {
+    if (!open) return;
+    const restore = (): void => {
       requestAnimationFrame(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = savedScroll.current;
         document.querySelector<HTMLElement>(".quick-session-dialog #prompt")?.focus();
       });
+    };
+    if (initialized.current) { restore(); return; }
+    setLoading(true);
+    setError(undefined);
+    void client.openQuickSession().then(() => {
+      initialized.current = true;
+      client.connect();
+      restore();
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Quick Session could not open."))
       .finally(() => setLoading(false));
   }, [client, open]);
@@ -107,7 +114,7 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
         {state.quickSessionAction?.status === "pending" && <p className="quick-session-pending" role="status">{state.quickSessionAction.type === "clear" ? "Clear" : "Keep"} waits until Pi finishes. <Button type="button" variant="ghost" size="sm" onClick={() => { void client.cancelQuickSessionAction().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "The pending action could not be cancelled.")); }}>Cancel pending action</Button></p>}
         {state.quickSessionAction?.status === "failed" && <p className="quick-session-error" role="alert">{state.quickSessionAction.error ?? "Quick Session action failed."}</p>}
         <div ref={scrollRef} className="quick-session-dialog-body" onScroll={(event) => { savedScroll.current = event.currentTarget.scrollTop; }}>
-          {loading && state.selectedSessionKey === undefined ? <p role="status" className="page-loading">Opening Quick Session…</p> : (
+          {loading ? <div className="quick-session-loading"><div className="initial-connection-content" role="status" aria-live="polite"><span className="initial-connection-mark" aria-hidden="true" /><p>Opening Quick Session…</p></div></div> : (
             <Workspace embeddedSession state={state} client={client} onSelect={(key) => client.select(key)} onCommand={command} onLoadEarlier={() => client.requestEarlierHistory()} onUploadImage={(file, signal) => client.uploadImage(file, signal)} onDeleteImage={(id) => client.deleteImage(id)} onUploadAttachment={(file, signal) => client.uploadAttachment(file, signal)} onDeleteAttachment={(id) => client.deleteAttachment(id)} />
           )}
         </div>
@@ -123,6 +130,7 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
       const keptKey = quickKey;
       setError(undefined);
       void client.keepQuickSession(destination).then(() => {
+        initialized.current = false;
         setKeepOpen(false);
         onOpenChange(false);
         if (keptKey !== undefined) onKept(keptKey);

@@ -609,7 +609,7 @@ describe("Pi Station incremental Session summaries", () => {
     }));
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/v2/projects/projectless-host/sessions", expect.objectContaining({
       method: "POST",
-      body: JSON.stringify({ name: "Directory Session" }),
+      body: JSON.stringify({ cwd: "/work/new", name: "Directory Session" }),
     }));
     expect(client.snapshot.sessions[0]?.sessionKey.piSessionId).toBe("persisted-session");
     expect(client.snapshot.sessions[0]?.name).toBe("Directory Session");

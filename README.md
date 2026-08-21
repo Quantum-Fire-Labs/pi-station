@@ -1,6 +1,8 @@
 # Pi Station
 
-Pi Station is a local Workspace UI for Pi. It uses the public Pi SDK directly. Pi owns Session files, history, model settings, and runtime metadata. Pi Station stores only its application metadata.
+Pi Station is a Workspace UI for Pi that runs on your computer. You can use it on that computer or connect to it from other devices, including phones and other computers. It uses the public Pi SDK directly. Pi owns Session files, history, model settings, and runtime metadata. Pi Station stores only its application metadata.
+
+![Pi Station Workspace](docs/assets/pi-station.png)
 
 > [!WARNING]
 > Pi Station is a new, pre-1.0 project. Expect defects, incomplete platform coverage, and breaking changes to installation, configuration, application metadata, and APIs. Back up important data before an update and review release notes before you install a new version.
@@ -15,8 +17,6 @@ There is one production path:
 - `~/.local/share/pi-station`: Pi Station application data.
 - `~/.local/share/pi-station/shared`: Session shared files.
 - `pi-station.service`: the only application service.
-
-The retired broker, Pi process bridge, alternate RPC UI, and their protocols are not part of this architecture.
 
 ## Development
 
@@ -37,23 +37,31 @@ npm run build
 npm run check
 ```
 
-## Install a release on Linux
+## Install Pi Station
 
-Pi Station release artifacts support Linux systems that have:
+Pi Station requires Node.js 22.19 or newer, `curl`, and Pi configured for the same user. Linux also requires a systemd user manager.
 
-- Node.js 22.19 or newer;
-- a systemd user manager;
-- `curl`; and
-- Pi configured for the same user.
-
-Download the release archive and its `.sha256` file from the release page. Then verify and install it:
+Install the latest release on Linux or macOS with one command:
 
 ```bash
-sha256sum --check pi-station-VERSION-linux-ARCH.tar.gz.sha256
-mkdir pi-station-release
-tar -xzf pi-station-VERSION-linux-ARCH.tar.gz -C pi-station-release
-./pi-station-release/install.sh
+curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh | bash
 ```
+
+The bootstrap installer detects the operating system and architecture, downloads the matching GitHub release and checksum, verifies the archive, and runs the platform installer. To inspect the script before you run it:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh
+less install-release.sh
+bash install-release.sh
+```
+
+Set `PI_STATION_VERSION` to install a specific release, for example:
+
+```bash
+PI_STATION_VERSION=0.1.0 bash install-release.sh
+```
+
+### Linux
 
 The installer creates `pi-station.service` as a user service. It installs application files below `~/.local/share/pi-station/app` and stores application data, including shared Session files, in `~/.local/share/pi-station`. It binds the server to loopback and opens the Workspace at `http://127.0.0.1:8801/workspace`.
 
@@ -73,16 +81,7 @@ rm ~/.config/systemd/user/pi-station.service
 systemctl --user daemon-reload
 ```
 
-## Install a release on macOS
-
-Pi Station supports current macOS systems with Node.js 22.19 or newer and Pi configured for the same user. Download the macOS artifact for your architecture and verify it:
-
-```bash
-shasum -a 256 --check pi-station-VERSION-macos-ARCH.tar.gz.sha256
-mkdir pi-station-release
-tar -xzf pi-station-VERSION-macos-ARCH.tar.gz -C pi-station-release
-./pi-station-release/install-macos.sh
-```
+### macOS
 
 The installer creates the `works.pistation.server` LaunchAgent. Application files and data are below `~/Library/Application Support/Pi Station`. Logs are in `~/Library/Logs/Pi Station`. The server binds to loopback at `http://127.0.0.1:8801`.
 
@@ -92,6 +91,10 @@ Run the installer from a newer release to update it. The installer preserves the
 launchctl bootout "gui/$UID/works.pistation.server"
 rm ~/Library/LaunchAgents/works.pistation.server.plist
 ```
+
+### Manual archive installation
+
+Each GitHub release includes platform archives and matching `.sha256` files. Download both files, verify the checksum, extract the archive, and run `install.sh` on Linux or `install-macos.sh` on macOS. This is the auditable alternative to the bootstrap command.
 
 ## Build a release artifact
 
