@@ -21,7 +21,13 @@ node_bin=$(command -v node)
 agent_value() { [[ ! -f "$agent_file" ]] || /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:$1" "$agent_file" 2>/dev/null; }
 port=${PI_STATION_PORT:-$(agent_value PI_STATION_PORT || printf '8801')}
 data_dir=${PI_STATION_DATA_DIR:-$(agent_value PI_STATION_DATA_DIR || printf '%s' "$HOME/Library/Application Support/Pi Station")}
-shared_root=${PI_STATION_SHARED_ROOT:-$(agent_value PI_STATION_SHARED_ROOT || printf '%s' "$HOME/.pi/agent/pi-station/shared")}
+retired_shared_root="$HOME/.pi/agent/pi-station/shared"
+if [[ -n "${PI_STATION_SHARED_ROOT:-}" ]]; then
+  shared_root=$PI_STATION_SHARED_ROOT
+else
+  saved_shared_root=$(agent_value PI_STATION_SHARED_ROOT || true)
+  if [[ -z "$saved_shared_root" || "$saved_shared_root" == "$retired_shared_root" ]]; then shared_root="$data_dir/shared"; else shared_root=$saved_shared_root; fi
+fi
 local_origin=${PI_STATION_LOCAL_ORIGIN:-$(agent_value PI_STATION_LOCAL_ORIGIN || printf 'http://127.0.0.1:%s' "$port")}
 web_origin=${PI_STATION_WEB_ORIGIN:-$(agent_value PI_STATION_WEB_ORIGIN || printf '%s' "$local_origin")}
 [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || fail "PI_STATION_PORT is invalid"
@@ -66,6 +72,11 @@ if launchctl print "gui/$UID/$label" >/dev/null 2>&1; then
   launchctl bootout "gui/$UID/$label"
 fi
 
+if [[ "$shared_root" == "$data_dir/shared" && ! -e "$shared_root" && -d "$retired_shared_root" ]]; then
+  mkdir -p "$data_dir"
+  mv "$retired_shared_root" "$shared_root"
+  ln -s "$shared_root" "$retired_shared_root"
+fi
 mkdir -p "$install_root" "$data_dir" "$shared_root" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/Pi Station"
 rollback_dir=$(mktemp -d "$install_root/.rollback.XXXXXX")
 [[ ! -f "$agent_file" ]] || cp "$agent_file" "$rollback_dir/agent.plist"

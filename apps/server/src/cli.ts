@@ -1,4 +1,3 @@
-import { homedir } from "node:os"
 import { join, resolve } from "node:path"
 import { ModelRuntime } from "@earendil-works/pi-coding-agent"
 import { AgentMessagingBridge } from "./agent-messaging.js"
@@ -21,7 +20,7 @@ const dataDir = dataDirectory.path
 if (dataDirectory.usedRetiredEnvironment) console.warn("PI_STATION_RPC_V2_DATA_DIR is retired; set PI_STATION_DATA_DIR before the next release")
 if (dataDirectory.migratedRetiredDefault) console.log(`Migrated Pi Station data atomically to ${dataDir}`)
 const webRoot = process.env.PI_STATION_WEB_ROOT
-const sharedRoot = resolve(process.env.PI_STATION_SHARED_ROOT ?? join(homedir(), ".pi", "agent", "pi-station", "shared"))
+const sharedRoot = resolve(process.env.PI_STATION_SHARED_ROOT ?? join(dataDir, "shared"))
 const port = Number.parseInt(process.env.PI_STATION_PORT ?? "8801", 10)
 if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) throw new Error("Pi Station port is invalid")
 const delegationEvents = new DelegationEvents()

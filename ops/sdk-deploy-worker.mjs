@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, resolve } from "node:path"
 import {
@@ -7,7 +7,7 @@ import {
   OBSOLETE_SERVICE,
   serviceMigrationActions,
 } from "./sdk-deploy-request.mjs"
-import { buildSystemdService, prepareAndValidate, resolveDeploymentOrigins } from "./sdk-deploy-worker-lib.mjs"
+import { buildSystemdService, prepareAndValidate, resolveDeploymentOrigins, resolveDeploymentSharedRoot } from "./sdk-deploy-worker-lib.mjs"
 
 const root = resolve(import.meta.dirname, "..")
 const userUnits = resolve(homedir(), ".config/systemd/user")
@@ -84,6 +84,13 @@ const { webOrigin, localOrigin } = resolveDeploymentOrigins({
   effectiveEnvironment: existingServiceEnvironment,
   port,
 })
+const retiredSharedRoot = resolve(homedir(), ".pi/agent/pi-station/shared")
+const sharedRoot = resolve(resolveDeploymentSharedRoot({
+  dataDir,
+  retiredDefault: retiredSharedRoot,
+  environment: process.env,
+  effectiveEnvironment: existingServiceEnvironment,
+}))
 const maintenanceFile = resolve(dataDir, "maintenance.json")
 const temporaryMaintenanceFile = `${maintenanceFile}.${process.pid}.tmp`
 mkdirSync(dataDir, { recursive: true })
@@ -107,7 +114,11 @@ try {
   }
 
   mkdirSync(userUnits, { recursive: true })
-  const sharedRoot = resolve(process.env.PI_STATION_SHARED_ROOT ?? resolve(homedir(), ".pi/agent/pi-station/shared"))
+  if (sharedRoot === resolve(dataDir, "shared") && !existsSync(sharedRoot) && existsSync(retiredSharedRoot)) {
+    mkdirSync(dataDir, { recursive: true })
+    renameSync(retiredSharedRoot, sharedRoot)
+    symlinkSync(sharedRoot, retiredSharedRoot, "dir")
+  }
   writeFileSync(installedUnit, buildSystemdService({
     root,
     node: process.execPath,

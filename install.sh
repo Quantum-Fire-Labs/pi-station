@@ -39,7 +39,13 @@ NODE
 }
 port=${PI_STATION_PORT:-$(environment_value "$environment_file" PI_STATION_PORT || printf '8801')}
 data_dir=${PI_STATION_DATA_DIR:-$(environment_value "$environment_file" PI_STATION_DATA_DIR || printf '%s' "$HOME/.local/share/pi-station")}
-shared_root=${PI_STATION_SHARED_ROOT:-$(environment_value "$environment_file" PI_STATION_SHARED_ROOT || printf '%s' "$HOME/.pi/agent/pi-station/shared")}
+retired_shared_root="$HOME/.pi/agent/pi-station/shared"
+if [[ -n "${PI_STATION_SHARED_ROOT:-}" ]]; then
+  shared_root=$PI_STATION_SHARED_ROOT
+else
+  saved_shared_root=$(environment_value "$environment_file" PI_STATION_SHARED_ROOT || true)
+  if [[ -z "$saved_shared_root" || "$saved_shared_root" == "$retired_shared_root" ]]; then shared_root="$data_dir/shared"; else shared_root=$saved_shared_root; fi
+fi
 local_origin=${PI_STATION_LOCAL_ORIGIN:-$(environment_value "$environment_file" PI_STATION_LOCAL_ORIGIN || printf 'http://127.0.0.1:%s' "$port")}
 web_origin=${PI_STATION_WEB_ORIGIN:-$(environment_value "$environment_file" PI_STATION_WEB_ORIGIN || printf '%s' "$local_origin")}
 unit_quote() { printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"; }
@@ -87,6 +93,11 @@ if systemctl --user is-active --quiet pi-station.service; then
   [[ "${active_turns:-}" == "0" ]] || fail "Pi Station did not drain active turns"
 fi
 
+if [[ "$shared_root" == "$data_dir/shared" && ! -e "$shared_root" && -d "$retired_shared_root" ]]; then
+  mkdir -p "$data_dir"
+  mv "$retired_shared_root" "$shared_root"
+  ln -s "$shared_root" "$retired_shared_root"
+fi
 mkdir -p "$install_root" "$data_dir" "$shared_root" "$config_dir" "$unit_dir"
 rollback_dir=$(mktemp -d "$install_root/.rollback.XXXXXX")
 [[ ! -f "$environment_file" ]] || cp "$environment_file" "$rollback_dir/environment"
