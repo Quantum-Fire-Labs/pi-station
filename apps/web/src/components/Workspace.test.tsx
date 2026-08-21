@@ -1878,7 +1878,7 @@ describe("Workspace", () => {
       />,
     );
     await user.click(screen.getByRole("combobox", { name: "Message delivery" }));
-    await user.click(screen.getByRole("option", { name: "Follow up" }));
+    await user.click(await screen.findByRole("option", { name: "Follow up" }));
     await user.type(screen.getByLabelText("Message Pi"), "Review this next");
     await user.click(screen.getByRole("button", { name: "Send message" }));
     expect(onCommand).toHaveBeenCalledWith({

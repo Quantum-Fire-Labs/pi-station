@@ -106,7 +106,9 @@ Create a clean artifact and SHA-256 checksum for the current Linux or macOS arch
 npm run release:build -- 0.1.0
 ```
 
-The files are written to `release/`. Building a release requires the normal development dependencies and `tar`. Linux uses `sha256sum`; macOS uses `shasum`. Build each architecture on its target operating system because production dependencies can contain native code. Publishing a release is a separate, explicit maintainer action.
+The files are written to `release/`. Building a release requires the normal development dependencies and `tar`. Linux uses `sha256sum`; macOS uses `shasum`. Build each architecture on its target operating system because production dependencies can contain native code.
+
+To publish a release, update the package version on `master`, complete the required CI checks, and push a matching `v<version>` tag. The release workflow validates and builds Linux and macOS archives on x64 and ARM64 runners. It publishes the GitHub release only after all four archives and their checksums are available.
 
 ## Local source deployment
 
