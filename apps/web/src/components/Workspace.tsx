@@ -3336,7 +3336,7 @@ export function Workspace({
                   setAgentMentionIndex(0);
                 }
               }}
-              placeholder="Message Pi…"
+              placeholder="Message your agent..."
               disabled={!commandAvailable || commandPending || voiceState !== "idle"}
               onKeyDown={(event) => {
                 if (agentMention !== undefined) {
@@ -3367,8 +3367,9 @@ export function Workspace({
               <span>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
+                  className="composer-attachment-button"
                   disabled={!commandAvailable || commandPending || images.length >= 4}
                   aria-label="Attach files"
                   onClick={() => fileInput.current?.click()}

@@ -12,6 +12,7 @@ describe("composer width", () => {
     expect(styles).toContain("--content: 960px;");
     expect(styles).toContain("--composer-content: 960px;");
     expect(styles).toMatch(/\.composer\s*{[^}]*var\(--composer-content\)/s);
+    expect(styles).toMatch(/\.composer\s*{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 16px;/s);
     expect(styles).toMatch(/\.follow-up-queue\s*{[^}]*var\(--composer-content\)/s);
     expect(styles).toMatch(/\.voice-mode\s*{[^}]*var\(--composer-content\)/s);
   });
@@ -22,6 +23,7 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer-settings-desktop\s*{[^}]*gap: 10px;/s);
     expect(styles).toContain(".composer-model-trigger");
     expect(styles).toContain(".composer-thinking-trigger");
+    expect(styles).toMatch(/\.composer > div\s*\{[^}]*padding-inline: 6px;/s);
   });
 
   it("keeps only the small transcription control transparent in every interaction state", () => {
@@ -37,8 +39,8 @@ describe("composer width", () => {
     expect(workspaceSource).toContain('className="voice-mode-record"');
   });
 
-  it("uses 12px type and opaque theme surfaces for model and thinking menus", () => {
-    expect(styles).toMatch(/\.composer-settings-desktop \.composer-model-trigger,\s*\.composer-settings-desktop \.composer-thinking-trigger\s*{[^}]*font-size: 12px;/s);
+  it("uses 12px type and opaque theme surfaces for composer setting menus", () => {
+    expect(styles).toMatch(/\.composer-settings-desktop \.composer-model-trigger,\s*\.composer-settings-desktop \.composer-thinking-trigger,\s*\.composer-settings-desktop \.composer-delivery-trigger\s*{[^}]*font-size: 12px;/s);
     expect(styles).toMatch(/\.composer-setting-select-menu\s*{[^}]*background: var\(--raised\);[^}]*color: var\(--text\);/s);
     expect(styles).toMatch(/\.composer-setting-select-menu \[data-slot="select-item"\]\s*{[^}]*font-size: 12px;/s);
     expect(styles).toMatch(/\.composer-settings-mobile-menu\s*{[^}]*background: var\(--raised\);[^}]*color: var\(--text\);/s);
@@ -100,12 +102,11 @@ describe("sidebar Session accessory layout", () => {
 });
 
 describe("sidebar Session status indicator", () => {
-  it("uses exact fixed status colors and the application appearance for idle", () => {
+  it("uses fixed active colors and matches the title bar for idle", () => {
     expect(styles).toContain("--session-status-working: #f59e0b;");
     expect(styles).toContain("--session-status-unread: #14b86b;");
-    expect(styles).toContain("--session-status-idle: #cbd5e1;");
-    expect(styles).toMatch(/:root\[data-appearance="dark"\][^{]*\{[^}]*--session-status-idle: #94a3b8;/s);
-    expect(styles).toMatch(/@media \(prefers-color-scheme: dark\)[\s\S]*:root:not\(\[data-appearance\]\)[^{]*\{[^}]*--session-status-idle: #94a3b8;/);
+    expect(styles).toMatch(/\.session-status-indicator\s*\{[^}]*background: var\(--strong\);/s);
+    expect(styles).toMatch(/\.session-title i\s*\{[^}]*background: var\(--strong\);/s);
   });
 
   it("keeps idle and unread static while working uses one close breathing halo", () => {
