@@ -39,7 +39,7 @@ npm run check
 
 ## Install Pi Station
 
-Pi Station requires Node.js 22.19 or newer, `curl`, and Pi configured for the same user. Linux also requires a systemd user manager.
+Pi Station requires Node.js 22.19 or newer and `curl`. Linux also requires a systemd user manager. If Pi is not available, the bootstrap installer installs the official `@earendil-works/pi-coding-agent` package for the current user under `~/.local`. After installation, run `pi` and use `/login` to connect a model provider.
 
 Install the latest release on Linux or macOS with one command:
 
@@ -47,7 +47,7 @@ Install the latest release on Linux or macOS with one command:
 curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh | bash
 ```
 
-The bootstrap installer detects the operating system and architecture, downloads the matching GitHub release and checksum, verifies the archive, and runs the platform installer. To inspect the script before you run it:
+The bootstrap installer detects the operating system and architecture, installs Pi when necessary, downloads the matching GitHub release and checksum, verifies the archive, and runs the platform installer. Set `PI_STATION_SKIP_PI_INSTALL=1` to leave a missing Pi installation unchanged. To inspect the script before you run it:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh

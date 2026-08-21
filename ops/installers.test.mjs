@@ -13,8 +13,12 @@ describe("release bootstrap installer", () => {
     const root = mkdtempSync(resolve(tmpdir(), "pi-station-bootstrap-")); roots.push(root)
     const bin = resolve(root, "bin")
     const marker = resolve(root, "installed")
+    const piInstallMarker = resolve(root, "pi-installed")
+    const home = resolve(root, "home")
     const fixture = resolve(root, "release.json")
     mkdirSync(bin, { recursive: true })
+    mkdirSync(home, { recursive: true })
+    symlinkSync(process.execPath, resolve(bin, "node"))
     writeFileSync(fixture, JSON.stringify({ assets: [
       { name: "pi-station-0.1.0-linux-x64.tar.gz", browser_download_url: "https://downloads.example/archive" },
       { name: "pi-station-0.1.0-linux-x64.tar.gz.sha256", browser_download_url: "https://downloads.example/checksum" },
@@ -23,15 +27,18 @@ describe("release bootstrap installer", () => {
     executable(resolve(bin, "uname"), "#!/bin/bash\nif [[ $1 == -s ]]; then echo Linux; else echo x86_64; fi\n")
     executable(resolve(bin, "curl"), `#!/bin/bash\noutput=\nprevious=\nfor argument in "$@"; do if [[ $previous == --output ]]; then output=$argument; fi; previous=$argument; done\nurl=\${!#}\nif [[ $url == *api.github.com* ]]; then cat '${fixture}'; elif [[ $url == */archive ]]; then printf archive > "$output"; elif [[ $url == */checksum ]]; then printf checksum > "$output"; else exit 22; fi\n`)
     executable(resolve(bin, "sha256sum"), "#!/bin/bash\nexit 0\n")
+    executable(resolve(bin, "npm"), `#!/bin/bash\nprefix=\nprevious=\nfor argument in "$@"; do if [[ $previous == --prefix ]]; then prefix=$argument; fi; previous=$argument; done\nmkdir -p "$prefix/bin"\nprintf '#!/bin/bash\\n' > "$prefix/bin/pi"\nchmod +x "$prefix/bin/pi"\nprintf installed > '${piInstallMarker}'\n`)
     executable(resolve(bin, "tar"), `#!/bin/bash\ndestination=\nprevious=\nfor argument in "$@"; do if [[ $previous == -C ]]; then destination=$argument; fi; previous=$argument; done\nprintf '#!/bin/bash\\nprintf installed > "${marker}"\\n' > "$destination/install.sh"\nchmod +x "$destination/install.sh"\n`)
 
     const result = spawnSync(resolve(import.meta.dirname, "../install-release.sh"), [], {
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${resolve(process.execPath, "..")}:/usr/bin:/bin` },
+      env: { ...process.env, HOME: home, PATH: `${bin}:/usr/bin:/bin` },
     })
 
     expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain("Pi is not installed. Installing it for the current user")
     expect(result.stdout).toContain("Downloading pi-station-0.1.0-linux-x64.tar.gz")
+    expect(readFileSync(piInstallMarker, "utf8")).toBe("installed")
     expect(readFileSync(marker, "utf8")).toBe("installed")
   })
 

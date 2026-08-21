@@ -20,6 +20,22 @@ esac
 command -v "$checksum_command" >/dev/null 2>&1 || fail "$checksum_command is required"
 command -v tar >/dev/null 2>&1 || fail "tar is required"
 
+installed_pi=false
+if ! command -v pi >/dev/null 2>&1; then
+  if [[ "${PI_STATION_SKIP_PI_INSTALL:-0}" == "1" ]]; then
+    printf 'Pi is not installed; continuing because PI_STATION_SKIP_PI_INSTALL=1.\n' >&2
+  else
+    command -v npm >/dev/null 2>&1 || fail "npm is required to install Pi"
+    pi_prefix=${PI_STATION_PI_INSTALL_PREFIX:-"$HOME/.local"}
+    printf 'Pi is not installed. Installing it for the current user...\n'
+    npm install --global --prefix "$pi_prefix" --ignore-scripts @earendil-works/pi-coding-agent
+    export PATH="$pi_prefix/bin:$PATH"
+    hash -r
+    command -v pi >/dev/null 2>&1 || fail "Pi was installed, but $pi_prefix/bin is not available"
+    installed_pi=true
+  fi
+fi
+
 repository=${PI_STATION_REPOSITORY:-Quantum-Fire-Labs/pi-station}
 api_root=${PI_STATION_GITHUB_API_URL:-https://api.github.com}
 if [[ -n "${PI_STATION_VERSION:-}" ]]; then
@@ -72,3 +88,6 @@ tar -xzf "$work_directory/$archive_name" -C "$release_directory"
 [[ -x "$release_directory/$platform_installer" ]] || fail "the release does not contain $platform_installer"
 printf 'Installing Pi Station...\n'
 "$release_directory/$platform_installer"
+if [[ "$installed_pi" == true ]]; then
+  printf '\nPi was installed at %s. Run `pi` and use `/login` to connect a model provider.\n' "$(command -v pi)"
+fi
