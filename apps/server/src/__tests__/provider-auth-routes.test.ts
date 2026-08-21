@@ -29,6 +29,7 @@ describe("provider auth routes", () => {
     const base = `http://127.0.0.1:${address.port}`
     try {
       const providers = await fetch(`${base}/v2/auth/providers`)
+      expect(providers.headers.get("cache-control")).toBe("no-store")
       expect(await providers.json()).toMatchObject({ providers: [{ id: "example", configured: false, methods: [{ type: "api_key" }] }] })
       const blocked = await fetch(`${base}/v2/auth/login`, { method: "POST", headers: { origin: "https://evil.example", "content-type": "application/json" }, body: JSON.stringify({ providerId: "example", type: "api_key" }) })
       expect(blocked.status).toBe(403)

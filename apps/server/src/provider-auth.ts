@@ -56,6 +56,9 @@ export class ProviderAuthService {
     const provider = this.runtime.getProviders().find(({ id }) => id === providerId)
     const supported = type === "api_key" ? provider?.auth.apiKey?.login !== undefined : provider?.auth.oauth !== undefined
     if (!supported) throw new ProviderAuthError(400, "Provider or authentication method is not supported")
+    for (const item of this.#transactions.values()) {
+      if (item.status === "running" && item.expiresAt <= this.now()) this.#expire(item)
+    }
     const active = [...this.#transactions.values()].find((item) => item.providerId === providerId && item.status === "running")
     if (active !== undefined) throw new ProviderAuthError(409, "Authentication is already in progress for this provider")
     const transaction: MutableTransaction = { id: randomUUID(), providerId, status: "running", events: [], prompt: undefined, error: undefined, pending: undefined, expiresAt: this.now() + this.ttlMs, abort: new AbortController() }
@@ -88,6 +91,7 @@ export class ProviderAuthService {
 
   respond(id: string, value: string): AuthTransaction {
     const transaction = this.#find(id)
+    if (transaction.status === "running" && transaction.expiresAt <= this.now()) this.#expire(transaction)
     if (transaction.status !== "running" || transaction.pending === undefined) throw new ProviderAuthError(409, "No authentication prompt is waiting for a response")
     const pending = transaction.pending
     transaction.pending = undefined
@@ -99,6 +103,7 @@ export class ProviderAuthService {
 
   cancel(id: string): AuthTransaction {
     const transaction = this.#find(id)
+    if (transaction.status === "running" && transaction.expiresAt <= this.now()) this.#expire(transaction)
     if (transaction.status === "running") {
       transaction.status = "cancelled"
       transaction.error = CANCELLED

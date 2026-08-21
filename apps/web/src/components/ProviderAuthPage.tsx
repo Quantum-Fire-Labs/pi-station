@@ -37,8 +37,14 @@ export function ProviderAuthPage({ client, onboarding = false, onBack, onComplet
     if (transaction === undefined) return;
     try { setTransaction(await client.answerAuthPrompt(transaction.id, answer)); setAnswer(""); } catch (reason) { setError(reason instanceof Error ? reason.message : "Response was not accepted."); }
   };
-  const cancel = async (): Promise<void> => { if (transaction !== undefined) setTransaction(await client.cancelProviderLogin(transaction.id)); };
-  const logout = async (providerId: string): Promise<void> => { if (!window.confirm("Sign out from this provider?")) return; setProviders(await client.logoutProvider(providerId)); };
+  const cancel = async (): Promise<void> => {
+    if (transaction === undefined) return;
+    try { setTransaction(await client.cancelProviderLogin(transaction.id)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Authentication could not be cancelled."); }
+  };
+  const logout = async (providerId: string): Promise<void> => {
+    if (!window.confirm("Sign out from this provider?")) return;
+    try { setProviders(await client.logoutProvider(providerId)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Provider sign-out failed."); }
+  };
 
   const body = (
     <div className="provider-auth-page">

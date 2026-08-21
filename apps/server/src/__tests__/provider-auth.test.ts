@@ -46,6 +46,7 @@ describe("ProviderAuthService", () => {
     const expiring = service.start("example", "oauth")
     await settle(); now = 151
     expect(service.transaction(expiring.id)).toMatchObject({ status: "expired", error: "Authentication request expired" })
+    expect(() => service.respond(expiring.id, "too late")).toThrow(ProviderAuthError)
   })
 
   it("logs out through the runtime and rejects unknown providers", async () => {

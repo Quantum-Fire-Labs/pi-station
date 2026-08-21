@@ -480,6 +480,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         return
       }
       if (options.providerAuth !== undefined && url.pathname.startsWith("/v2/auth/")) {
+        response.setHeader("cache-control", "no-store")
         try {
           if (request.method === "GET" && url.pathname === "/v2/auth/providers") {
             sendJson(response, 200, { version: PROTOCOL_VERSION, providers: await options.providerAuth.providers() })
