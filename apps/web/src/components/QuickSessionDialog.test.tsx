@@ -11,13 +11,14 @@ import { QuickSessionDialog } from "./QuickSessionDialog";
 const mock = vi.hoisted(() => ({
   listener: undefined as ((state: ApplicationState) => void) | undefined,
   state: undefined as ApplicationState | undefined,
-  open: vi.fn(), clear: vi.fn(), keep: vi.fn(), cancel: vi.fn(), stop: vi.fn(), command: vi.fn(),
+  open: vi.fn(), clear: vi.fn(), keep: vi.fn(), cancel: vi.fn(), connect: vi.fn(), stop: vi.fn(), command: vi.fn(),
 }));
 
 vi.mock("../application/application-client", () => ({
   ApplicationClient: class {
     get snapshot() { return mock.state; }
     subscribe(listener: (state: ApplicationState) => void) { mock.listener = listener; return () => { mock.listener = undefined; }; }
+    connect = mock.connect;
     stop = mock.stop;
     openQuickSession = mock.open;
     clearQuickSession = mock.clear;
@@ -57,7 +58,7 @@ beforeEach(() => {
   mock.clear.mockReset().mockResolvedValue(undefined);
   mock.keep.mockReset().mockResolvedValue(undefined);
   mock.cancel.mockReset().mockResolvedValue(undefined);
-  mock.stop.mockReset(); mock.command.mockReset();
+  mock.connect.mockReset(); mock.stop.mockReset(); mock.command.mockReset();
   localStorage.clear();
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -66,11 +67,23 @@ async function openDialog() { await userEvent.click(screen.getByRole("button", {
 async function openActions() { fireEvent.click(screen.getByRole("button", { name: "Quick Session actions" })); await screen.findByRole("menu"); }
 
 describe("QuickSessionDialog", () => {
+  it("shows only its loading state while the Quick Session replaces an existing selection", async () => {
+    mock.state = fixtureState;
+    mock.open.mockReturnValue(new Promise(() => undefined));
+    render(<QuickSessionDialog open onOpenChange={vi.fn()} onKept={vi.fn()} />);
+    const loading = await screen.findByRole("status");
+    expect(loading).toHaveTextContent("Opening Quick Session…");
+    expect(loading.querySelector(".initial-connection-mark")).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+  });
+
   it("hides the Quick Session title, Session name, and file path", async () => {
     render(<Harness />);
     const dialog = await openDialog();
     expect(within(dialog).getByRole("heading", { name: "Quick Session" })).toHaveClass("sr-only");
     expect(dialog.querySelector(".session-header")).not.toBeInTheDocument();
+    expect(dialog.querySelector(".sidebar")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Dashboard")).not.toBeInTheDocument();
     await waitFor(() => expect(within(dialog).getByLabelText("Message Pi")).toHaveFocus());
   });
 
@@ -129,6 +142,8 @@ describe("QuickSessionDialog", () => {
     render(<Harness />); await openDialog(); const composer = screen.getAllByLabelText("Message Pi").at(-1)!; await userEvent.type(composer, "quick draft");
     const body = document.querySelector('.quick-session-dialog-body') as HTMLDivElement; Object.defineProperty(body, "scrollTop", { value: 321, writable: true }); fireEvent.scroll(body);
     await userEvent.keyboard("{Escape}"); await openDialog();
+    expect(mock.open).toHaveBeenCalledOnce();
+    expect(mock.connect).toHaveBeenCalledOnce();
     expect(screen.getAllByLabelText("Message Pi").at(-1)).toHaveValue("quick draft");
     await waitFor(() => expect((document.querySelector('.quick-session-dialog-body') as HTMLDivElement).scrollTop).toBe(321));
   });

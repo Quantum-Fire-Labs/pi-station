@@ -1362,6 +1362,9 @@ export function Workspace({
   type Route = "workspace" | "dashboard" | "new-session" | "projects" | "project"
     | "add-project" | "settings" | SettingsRoute;
   const [route, setRouteState] = useState<Route>("workspace");
+  useEffect(() => {
+    if (embeddedSession && state.selectedSessionKey !== undefined) setRouteState("workspace");
+  }, [embeddedSession, state.selectedSessionKey]);
   const afterSharedMarkdownCheck = (action: () => void): void => {
     if (sharedMarkdownDirty) setDiscardSharedMarkdownAction(() => action);
     else action();
