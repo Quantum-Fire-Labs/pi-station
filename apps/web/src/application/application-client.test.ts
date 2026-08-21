@@ -53,6 +53,15 @@ describe("Pi Station incremental Session summaries", () => {
     expect(sessions[1]).toBe(unchanged);
   });
 
+  it("uses the working directory as the Session display path", () => {
+    const summary = upsertSessionSummary([], {
+      ...saved("outside", "2026-01-01T00:00:00.000Z"),
+      cwd: "/work/outside",
+    })[0];
+
+    expect(summary?.displayPath).toBe("/work/outside");
+  });
+
   it("updates close and open state in place by stable Session ID", () => {
     const open = upsertSessionSummary([], saved("one", "2026-01-01T00:00:00.000Z"));
     const closed = upsertSessionSummary(open, saved("one", "2026-01-01T00:00:00.000Z", "closed"));
