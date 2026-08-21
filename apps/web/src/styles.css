@@ -4148,6 +4148,8 @@ body.sidebar-resizing {
 .provider-auth-intro h1 { font-size: clamp(28px, 5vw, 44px); margin: 0 0 8px; }
 .provider-auth-intro p, .provider-auth-card small { color: var(--muted); }
 .provider-auth-page { display: grid; gap: 14px; }
+.provider-auth-search { display: grid; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.provider-auth-search input { min-height: 42px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; color: var(--text); background: var(--page); font: inherit; }
 .provider-auth-card > div:first-child { padding-bottom: 8px; }
 .provider-auth-card strong, .provider-auth-card small { display: block; }
 .provider-auth-actions { display: flex; flex-wrap: wrap; gap: 8px; }

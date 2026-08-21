@@ -14,6 +14,9 @@ describe("ProviderAuthPage", () => {
     const api = client(); const open = vi.spyOn(window, "open").mockImplementation(() => null);
     render(<ProviderAuthPage client={api} onboarding />);
     await screen.findByText("Example");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search providers" }), { target: { value: "missing" } });
+    expect(screen.queryByText("Example")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search providers" }), { target: { value: "example" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await screen.findByText("Sign in", { selector: "p" });
     fireEvent.click(screen.getByRole("button", { name: "Open sign-in page" }));
@@ -41,7 +44,7 @@ describe("ProviderAuthPage", () => {
   });
 
   it("does not make unsafe authentication URLs clickable", async () => {
-    const api = client(); api.startProviderLogin.mockResolvedValue({ ...running, events: [{ type: "auth_url", url: "javascript:alert(1)" }] });
+    const api = client(); api.startProviderLogin.mockResolvedValue({ ...running, events: [{ type: "auth_url", url: "http://login.example/steal" }] });
     render(<ProviderAuthPage client={api} onboarding />); await screen.findByText("Example"); fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(api.startProviderLogin).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: "Open sign-in page" })).not.toBeInTheDocument();
