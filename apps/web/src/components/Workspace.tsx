@@ -1978,6 +1978,13 @@ export function Workspace({
       return;
     }
     if (current.projection.availability !== "closed") return;
+    const isProjectlessBookmark = !state.projects.some((project) => (
+      project.projectId === current.projectId
+    )) && state.sessionBookmarks.some((bookmark) => (
+      bookmark.projectId === current.projectId
+      && sessionKeysEqual(bookmark.sessionKey, current.sessionKey)
+    ));
+    if (isProjectlessBookmark) return;
     if (handledClosedSelection.current === identity) return;
     handledClosedSelection.current = identity;
 
@@ -2016,7 +2023,7 @@ export function Workspace({
     } else {
       setRouteState("dashboard");
     }
-  }, [state.projects, state.selectedSessionKey, state.sessions]);
+  }, [state.projects, state.selectedSessionKey, state.sessionBookmarks, state.sessions]);
 
   useEffect(() => {
     const tracking = cloneSource.current;
