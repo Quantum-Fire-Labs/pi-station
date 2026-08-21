@@ -1,6 +1,8 @@
 # Pi Station
 
-Pi Station is a local Workspace UI for Pi. It uses the public Pi SDK directly. Pi owns Session files, history, model settings, and runtime metadata. Pi Station stores only its application metadata.
+Pi Station is a Workspace UI for Pi that runs on your computer. You can use it on that computer or connect to it from other devices, including phones and other computers. It uses the public Pi SDK directly. Pi owns Session files, history, model settings, and runtime metadata. Pi Station stores only its application metadata.
+
+![Pi Station Workspace](docs/assets/pi-station.png)
 
 > [!WARNING]
 > Pi Station is a new, pre-1.0 project. Expect defects, incomplete platform coverage, and breaking changes to installation, configuration, application metadata, and APIs. Back up important data before an update and review release notes before you install a new version.
@@ -15,8 +17,6 @@ There is one production path:
 - `~/.local/share/pi-station`: Pi Station application data.
 - `~/.local/share/pi-station/shared`: Session shared files.
 - `pi-station.service`: the only application service.
-
-The retired broker, Pi process bridge, alternate RPC UI, and their protocols are not part of this architecture.
 
 ## Development
 
