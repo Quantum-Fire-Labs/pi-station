@@ -35,6 +35,32 @@ describe("release bootstrap installer", () => {
     expect(readFileSync(marker, "utf8")).toBe("installed")
   })
 
+  it.runIf(process.platform === "linux")("selects the moving edge release when requested", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "pi-station-bootstrap-edge-")); roots.push(root)
+    const bin = resolve(root, "bin")
+    const requestedUrl = resolve(root, "requested-url")
+    mkdirSync(bin, { recursive: true })
+    executable(resolve(bin, "uname"), "#!/bin/bash\nif [[ $1 == -s ]]; then echo Linux; else echo x86_64; fi\n")
+    executable(resolve(bin, "curl"), `#!/bin/bash\nprintf '%s' "\${!#}" > '${requestedUrl}'\nprintf '{"assets":[]}'\n`)
+    executable(resolve(bin, "sha256sum"), "#!/bin/bash\nexit 0\n")
+    const result = spawnSync(resolve(import.meta.dirname, "../install-release.sh"), [], {
+      encoding: "utf8",
+      env: { ...process.env, PI_STATION_CHANNEL: "edge", PATH: `${bin}:${resolve(process.execPath, "..")}:/usr/bin:/bin` },
+    })
+    expect(result.status).not.toBe(0)
+    expect(readFileSync(requestedUrl, "utf8").endsWith("/repos/Quantum-Fire-Labs/pi-station/releases/tags/edge")).toBe(true)
+    expect(result.stdout).toContain("Finding the Pi Station edge release")
+  })
+
+  it.runIf(process.platform === "linux")("rejects an edge channel combined with an explicit version", () => {
+    const result = spawnSync(resolve(import.meta.dirname, "../install-release.sh"), [], {
+      encoding: "utf8",
+      env: { ...process.env, PI_STATION_CHANNEL: "edge", PI_STATION_VERSION: "0.1.1", PATH: `${resolve(process.execPath, "..")}:/usr/bin:/bin` },
+    })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("PI_STATION_VERSION and PI_STATION_CHANNEL=edge cannot be used together")
+  })
+
   it.runIf(process.platform === "linux")("fails clearly when the host architecture is unsupported", () => {
     const root = mkdtempSync(resolve(tmpdir(), "pi-station-bootstrap-")); roots.push(root)
     const bin = resolve(root, "bin")

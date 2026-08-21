@@ -47,10 +47,12 @@ describe("ProviderAuthPage", () => {
   });
 
   it("renders device-code and select interactions", async () => {
+    const user = userEvent.setup();
     const api = client(); api.startProviderLogin.mockResolvedValue({ ...running, events: [{ type: "device_code", userCode: "ABCD-EFGH", verificationUri: "https://device.example" }], prompt: { type: "select", message: "Choose an account", options: [{ id: "work", label: "Work", description: "Team account" }] } });
     render(<ProviderAuthPage client={api} onboarding />); await screen.findByText("Example"); chooseExample(); chooseSignIn();
     expect(await screen.findByText("ABCD-EFGH")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Choose an account"), { target: { value: "work" } }); fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await user.selectOptions(screen.getByLabelText("Choose an account"), "work");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() => expect(api.answerAuthPrompt).toHaveBeenCalledWith("tx", "work"));
   });
 

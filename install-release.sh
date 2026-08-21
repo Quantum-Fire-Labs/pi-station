@@ -22,16 +22,23 @@ command -v tar >/dev/null 2>&1 || fail "tar is required"
 
 repository=${PI_STATION_REPOSITORY:-Quantum-Fire-Labs/pi-station}
 api_root=${PI_STATION_GITHUB_API_URL:-https://api.github.com}
+channel=${PI_STATION_CHANNEL:-stable}
+[[ "$channel" == "stable" || "$channel" == "edge" ]] || fail "PI_STATION_CHANNEL must be stable or edge"
+if [[ -n "${PI_STATION_VERSION:-}" && "$channel" != "stable" ]]; then
+  fail "PI_STATION_VERSION and PI_STATION_CHANNEL=edge cannot be used together"
+fi
 if [[ -n "${PI_STATION_VERSION:-}" ]]; then
   tag=$PI_STATION_VERSION
   [[ "$tag" == v* ]] || tag="v$tag"
   encoded_tag=$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$tag")
   release_url="$api_root/repos/$repository/releases/tags/$encoded_tag"
+elif [[ "$channel" == "edge" ]]; then
+  release_url="$api_root/repos/$repository/releases/tags/edge"
 else
   release_url="$api_root/repos/$repository/releases/latest"
 fi
 
-printf 'Finding the Pi Station release for %s %s...\n' "$platform" "$architecture"
+printf 'Finding the Pi Station %s release for %s %s...\n' "$channel" "$platform" "$architecture"
 release_json=$(curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
   --header 'Accept: application/vnd.github+json' --header 'User-Agent: pi-station-installer' "$release_url") || \
   fail "could not find the requested GitHub release"
