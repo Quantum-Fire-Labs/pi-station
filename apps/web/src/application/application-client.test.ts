@@ -627,4 +627,23 @@ describe("Pi Station incremental Session summaries", () => {
     expect(client.snapshot.selectedSessionKey).toEqual({ hostId: "projectless-host", piSessionId: "persisted-session" });
     expect(fetchMock).toHaveBeenNthCalledWith(3, "/v2/projects/projectless-host/sessions/persisted-session", { cache: "no-store" });
   });
+
+  it("uses the provider authentication protocol without putting secrets in URLs", async () => {
+    const transaction = { id: "tx", providerId: "example", status: "running", events: [], expiresAt: "2026-01-01T00:00:00.000Z" };
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ providers: [{ id: "example", name: "Example", configured: false, methods: [{ type: "api_key", name: "API key" }] }] }))
+      .mockResolvedValueOnce(Response.json({ transaction }, { status: 202 }))
+      .mockResolvedValueOnce(Response.json({ transaction }))
+      .mockResolvedValueOnce(Response.json({ transaction: { ...transaction, prompt: undefined } }));
+    globalThis.fetch = fetchMock;
+    const client = new ApplicationClient();
+    await client.getAuthProviders();
+    await client.startProviderLogin("example", "api_key");
+    await client.getAuthTransaction("tx");
+    await client.answerAuthPrompt("tx", "private-key");
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/v2/auth/login", expect.objectContaining({ method: "POST", body: JSON.stringify({ providerId: "example", type: "api_key" }) }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/v2/auth/transactions/tx", { cache: "no-store" });
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/v2/auth/transactions/tx/response", expect.objectContaining({ body: JSON.stringify({ value: "private-key" }) }));
+    expect(fetchMock.mock.calls.map(([url]) => typeof url === "string" ? url : url instanceof URL ? url.href : url.url).join(" ")).not.toContain("private-key");
+  });
 });

@@ -202,7 +202,7 @@ describe("Workspace", () => {
     expect([...section.querySelectorAll(".session-row-name")].map((name) => name.textContent)).toEqual(["Newest other", "Older other"]);
   });
 
-  it("reopens a closed projectless Bookmark", async () => {
+  it("reopens a closed projectless Bookmark", () => {
     const source = fixtureState.sessions[0]!;
     const bookmarked = {
       ...source,

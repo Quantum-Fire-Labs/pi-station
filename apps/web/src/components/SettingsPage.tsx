@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { Bell, Bot, ChevronRight, Clock, FilePenLine, Mic, Palette } from "lucide-react";
+import { Bell, Bot, ChevronRight, Clock, FilePenLine, KeyRound, Mic, Palette } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 import { SettingsLayout } from "./SettingsLayout";
 
-export type SettingsRoute = "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor";
+export type SettingsRoute = "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers";
 
 export function SettingsPage({ onBack, onOpen }: { onBack: () => void; onOpen: (route: SettingsRoute) => void }) {
   return (
@@ -12,6 +12,7 @@ export function SettingsPage({ onBack, onOpen }: { onBack: () => void; onOpen: (
         <h2 id="settings-general">General</h2>
         <Card className="settings-link-card gap-0 bg-transparent py-0">
           <CardContent className="p-0">
+            <SettingLink icon={<KeyRound aria-hidden="true" />} title="Model Providers" description="Connect provider accounts and API keys." onClick={() => onOpen("providers")} />
             <SettingLink icon={<Bot aria-hidden="true" />} title="Session Defaults" description="Choose the model and thinking level for new Sessions." onClick={() => onOpen("session-defaults")} />
             <SettingLink icon={<FilePenLine aria-hidden="true" />} title="Editor" description="Configure editing behavior for shared Markdown files." onClick={() => onOpen("editor")} />
             <SettingLink icon={<Clock aria-hidden="true" />} title="Timezone" description="Set the local timezone for Scheduled Jobs." onClick={() => onOpen("timezone")} />

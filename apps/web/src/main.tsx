@@ -4,6 +4,7 @@ import type { ApplicationState } from "./application/application-client-base";
 import { MaintenanceMonitor } from "./application/maintenance";
 import { ApplicationClient } from "./application/application-client";
 import { Pairing } from "./components/Pairing";
+import { ProviderAuthPage } from "./components/ProviderAuthPage";
 import { UpdatingScreen } from "./components/UpdatingScreen";
 import { Workspace } from "./components/Workspace";
 import { QuickSessionDialog } from "./components/QuickSessionDialog";
@@ -41,6 +42,7 @@ function Root() {
   });
   const [updating, setUpdating] = useState(false);
   const [quickSessionOpen, setQuickSessionOpen] = useState(false);
+  const [providerConfigured, setProviderConfigured] = useState<boolean>();
   const quickSessionTrigger = useRef<HTMLElement | null>(null);
   const changeQuickSessionOpen = (open: boolean): void => {
     setQuickSessionOpen(open);
@@ -53,6 +55,11 @@ function Root() {
 
     return client?.snapshot ?? fixtureState;
   });
+
+  useEffect(() => {
+    if (client === undefined) { setProviderConfigured(true); return; }
+    void client.getAuthProviders().then((providers) => setProviderConfigured(providers.some(({ configured }) => configured))).catch(() => setProviderConfigured(true));
+  }, [client]);
 
   useEffect(() => {
     if (client === undefined) {
@@ -209,6 +216,8 @@ function Root() {
   }, [client]);
 
   if (updating) return <UpdatingScreen />;
+  if (client !== undefined && providerConfigured === undefined) return <p className="page-loading" role="status">Checking model providers…</p>;
+  if (client !== undefined && providerConfigured === false) return <ProviderAuthPage client={client} onboarding onComplete={() => setProviderConfigured(true)} />;
 
   if (state.connection === "authentication-required" && client !== undefined) {
     return <Pairing onApproved={reconnect} />;

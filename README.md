@@ -39,7 +39,9 @@ npm run check
 
 ## Install Pi Station
 
-Pi Station requires Node.js 22.19 or newer, `curl`, and Pi configured for the same user. Linux also requires a systemd user manager.
+Pi Station requires Node.js 22.19 or newer and `curl`. Linux also requires a systemd user manager.
+
+Pi Station uses the embedded Pi SDK to connect model providers. On first use, select a provider and sign in with OAuth or an API key. Credentials use Pi's standard `~/.pi/agent/auth.json` store through the SDK. An existing Pi CLI configuration for the same user remains compatible, but the CLI is optional and is intended for advanced use.
 
 Install the latest release on Linux or macOS with one command:
 
