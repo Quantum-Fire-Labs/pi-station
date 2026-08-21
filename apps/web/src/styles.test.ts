@@ -23,7 +23,7 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer-settings-desktop\s*{[^}]*gap: 10px;/s);
     expect(styles).toContain(".composer-model-trigger");
     expect(styles).toContain(".composer-thinking-trigger");
-    expect(styles).toMatch(/\.composer > div\s*\{[^}]*padding-inline: 6px;/s);
+    expect(styles).toMatch(/\.composer-controls\s*\{[^}]*padding-inline: 6px;/s);
   });
 
   it("keeps only the small transcription control transparent in every interaction state", () => {

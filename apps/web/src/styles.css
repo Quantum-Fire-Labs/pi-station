@@ -1281,12 +1281,18 @@ body.sidebar-resizing {
 .composer-image.ready > span { clip-path: inset(50%); width: 1px; height: 1px; }
 .composer-image > button {
   position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 24px;
-  height: 24px;
-  background: #000c;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #000a;
   color: white;
+  padding: 0;
+  box-shadow: 0 1px 3px #0006;
 }
 .composer-image.error { border-color: var(--danger); }
 .agent-mention-menu {
@@ -1331,20 +1337,20 @@ body.sidebar-resizing {
     overflow-y: auto;
   }
 }
-.composer > div {
+.composer-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-inline: 6px;
 }
-.composer > div > span {
+.composer-controls > span {
   display: flex;
   align-items: center;
   gap: 12px;
   color: var(--muted);
   font: 11px var(--mono);
 }
-.composer > div > span:first-child { min-width: 0; flex-wrap: wrap; }
+.composer-controls > span:first-child { min-width: 0; flex-wrap: wrap; }
 .composer-settings-desktop { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 10px; }
 .composer-attachment-button { border-color: var(--ui-input); color: var(--text); }
 .composer-settings-desktop [data-slot="select-trigger"] { min-width: 0; flex: 0 1 auto; color: var(--text); font-family: var(--sans); }
@@ -4082,7 +4088,7 @@ body.sidebar-resizing {
 @media (max-width: 760px) {
   .composer-settings-desktop { display: none; }
   .composer-settings-mobile { display: block; }
-  .composer > div > span { gap: 6px; }
+  .composer-controls > span { gap: 6px; }
   .voice-mode .composer-settings-mobile { display: block; }
 
   .creation-page, .settings-page { padding: 24px 18px 48px; }
