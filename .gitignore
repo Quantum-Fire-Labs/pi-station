@@ -9,6 +9,7 @@ release/
 .env.*
 !.env.example
 .pi/
+AGENTS.md
 .DS_Store
 *.log
 
