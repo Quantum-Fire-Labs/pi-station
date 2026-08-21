@@ -165,6 +165,7 @@ function Dashboard({
   onOpen,
   onOpenProject,
   onNewSession,
+  onOpenQuickSession,
   onNewProjectSession,
   onAddProject,
   onDashboard,
@@ -175,6 +176,7 @@ function Dashboard({
   onOpen: (key: SessionKey) => void;
   onOpenProject: (projectId: ProjectId) => void;
   onNewSession: () => void;
+  onOpenQuickSession: () => void;
   onNewProjectSession: (project: ProjectSummary) => void;
   onAddProject: () => void;
   onDashboard: () => void;
@@ -252,16 +254,21 @@ function Dashboard({
               New Session
             </Button>
           </div>
-          <Button
-            className="dashboard-mobile-new-session"
-            type="button"
-            size="icon"
-            aria-label="New Session"
-            title="New Session"
-            onClick={onNewSession}
-          >
-            <Plus aria-hidden="true" />
-          </Button>
+          <div className="dashboard-mobile-actions">
+            <Button type="button" size="icon" aria-label="Quick Session" title="Quick Session" onClick={onOpenQuickSession}>
+              <Zap aria-hidden="true" />
+            </Button>
+            <Button
+              className="dashboard-mobile-new-session"
+              type="button"
+              size="icon"
+              aria-label="New Session"
+              title="New Session"
+              onClick={onNewSession}
+            >
+              <Plus aria-hidden="true" />
+            </Button>
+          </div>
         </header>
 
         <Tabs value={view} onValueChange={(value) => {
@@ -2848,6 +2855,7 @@ export function Workspace({
           setRoute("project");
         }}
         onNewSession={() => setRoute("new-session")}
+        onOpenQuickSession={() => onOpenQuickSession?.()}
         onNewProjectSession={(project) => setNewSessionProject(project)}
         onAddProject={() => setRoute("add-project")}
         onDashboard={() => setRoute("dashboard")}
