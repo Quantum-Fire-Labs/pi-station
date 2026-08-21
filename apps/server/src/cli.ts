@@ -14,6 +14,7 @@ import { createPiStationServer, listenLocal, shutdownPiStationServer } from "./s
 import { resolveDataDirectory } from "./data-directory.js"
 import { ScheduledJobAgentBridge, ScheduledJobStore, SettingsStore } from "./scheduled-jobs.js"
 import { SessionMoveAgentBridge } from "./session-moves.js"
+import { ProviderAuthService } from "./provider-auth.js"
 
 const dataDirectory = resolveDataDirectory()
 const dataDir = dataDirectory.path
@@ -83,6 +84,7 @@ const server = createPiStationServer({
   agentMessaging,
   sessionMoves,
   newAgentInProject,
+  providerAuth: new ProviderAuthService(modelRuntime),
   sessionDefaultModels: () => modelRuntime.getAvailableSnapshot().map((model) => ({
     provider: model.provider,
     modelId: model.id,

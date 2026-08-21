@@ -1,5 +1,8 @@
 export { PROTOCOL_VERSION } from "./version.js"
 
+export { isAuthLoginRequest, isAuthPromptResponse } from "./auth.js"
+export type { AuthNotification, AuthPromptView, AuthTransaction, ProviderAuthMethod, ProviderAuthStatus, ProviderAuthType } from "./auth.js"
+
 export {
   isProject,
   isProjectList,

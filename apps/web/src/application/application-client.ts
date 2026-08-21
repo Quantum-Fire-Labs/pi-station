@@ -1,5 +1,8 @@
 import type {
+  AuthTransaction,
   PiStationSettings,
+  ProviderAuthStatus,
+  ProviderAuthType,
   Project,
   SavedSession,
   ScheduledJob,
@@ -249,6 +252,12 @@ export class ApplicationClient extends ApplicationClientBase {
     }
   }
 
+  async getAuthProviders(): Promise<readonly ProviderAuthStatus[]> { return (await request<{ providers: ProviderAuthStatus[] }>("/v2/auth/providers")).providers; }
+  async startProviderLogin(providerId: string, type: ProviderAuthType): Promise<AuthTransaction> { return (await mutate("/v2/auth/login", "POST", { providerId, type }) as { transaction: AuthTransaction }).transaction; }
+  async getAuthTransaction(id: string): Promise<AuthTransaction> { return (await request<{ transaction: AuthTransaction }>(`/v2/auth/transactions/${encodeURIComponent(id)}`)).transaction; }
+  async answerAuthPrompt(id: string, value: string): Promise<AuthTransaction> { return (await mutate(`/v2/auth/transactions/${encodeURIComponent(id)}/response`, "POST", { value }) as { transaction: AuthTransaction }).transaction; }
+  async cancelProviderLogin(id: string): Promise<AuthTransaction> { return (await mutate(`/v2/auth/transactions/${encodeURIComponent(id)}`, "DELETE") as { transaction: AuthTransaction }).transaction; }
+  async logoutProvider(providerId: string): Promise<readonly ProviderAuthStatus[]> { return (await mutate(`/v2/auth/providers/${encodeURIComponent(providerId)}`, "DELETE") as { providers: ProviderAuthStatus[] }).providers; }
   async getPiStationSettings(): Promise<PiStationSettings> { return (await request<{ settings: PiStationSettings }>("/v2/settings")).settings; }
   async setPiStationTimezone(timezone: string): Promise<PiStationSettings> { return (await mutate("/v2/settings", "PUT", { timezone }) as { settings: PiStationSettings }).settings; }
   async listScheduledJobs(projectId: string): Promise<readonly ScheduledJob[]> { return (await request<{ jobs: ScheduledJob[] }>(`/v2/scheduled-jobs?projectId=${encodeURIComponent(projectId)}`)).jobs; }

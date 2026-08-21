@@ -10,6 +10,8 @@ import type { NewAgentInProjectBridge } from "./new-agent-in-project.js"
 import type { SessionRuntime } from "./session-runtime.js"
 import {
   encodeSse,
+  isAuthLoginRequest,
+  isAuthPromptResponse,
   isGeneratedSessionId,
   isModelSettingRequest,
   isNewTurnRequest,
@@ -67,6 +69,7 @@ import { VoiceSettingsError, VoiceSettingsStore } from "./voice-settings.js"
 import { SystemThemeService } from "./system-theme.js"
 import { rewriteSessionCwd, type SessionMoveAgentBridge } from "./session-moves.js"
 import { QuickSessionStore, QUICK_SESSION_PROJECT_ID } from "./quick-session.js"
+import { ProviderAuthError, type ProviderAuthService } from "./provider-auth.js"
 
 const HOST = "127.0.0.1"
 const shutdownContexts = new WeakMap<Server, { shutdown: (timeoutMs: number) => Promise<void> }>()
@@ -94,6 +97,7 @@ export interface PiStationServerOptions {
   readonly agentMessaging?: AgentMessagingBridge
   readonly sessionMoves?: SessionMoveAgentBridge
   readonly newAgentInProject?: NewAgentInProjectBridge
+  readonly providerAuth?: ProviderAuthService
   readonly webRoot?: string
   /** Test seam for the opaque process epoch. Production uses a random UUID. */
   readonly phaseEpoch?: string
@@ -474,6 +478,43 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (!url.pathname.startsWith("/v2/") && options.webRoot !== undefined) {
         await serveWeb(response, options.webRoot, url.pathname)
         return
+      }
+      if (options.providerAuth !== undefined && url.pathname.startsWith("/v2/auth/")) {
+        response.setHeader("cache-control", "no-store")
+        try {
+          if (request.method === "GET" && url.pathname === "/v2/auth/providers") {
+            sendJson(response, 200, { version: PROTOCOL_VERSION, providers: await options.providerAuth.providers() })
+            return
+          }
+          if (request.method === "POST" && url.pathname === "/v2/auth/login") {
+            assertJsonMutation(request)
+            const value = await readJsonBody(request)
+            if (!isAuthLoginRequest(value)) throw new HttpError(400, "Authentication request is invalid")
+            sendJson(response, 202, { version: PROTOCOL_VERSION, transaction: options.providerAuth.start(value.providerId, value.type) })
+            return
+          }
+          const transactionRoute = /^\/v2\/auth\/transactions\/([^/]+)(?:\/response)?$/.exec(url.pathname)
+          if (transactionRoute !== null) {
+            const id = decodeURIComponent(transactionRoute[1]!)
+            if (request.method === "GET" && !url.pathname.endsWith("/response")) { sendJson(response, 200, { version: PROTOCOL_VERSION, transaction: options.providerAuth.transaction(id) }); return }
+            if (request.method === "POST" && url.pathname.endsWith("/response")) {
+              assertJsonMutation(request)
+              const value = await readJsonBody(request)
+              if (!isAuthPromptResponse(value)) throw new HttpError(400, "Authentication response is invalid")
+              sendJson(response, 200, { version: PROTOCOL_VERSION, transaction: options.providerAuth.respond(id, value.value) }); return
+            }
+            if (request.method === "DELETE" && !url.pathname.endsWith("/response")) { sendJson(response, 200, { version: PROTOCOL_VERSION, transaction: options.providerAuth.cancel(id) }); return }
+          }
+          const providerRoute = /^\/v2\/auth\/providers\/([^/]+)$/.exec(url.pathname)
+          if (request.method === "DELETE" && providerRoute !== null) {
+            await options.providerAuth.logout(decodeURIComponent(providerRoute[1]!))
+            sendJson(response, 200, { version: PROTOCOL_VERSION, providers: await options.providerAuth.providers() })
+            return
+          }
+        } catch (error) {
+          if (error instanceof ProviderAuthError) throw new HttpError(error.statusCode, error.message)
+          throw error
+        }
       }
       if (request.method === "GET" && url.pathname === "/v2/notifications/capabilities") {
         response.setHeader("cache-control", "no-store")

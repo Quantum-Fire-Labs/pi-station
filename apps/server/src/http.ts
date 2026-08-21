@@ -15,8 +15,19 @@ export class HttpError extends Error {
 
 export function assertAllowedOrigin(request: IncomingMessage): void {
   const origin = request.headers.origin
-  if (origin !== undefined && origin !== WEB_ORIGIN && origin !== LOCAL_ORIGIN) {
+  if (origin !== undefined && origin !== WEB_ORIGIN && origin !== LOCAL_ORIGIN && !isLoopbackOrigin(origin)) {
     throw new HttpError(403, "Origin is not allowed")
+  }
+}
+
+function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin)
+    return (url.protocol === "http:" || url.protocol === "https:")
+      && (url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "[::1]")
+      && url.origin === origin
+  } catch {
+    return false
   }
 }
 
