@@ -102,6 +102,14 @@ describe("QuickSessionDialog", () => {
     expect(dialog.style.left).toBe("");
   });
 
+  it("keeps the modal open when a portaled composer setting is selected", async () => {
+    render(<Harness />); const dialog = await openDialog();
+    await userEvent.click(within(dialog).getByRole("combobox", { name: /Model:/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /Claude Sonnet 4\.5/ }));
+    expect(dialog).toBeVisible();
+    expect(mock.command).toHaveBeenCalledWith({ kind: "session.model.set", provider: "anthropic", modelId: "claude-sonnet-4-5" }, quickKey);
+  });
+
   it("shows Clear between the actions and close buttons, then clears after confirmation", async () => {
     render(<Harness />); const dialog = await openDialog();
     const actions = within(dialog).getByRole("button", { name: "Quick Session actions" });
