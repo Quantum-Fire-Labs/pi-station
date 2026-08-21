@@ -2753,7 +2753,7 @@ body.sidebar-resizing {
   position: relative;
   display: none;
 }
-.dashboard-mobile-new-session {
+.dashboard-mobile-actions {
   display: none;
 }
 .mobile-navigation-trigger {
@@ -3419,7 +3419,7 @@ body.sidebar-resizing {
     margin-bottom: 24px;
   }
   .dashboard-header {
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     display: grid;
   }
   .dashboard-header .dashboard-heading {
@@ -3433,8 +3433,11 @@ body.sidebar-resizing {
     right: auto;
     left: 0;
   }
-  .dashboard-mobile-new-session {
-    display: inline-flex;
+  .dashboard-mobile-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .dashboard-mobile-actions [data-slot="button"] {
     width: 44px;
     height: 44px;
   }

@@ -1529,14 +1529,30 @@ describe("Workspace", () => {
     const header = heading.closest("header");
     if (header === null) throw new Error("Dashboard header is missing");
     const menu = within(header).getByRole("button", { name: "Open navigation menu" });
+    const quickSession = within(header).getByRole("button", { name: "Quick Session" });
     const newSession = header.querySelector<HTMLElement>(".dashboard-mobile-new-session");
     if (newSession === null) throw new Error("Mobile New Session control is missing");
 
     expect(menu.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(heading.compareDocumentPosition(newSession) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(quickSession) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(quickSession.compareDocumentPosition(newSession) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(quickSession).toHaveAttribute("title", "Quick Session");
     expect(newSession).toHaveAttribute("data-slot", "button");
     expect(newSession).toHaveAccessibleName("New Session");
     expect(newSession).toHaveAttribute("title", "New Session");
+  });
+
+  it("opens Quick Session from the mobile Dashboard header", async () => {
+    enableMobileViewport();
+    const onOpenQuickSession = vi.fn();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} onOpenQuickSession={onOpenQuickSession} />);
+    await userEvent.click(screen.getByRole("button", { name: "Back to Dashboard" }));
+    const header = screen.getByRole("heading", { name: "Dashboard" }).closest("header");
+    if (header === null) throw new Error("Dashboard header is missing");
+
+    await userEvent.click(within(header).getByRole("button", { name: "Quick Session" }));
+
+    expect(onOpenQuickSession).toHaveBeenCalledOnce();
   });
 
   it("starts a new Session from the mobile Dashboard header", async () => {
