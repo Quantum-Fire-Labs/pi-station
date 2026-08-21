@@ -3383,7 +3383,7 @@ export function Workspace({
                 }
               }}
             />
-            <div>
+            <div className="composer-controls">
               <span>
                 <Button
                   type="button"
