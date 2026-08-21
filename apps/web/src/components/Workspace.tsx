@@ -13,7 +13,6 @@ import {
   Ellipsis,
   Folder,
   Keyboard,
-  LayoutDashboard,
   Zap,
   LoaderCircle,
   Mic,
@@ -832,21 +831,58 @@ function Sidebar({
   return (
     <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Projects and Sessions">
       <header className="sidebar-header">
-        <strong>Pi Station</strong>
-        <span className="sidebar-header-actions">
-          <button type="button" title="Quick Session" aria-label="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
-            <Zap aria-hidden="true" size={17} />
-          </button>
-          <button
-            type="button"
-            aria-label="Hide sidebar"
-            aria-keyshortcuts="Control+B Meta+B"
-            onClick={onCollapse}
-          >
-            <PanelLeftClose aria-hidden="true" size={17} />
-          </button>
-        </span>
+        <button
+          type="button"
+          className={`sidebar-home${activeRoute === "dashboard" ? " selected" : ""}`}
+          aria-label="Dashboard"
+          aria-current={activeRoute === "dashboard" ? "page" : undefined}
+          onClick={onDashboard}
+        >
+          <svg className="sidebar-brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12 12 5M5 12h14M19 12l-7 7" />
+            <circle cx="5" cy="12" r="2.5" />
+            <circle cx="12" cy="5" r="2.5" />
+            <circle cx="19" cy="12" r="2.5" />
+            <circle cx="12" cy="19" r="2.5" />
+          </svg>
+          Pi Station
+        </button>
+        <button
+          type="button"
+          aria-label="Hide sidebar"
+          aria-keyshortcuts="Control+B Meta+B"
+          onClick={onCollapse}
+        >
+          <PanelLeftClose aria-hidden="true" size={17} />
+        </button>
       </header>
+      <nav className="sidebar-primary-actions" aria-label="Primary navigation">
+        <div className="sidebar-session-actions">
+          <Button type="button" variant="outline" title="Quick Session" aria-label="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
+            <Zap aria-hidden="true" size={17} />
+            <span>Quick Session</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="New Session"
+            aria-current={activeRoute === "new-session" ? "page" : undefined}
+            onClick={onGeneralNewSession}
+          >
+            <Plus aria-hidden="true" size={17} />
+            <span>New Session</span>
+          </Button>
+        </div>
+        <button
+          className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined}
+          aria-label="Projects"
+          aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined}
+          onClick={onProjects}
+        >
+          <Folder aria-hidden="true" size={17} />
+          <span>Projects</span>
+        </button>
+      </nav>
       <nav className="project-list">
         {projects.map((project) => {
           const projectSessions = state.sessions.filter(
@@ -1083,36 +1119,13 @@ function Sidebar({
       </nav>
       <footer>
         <button
-          className={`primary${activeRoute === "new-session" ? " selected" : ""}`}
-          aria-label="New Session"
-          aria-current={activeRoute === "new-session" ? "page" : undefined}
-          onClick={onGeneralNewSession}
-        >
-          <Plus aria-hidden="true" size={17} />
-        </button>
-        <button
-          className={activeRoute === "dashboard" ? "selected" : undefined}
-          onClick={onDashboard}
-          aria-label="Dashboard"
-          aria-current={activeRoute === "dashboard" ? "page" : undefined}
-        >
-          <LayoutDashboard aria-hidden="true" size={17} />
-        </button>
-        <button
-          className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined}
-          aria-label="Projects"
-          aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined}
-          onClick={onProjects}
-        >
-          <Folder aria-hidden="true" size={17} />
-        </button>
-        <button
           className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined}
           aria-label="Settings"
           aria-current={["settings", "notifications", "themes"].includes(activeRoute) ? "page" : undefined}
           onClick={onSettings}
         >
           <Settings aria-hidden="true" size={17} />
+          <span>Settings</span>
         </button>
       </footer>
     </aside>
