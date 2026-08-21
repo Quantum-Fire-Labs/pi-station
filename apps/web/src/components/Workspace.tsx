@@ -37,6 +37,7 @@ import type {
   SessionKey,
   SessionSummary,
 } from "../application/workspace-model";
+import { sessionsVisibleInWorkspace } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
 import { sessionKeysEqual } from "../application/application-client-base";
 import type { ApplicationClient } from "../application/application-client";
@@ -1218,7 +1219,7 @@ function ConnectionNotice({ state }: { state: ApplicationState }) {
 }
 
 export function Workspace({
-  state,
+  state: applicationState,
   client,
   onSelect,
   onCommand,
@@ -1244,6 +1245,9 @@ export function Workspace({
   onOpenQuickSession,
   embeddedSession = false,
 }: WorkspaceProps) {
+  const state = embeddedSession
+    ? applicationState
+    : { ...applicationState, sessions: sessionsVisibleInWorkspace(applicationState.sessions) };
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sessionShortcutsVisible, setSessionShortcutsVisible] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(408);

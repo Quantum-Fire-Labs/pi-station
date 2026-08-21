@@ -28,6 +28,7 @@ afterEach(() => {
 import { Workspace } from "./Workspace";
 import { sessionKeysEqual, type ApplicationState } from "../application/application-client-base";
 import { fixtureState } from "../fixtures/workspace";
+import { sessionsVisibleInWorkspace } from "../application/workspace-model";
 
 const enableDesktopViewport = (): void => {
   const matchMedia = vi.fn((query: string) => ({
@@ -76,6 +77,14 @@ describe("Workspace", () => {
     fireEvent.keyDown(window, { key: " ", code: "Space", ctrlKey: true, shiftKey: true });
     expect(onOpenQuickSession).toHaveBeenCalledTimes(2);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("excludes Quick Sessions from normal Workspace collections", () => {
+    enableDesktopViewport();
+    const quickSession = { ...fixtureState.sessions[0]!, sessionKey: { hostId: "quick-session", piSessionId: "hidden-quick" }, name: "Hidden Quick Session", quickSession: true as const };
+    render(<Workspace state={{ ...fixtureState, sessions: [...fixtureState.sessions, quickSession] }} onSelect={vi.fn()} />);
+    expect(screen.queryByText("Hidden Quick Session")).not.toBeInTheDocument();
+    expect(sessionsVisibleInWorkspace([...fixtureState.sessions, quickSession], true)).toContain(quickSession);
   });
 
   it("shows the default desktop sidebar and can collapse and expand it", async () => {
