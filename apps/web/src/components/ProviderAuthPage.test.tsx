@@ -54,6 +54,27 @@ describe("ProviderAuthPage", () => {
     await waitFor(() => expect(api.answerAuthPrompt).toHaveBeenCalledWith("tx", "work"));
   });
 
+  it("cancels an active flow and permits a retry without leaving setup", async () => {
+    const api = client();
+    render(<ProviderAuthPage client={api} onboarding />);
+    await screen.findByText("Example"); chooseExample(); chooseSignIn();
+    await screen.findByText("Continue in your browser");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(api.cancelProviderLogin).toHaveBeenCalledWith("tx"));
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(screen.getByText("Sign in", { selector: "strong" })).toBeInTheDocument();
+  });
+
+  it("cancels an active flow when the user chooses another provider", async () => {
+    const api = client();
+    render(<ProviderAuthPage client={api} onboarding />);
+    await screen.findByText("Example"); chooseExample(); chooseSignIn();
+    await screen.findByText("Continue in your browser");
+    fireEvent.click(screen.getByRole("button", { name: "Choose another provider" }));
+    await waitFor(() => expect(api.cancelProviderLogin).toHaveBeenCalledWith("tx"));
+    expect(await screen.findByRole("button", { name: /Example/ })).toBeInTheDocument();
+  });
+
   it("does not make non-HTTPS authentication URLs clickable", async () => {
     const api = client(); api.startProviderLogin.mockResolvedValue({ ...running, events: [{ type: "auth_url", url: "http://login.example/steal" }] });
     render(<ProviderAuthPage client={api} onboarding />); await screen.findByText("Example"); chooseExample(); chooseSignIn();
