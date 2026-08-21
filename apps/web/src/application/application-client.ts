@@ -96,8 +96,6 @@ export class ApplicationClient extends ApplicationClientBase {
   private selectedVisible = false;
   private markReadSignature: string | undefined;
   private readonly phaseRevisions = new Map<string, { epoch?: string; generation: number; seenEpochs: Set<string> }>();
-  private readonly draftNames = new Map<string, string | undefined>();
-  private readonly draftDirectories = new Map<string, string>();
   private wakeReconciliation: Promise<void> | undefined;
   private readonly reconcileOnWake = (): void => {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
@@ -156,13 +154,6 @@ export class ApplicationClient extends ApplicationClientBase {
 
   override select(key: SessionKey): void {
     const target = targetFromKey(key);
-    if (this.draftNames.has(`${target.projectId}:${target.sessionId}`)) {
-      const summary = this.rpcState.sessions.find((item) => (
-        item.sessionKey.hostId === key.hostId && item.sessionKey.piSessionId === key.piSessionId
-      ));
-      if (summary !== undefined) this.applyDraft(summary);
-      return;
-    }
     const generation = ++this.selectionGeneration;
     this.eventSource?.close();
     this.eventSource = undefined;
@@ -443,7 +434,7 @@ export class ApplicationClient extends ApplicationClientBase {
       this.emitRpcState();
       void mutate("/v2/session-hosts", "POST", { root: workingDirectory }).then((result) => {
         const response = result as { project: Project };
-        this.completeDraftSession(requestId, projectSummary(response.project), response.project.root, optionalName);
+        this.completeDraftSession(requestId, projectSummary(response.project), optionalName);
       }).catch((error: unknown) => {
         this.rpcState = {
           ...this.rpcState,
@@ -492,44 +483,38 @@ export class ApplicationClient extends ApplicationClientBase {
       return requestId;
     }
 
-    this.completeDraftSession(requestId, project, workingDirectory, optionalName);
+    this.completeDraftSession(requestId, project, optionalName);
     return requestId;
   }
 
   private completeDraftSession(
     requestId: string,
     project: ProjectSummary,
-    workingDirectory: string,
     optionalName?: string,
   ): void {
-    const sessionId = crypto.randomUUID();
-    const key = { hostId: project.projectId, piSessionId: sessionId } as unknown as SessionKey;
-    this.draftNames.set(`${project.projectId}:${sessionId}`, optionalName);
-    this.draftDirectories.set(`${project.projectId}:${sessionId}`, workingDirectory);
-    const summary = {
-      sessionKey: key,
-      name: optionalName,
-      displayPath: workingDirectory,
-      projectId: project.projectId,
-      projection: {
-        availability: "available",
-        synchronization: "synchronized",
-        run: "idle",
-        queue: { state: "empty", knownCount: 0 },
-        unread: { hasUnread: false },
-        management: { kind: "unmanaged" },
-        capabilities: [...RPC_CAPABILITIES],
-      },
-    } as unknown as SessionSummary;
-    this.rpcState = {
-      ...this.rpcState,
-      sessions: [summary, ...this.rpcState.sessions],
-      managedSessionCreates: {
-        ...this.rpcState.managedSessionCreates,
-        [requestId]: { requestId, status: "succeeded", result: { status: "succeeded", sessionKey: key } },
-      },
-    } as unknown as ApplicationState;
-    this.applyDraft(summary);
+    void mutate(`/v2/projects/${encodeURIComponent(project.projectId)}/sessions`, "POST", optionalName === undefined ? {} : { name: optionalName }).then((result) => {
+      const response = result as { session: SavedSession };
+      const summary = sessionSummary(response.session);
+      const key = summary.sessionKey;
+      this.rpcState = {
+        ...this.rpcState,
+        sessions: [summary, ...this.rpcState.sessions.filter((item) => item.sessionKey.piSessionId !== key.piSessionId)],
+        managedSessionCreates: {
+          ...this.rpcState.managedSessionCreates,
+          [requestId]: { requestId, status: "succeeded", result: { status: "succeeded", sessionKey: key } },
+        },
+      };
+      this.emitRpcState();
+    }).catch((error: unknown) => {
+      this.rpcState = {
+        ...this.rpcState,
+        managedSessionCreates: {
+          ...this.rpcState.managedSessionCreates,
+          [requestId]: { requestId, status: "failed", result: { status: "rejected", error: { code: "session-create-failed", message: error instanceof Error ? error.message : "Session could not be created", retryable: false } } },
+        },
+      };
+      this.emitRpcState();
+    });
   }
 
   override executeCommand(
@@ -547,22 +532,11 @@ export class ApplicationClient extends ApplicationClientBase {
     if (action.kind === "prompt.send") {
       this.setPhase("working");
       this.addOptimisticUserMessage(requestId, action.text, key);
-      const draftKey = `${target.projectId}:${target.sessionId}`;
-      const draftName = this.draftNames.get(draftKey);
-      const draftDirectory = this.draftDirectories.get(draftKey);
       operation = mutate(`${sessionPath(target)}/turn`, "POST", {
         prompt: action.text,
         ...(action.imageIds === undefined ? {} : { imageIds: action.imageIds }),
         ...((action as typeof action & { attachmentIds?: readonly string[] }).attachmentIds === undefined ? {} : { attachmentIds: (action as typeof action & { attachmentIds?: readonly string[] }).attachmentIds }),
         ...(action.agentMentions === undefined ? {} : { agentMentions: action.agentMentions }),
-        ...(draftName === undefined || draftName.trim() === "" ? {} : { name: draftName }),
-        ...(draftDirectory === undefined ? {} : { cwd: draftDirectory }),
-      }).then((result) => {
-        this.draftDirectories.delete(draftKey);
-        if (this.draftNames.delete(draftKey)) {
-          this.openEvents(target, this.selectionGeneration, 0);
-        }
-        return result;
       });
     } else if (action.kind === "prompt.steer" || action.kind === "prompt.follow-up") {
       const delivery = action.kind === "prompt.steer" ? "steer" : "follow-up";
@@ -720,32 +694,6 @@ export class ApplicationClient extends ApplicationClientBase {
         ),
       },
     };
-    this.emitRpcState();
-  }
-
-  private applyDraft(summary: SessionSummary): void {
-    const key = summary.sessionKey;
-    this.selectionGeneration += 1;
-    this.eventSource?.close();
-    this.eventSource = undefined;
-    this.rpcState = {
-      ...this.rpcState,
-      selectedSessionKey: key,
-      selected: {
-        sessionKey: key,
-        historyRevision: "draft",
-        hasEarlierHistory: false,
-        projection: summary.projection,
-        details: {
-          name: summary.name,
-          currentDirectoryDisplay: summary.displayPath,
-          projectId: summary.projectId,
-          commandInventory: [],
-        },
-        queue: { state: "empty", knownItems: [] },
-        timeline: [],
-      },
-    } as unknown as ApplicationState;
     this.emitRpcState();
   }
 

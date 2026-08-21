@@ -590,11 +590,12 @@ describe("Pi Station incremental Session summaries", () => {
     ]);
   });
 
-  it("creates a projectless draft for a selected directory", async () => {
+  it("persists a new Session before any turn occurs", async () => {
     globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    const persisted = { id: "persisted-session", projectId: "projectless-host", path: "/history/persisted.jsonl", cwd: "/work/new", name: "Directory Session", modifiedAt: "2026-01-01T00:00:00.000Z", state: "open" };
     const fetchMock = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ project: { id: "projectless-host", root: "/work/new" } }))
-      .mockResolvedValueOnce(Response.json({ accepted: true }));
+      .mockResolvedValueOnce(Response.json({ session: persisted }));
     globalThis.fetch = fetchMock;
     const client = new ApplicationClient();
 
@@ -606,15 +607,12 @@ describe("Pi Station incremental Session summaries", () => {
       method: "POST",
       body: JSON.stringify({ root: "/work/new" }),
     }));
-    expect(client.snapshot.projects).toEqual([]);
-    expect(client.snapshot.selectedSessionKey?.hostId).toBe("projectless-host");
-    expect(client.snapshot.selected.details?.name).toBe("Directory Session");
-
-    client.executeCommand({ kind: "prompt.send", text: "Check the system" });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    const turnRequest = fetchMock.mock.calls[1]?.[1];
-    expect(turnRequest?.method).toBe("POST");
-    expect(typeof turnRequest?.body).toBe("string");
-    expect(JSON.parse(typeof turnRequest?.body === "string" ? turnRequest.body : "{}")).toMatchObject({ cwd: "/work/new" });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/v2/projects/projectless-host/sessions", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ name: "Directory Session" }),
+    }));
+    expect(client.snapshot.sessions[0]?.sessionKey.piSessionId).toBe("persisted-session");
+    expect(client.snapshot.sessions[0]?.name).toBe("Directory Session");
+    expect(client.snapshot.selectedSessionKey).toBeUndefined();
   });
 });

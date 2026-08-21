@@ -4,6 +4,7 @@ import { readdir, readFile, realpath, stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, dirname, extname, relative, resolve, sep } from "node:path"
 import { SessionManager } from "@earendil-works/pi-coding-agent"
+import { initializeEmptySession } from "./empty-session.js"
 import type { AgentMessagingBridge } from "./agent-messaging.js"
 import type { NewAgentInProjectBridge } from "./new-agent-in-project.js"
 import type { SessionRuntime } from "./session-runtime.js"
@@ -802,6 +803,24 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const image = await options.index.timelineImage(saved, historyImageRoute.imageId)
         if (image === undefined) throw new HttpError(404, "Image is not available")
         sendHistoryImage(response, image)
+        return
+      }
+
+      const sessionCollection = /^\/v2\/projects\/([^/]+)\/sessions$/u.exec(url.pathname)
+      if (request.method === "POST" && sessionCollection !== null) {
+        assertJsonMutation(request)
+        const projectId = decodeURIComponent(sessionCollection[1] ?? "")
+        const project = (await projectStore.read()).find((item) => item.id === projectId)
+        if (project === undefined) throw new HttpError(404, "Project not found")
+        const value = await readJsonBody(request)
+        if (!isOptionalSessionNameRequest(value)) throw new HttpError(400, "Session request is invalid")
+        const sessionId = randomUUID()
+        const manager = SessionManager.create(project.root, undefined, { id: sessionId })
+        initializeEmptySession(manager, value.name)
+        const indexed = await options.index.refreshSession({ projectId, sessionId }, project)
+        if (indexed === undefined) throw new Error("Created Session was not indexed")
+        await metadata.set({ projectId, sessionId }, "open")
+        sendJson(response, 201, { version: PROTOCOL_VERSION, session: await publishSession({ ...indexed, state: "open" }) })
         return
       }
 
