@@ -52,7 +52,7 @@ export function ComposerControls(props: ComposerControlsProps) {
       </Select>
       {props.working ? <Select value={props.delivery} onValueChange={(value) => { if (value !== null) props.onSetDelivery(value); }} disabled={props.disabled}>
         <SelectTrigger className="composer-delivery-trigger" aria-label="Message delivery"><span data-slot="select-value">{props.delivery === "prompt.steer" ? "Steer now" : "Follow up"}</span></SelectTrigger>
-        <SelectContent><SelectItem value="prompt.steer">Steer now</SelectItem><SelectItem value="prompt.follow-up">Follow up</SelectItem></SelectContent>
+        <SelectContent className="composer-setting-select-menu"><SelectItem value="prompt.steer">Steer now</SelectItem><SelectItem value="prompt.follow-up">Follow up</SelectItem></SelectContent>
       </Select> : <span className="composer-send-mode">Send now</span>}
     </div>
     <div className="composer-settings-mobile">
