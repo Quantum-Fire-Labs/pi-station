@@ -1846,9 +1846,11 @@ export function Workspace({
 
   const openSession = (sessionKey: SessionKey): void => {
     const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, sessionKey));
-    if (target?.projection.availability === "closed") {
-      const project = state.projects.find((candidate) => candidate.projectId === target.projectId);
-      const workingDirectory = project?.displayPath ?? target.displayPath;
+    const project = target === undefined
+      ? undefined
+      : state.projects.find((candidate) => candidate.projectId === target.projectId);
+    if (target?.projection.availability === "closed" && project !== undefined) {
+      const workingDirectory = project.displayPath ?? target.displayPath;
       if (workingDirectory === undefined) return;
       const requestId = onCreateManagedSession?.(workingDirectory, target.name, sessionKey);
       if (requestId !== undefined) setResumeSessionRequestId(requestId);

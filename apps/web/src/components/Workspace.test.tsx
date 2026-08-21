@@ -217,6 +217,7 @@ describe("Workspace", () => {
       projectId: "implicit-other",
       sessionKey: { hostId: "implicit-other", piSessionId: "other" },
     };
+    const onSelect = vi.fn();
     render(<Workspace state={{
       ...fixtureState,
       sessions: [bookmarked, other],
@@ -225,7 +226,7 @@ describe("Workspace", () => {
         sessionKey: bookmarked.sessionKey,
         position: 0,
       }],
-    }} onSelect={vi.fn()} />);
+    }} onSelect={onSelect} />);
 
     const bookmarkedSection = screen.getByText("Bookmarked Sessions").closest("section")!;
     const otherSection = screen.getByText("Other Sessions").closest("section")!;
@@ -234,6 +235,9 @@ describe("Workspace", () => {
     expect(within(bookmarkedSection).queryByText("Temporary work")).not.toBeInTheDocument();
     expect(within(otherSection).getByText("Temporary work")).toBeVisible();
     expect(within(otherSection).queryByText("Saved research")).not.toBeInTheDocument();
+
+    fireEvent.click(within(bookmarkedSection).getByRole("button", { name: /Saved research/ }));
+    expect(onSelect).toHaveBeenCalledWith(bookmarked.sessionKey);
   });
 
   it("shows desktop navigation and focuses the composer after a Session change", async () => {
