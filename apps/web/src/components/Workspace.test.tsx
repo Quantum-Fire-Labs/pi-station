@@ -28,7 +28,6 @@ afterEach(() => {
 import { Workspace } from "./Workspace";
 import { sessionKeysEqual, type ApplicationState } from "../application/application-client-base";
 import { fixtureState } from "../fixtures/workspace";
-import type { ApplicationClient } from "../application/application-client";
 
 const enableDesktopViewport = (): void => {
   const matchMedia = vi.fn((query: string) => ({
@@ -63,40 +62,20 @@ const swipe = (
 };
 
 describe("Workspace", () => {
-  it("shows the fixed accessible Quick Session row and action menu", async () => {
+  it("opens Quick Session without selecting it or showing actions outside the modal", async () => {
     enableDesktopViewport();
-    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
-    expect(screen.getByRole("region", { name: "Quick Session" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Quick Session" })).toHaveAttribute("title", "Quick Session");
-    await userEvent.click(screen.getByRole("button", { name: "Quick Session actions" }));
-    expect(await screen.findByRole("menuitem", { name: "Open Quick Session" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Clear Session" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Keep Session" })).toBeInTheDocument();
-  });
-
-  it("shows and cancels a deferred Quick Session action", async () => {
-    const cancelQuickSessionAction = vi.fn(() => Promise.resolve());
-    const view = render(<Workspace state={{ ...fixtureState, quickSessionAction: { type: "keep", status: "pending" } }} client={{ cancelQuickSessionAction } as unknown as ApplicationClient} onSelect={vi.fn()} />);
-    expect(screen.getByText(/Action pending until Pi finishes/u)).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Cancel pending action" }));
-    expect(cancelQuickSessionAction).toHaveBeenCalledOnce();
-    view.rerender(<Workspace state={{ ...fixtureState, quickSessionAction: undefined }} client={{ cancelQuickSessionAction } as unknown as ApplicationClient} onSelect={vi.fn()} />);
-    expect(screen.queryByText(/Action pending until Pi finishes/u)).not.toBeInTheDocument();
-  });
-
-  it("shows a deferred Keep failure", () => {
-    render(<Workspace state={{ ...fixtureState, quickSessionAction: { type: "keep", status: "failed", error: "Destination contains notes.txt." } }} onSelect={vi.fn()} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Destination contains notes.txt.");
-  });
-
-  it("shows a Project-or-directory selector for Keep", async () => {
-    enableDesktopViewport();
-    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Quick Session actions" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Keep Session" }));
-    expect(screen.getByRole("dialog", { name: "Keep Quick Session" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Project" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Directory" })).toBeVisible();
+    const onOpenQuickSession = vi.fn();
+    const onSelect = vi.fn();
+    render(<Workspace state={fixtureState} onSelect={onSelect} onOpenQuickSession={onOpenQuickSession} />);
+    const trigger = screen.getByRole("button", { name: "Quick Session" });
+    expect(trigger).toHaveAttribute("title", "Quick Session");
+    expect(trigger).toHaveAttribute("aria-keyshortcuts", "Control+Shift+Space Meta+Shift+Space");
+    expect(screen.queryByRole("button", { name: "Quick Session actions" })).not.toBeInTheDocument();
+    await userEvent.click(trigger);
+    expect(onOpenQuickSession).toHaveBeenCalledOnce();
+    fireEvent.keyDown(window, { key: " ", code: "Space", ctrlKey: true, shiftKey: true });
+    expect(onOpenQuickSession).toHaveBeenCalledTimes(2);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("shows the default desktop sidebar and can collapse and expand it", async () => {

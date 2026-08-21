@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const selectSource = readFileSync(resolve(process.cwd(), "src/components/ui/select.tsx"), "utf8");
 const workspaceSource = readFileSync(resolve(process.cwd(), "src/components/Workspace.tsx"), "utf8");
+const dialogSource = readFileSync(resolve(process.cwd(), "src/components/ui/dialog.tsx"), "utf8");
 
 describe("composer width", () => {
   it("uses a separate 960px composer width and keeps the Timeline width", () => {
@@ -44,6 +45,28 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer-settings-mobile-menu \.composer-mobile-setting-label,\s*\.composer-settings-mobile-menu \.composer-mobile-setting-option\s*{[^}]*font-size: 12px;/s);
     expect(selectSource).toContain("bg-[var(--raised)]");
     expect(selectSource).not.toContain("bg-popover");
+  });
+});
+
+describe("Quick Session modal", () => {
+  it("places its trigger with the sidebar header actions", () => {
+    expect(styles).toMatch(/\.sidebar-header-actions\s*{[^}]*display: flex;[^}]*align-items: center;[^}]*gap: 2px;/s);
+    expect(workspaceSource).toContain('className="sidebar-header-actions"');
+  });
+
+  it("uses a compact opaque desktop surface without backdrop blur", () => {
+    expect(styles).toMatch(/\.quick-session-dialog\s*{[^}]*width: min\(800px, calc\(100vw - 48px\)\);[^}]*height: 65dvh;[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 22px;[^}]*background: var\(--page\);[^}]*animation: none;[^}]*transition: none;/s);
+    expect(styles).toMatch(/\.quick-session-dialog-header\s*{[^}]*background: var\(--page\);/s);
+    expect(dialogSource).toContain("z-[80] bg-transparent");
+    expect(dialogSource).toContain("rounded-lg border border-border bg-background p-6");
+    expect(dialogSource).not.toContain("backdrop-blur");
+  });
+
+  it("uses a safe-area full-screen mobile layout and a sticky composer", () => {
+    expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*\.quick-session-dialog\s*\{[^}]*width: 100vw;[^}]*height: 100dvh;[^}]*translate: 0 0 !important;/);
+    expect(styles).toContain("padding-top: env(safe-area-inset-top)");
+    expect(styles).toMatch(/\.quick-session-dialog\s*\{[^}]*translate: 0 0 !important;/s);
+    expect(styles).toMatch(/\.quick-session-dialog-body \.embedded-session \.composer-shell\s*{[^}]*position: sticky;[^}]*padding: 8px;/s);
   });
 });
 

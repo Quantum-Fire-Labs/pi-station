@@ -49,7 +49,6 @@ import { Modal } from "./Modal";
 import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
-import { KeepSessionModal } from "./KeepSessionModal";
 import { NotificationSettingsPage } from "./NotificationSettings";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -60,7 +59,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import type { SettingsRoute } from "./SettingsPage";
 
 const ProjectPage = lazy(async () => ({
@@ -135,6 +133,8 @@ interface WorkspaceProps {
   onStopDevelopmentServer?: (projectId: ProjectId) => string | undefined;
   onViewDevelopmentServerOutput?: (projectId: ProjectId) => string | undefined;
   onInitialPaint?: (timelineItems: number) => void;
+  onOpenQuickSession?: () => void;
+  embeddedSession?: boolean;
 }
 
 type DashboardView = "projects" | "running";
@@ -666,9 +666,6 @@ function Sidebar({
   onOpenProject,
   onSessionContextMenu,
   onOpenQuickSession,
-  onClearQuickSession,
-  onKeepQuickSession,
-  onCancelQuickSessionAction,
   activeRoute,
   activeProjectId,
   shortcutsVisible,
@@ -684,9 +681,6 @@ function Sidebar({
   onOpenProject: (projectId: ProjectId) => void;
   onSessionContextMenu: (session: SessionSummary, x: number, y: number) => void;
   onOpenQuickSession: () => void;
-  onClearQuickSession: () => void;
-  onKeepQuickSession: () => void;
-  onCancelQuickSessionAction: () => void;
   activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor";
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
@@ -838,36 +832,21 @@ function Sidebar({
     <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Projects and Sessions">
       <header className="sidebar-header">
         <strong>Pi Station</strong>
-        <button
-          type="button"
-          aria-label="Hide sidebar"
-          aria-keyshortcuts="Control+B Meta+B"
-          onClick={onCollapse}
-        >
-          <PanelLeftClose aria-hidden="true" size={17} />
-        </button>
+        <span className="sidebar-header-actions">
+          <button type="button" title="Quick Session" aria-label="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
+            <Zap aria-hidden="true" size={17} />
+          </button>
+          <button
+            type="button"
+            aria-label="Hide sidebar"
+            aria-keyshortcuts="Control+B Meta+B"
+            onClick={onCollapse}
+          >
+            <PanelLeftClose aria-hidden="true" size={17} />
+          </button>
+        </span>
       </header>
       <nav className="project-list">
-        <section className="quick-session-section" aria-label="Quick Session">
-          <div className="quick-session-row">
-            <button type="button" className="project-name-link" title="Quick Session" onClick={onOpenQuickSession}>
-              <Zap aria-hidden="true" size={16} />
-              <span>Quick Session</span>
-            </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<button type="button" className="quick-session-menu-trigger" aria-label="Quick Session actions" />}><Ellipsis aria-hidden="true" size={16} /></DropdownMenuTrigger>
-              <DropdownMenuContent aria-label="Quick Session actions">
-                <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={onOpenQuickSession}>Open Quick Session</DropdownMenuItem>
-                  <DropdownMenuItem onClick={onClearQuickSession}>Clear Session</DropdownMenuItem>
-                  <DropdownMenuItem onClick={onKeepQuickSession}>Keep Session</DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          {(state.sessions.find(({ quickSession }) => quickSession === true)?.quickSessionPending !== undefined || state.quickSessionAction?.status === "pending") && <small role="status">Action pending until Pi finishes. <button type="button" onClick={onCancelQuickSessionAction}>Cancel pending action</button></small>}
-          {state.quickSessionAction?.status === "failed" && <small role="alert">{state.quickSessionAction.error ?? "Quick Session action failed."}</small>}
-        </section>
         {projects.map((project) => {
           const projectSessions = state.sessions.filter(
             (session) => session.projectId === project.projectId,
@@ -1262,9 +1241,10 @@ export function Workspace({
   onStopDevelopmentServer,
   onViewDevelopmentServerOutput,
   onInitialPaint,
+  onOpenQuickSession,
+  embeddedSession = false,
 }: WorkspaceProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [keepQuickSessionOpen, setKeepQuickSessionOpen] = useState(false);
   const [sessionShortcutsVisible, setSessionShortcutsVisible] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(408);
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -1282,6 +1262,17 @@ export function Workspace({
     window.addEventListener("keydown", toggleSidebar);
     return () => window.removeEventListener("keydown", toggleSidebar);
   }, []);
+  useEffect(() => {
+    const openQuickSession = (event: KeyboardEvent): void => {
+      if (event.code !== "Space" || !event.shiftKey || event.altKey || event.isComposing || event.repeat) return;
+      const expectedModifier = /Mac|iPhone|iPad/u.test(navigator.platform) ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+      if (!expectedModifier || onOpenQuickSession === undefined) return;
+      event.preventDefault();
+      onOpenQuickSession();
+    };
+    window.addEventListener("keydown", openQuickSession);
+    return () => window.removeEventListener("keydown", openQuickSession);
+  }, [onOpenQuickSession]);
   useEffect(() => {
     if (!resizingSidebar) return;
     const resize = (event: PointerEvent): void => setSidebarWidth(Math.min(500, Math.max(280, event.clientX)));
@@ -2745,12 +2736,10 @@ export function Workspace({
         setSelectedProjectId(projectId);
         setRoute("project");
       }}
-      onOpenQuickSession={() => { void client?.openQuickSession(); }}
-      onClearQuickSession={() => {
-        if (window.confirm("Clear Quick Session history and managed files?")) void client?.clearQuickSession().catch(() => undefined);
+      onOpenQuickSession={() => {
+        if (onOpenQuickSession !== undefined) onOpenQuickSession();
+        else void client?.openQuickSession();
       }}
-      onKeepQuickSession={() => setKeepQuickSessionOpen(true)}
-      onCancelQuickSessionAction={() => { void client?.cancelQuickSessionAction().catch(() => undefined); }}
       onSessionContextMenu={(session, x, y) => setSessionContextMenu({
         session,
         x: Math.max(8, Math.min(x, window.innerWidth - 220)),
@@ -3050,11 +3039,11 @@ export function Workspace({
       if (!open) queueMicrotask(() => detailsTriggerRef.current?.focus());
     }}>
     <main
-      className={`workspace${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
-      style={{ "--rail": `${activeSidebarWidth}px` } as CSSProperties}
+      className={`workspace${embeddedSession ? " embedded-session" : ""}${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}${sidebarVisible && !embeddedSession ? "" : " sidebar-hidden"}`}
+      style={{ "--rail": `${embeddedSession ? 0 : activeSidebarWidth}px` } as CSSProperties}
     >
-      {sidebarVisible && sidebar}
-      {sidebarVisible && (
+      {sidebarVisible && !embeddedSession && sidebar}
+      {sidebarVisible && !embeddedSession && (
         <div
           className="sidebar-resize-handle"
           role="separator"
@@ -3072,7 +3061,7 @@ export function Workspace({
           onKeyDown={resizeSidebarWithKeyboard}
         />
       )}
-      {!sidebarVisible && (
+      {!sidebarVisible && !embeddedSession && (
         <button
           className="sidebar-expand-control"
           type="button"
@@ -3084,7 +3073,7 @@ export function Workspace({
         </button>
       )}
       <section ref={sessionContainer} className="session" aria-label="Selected Session">
-        <header className="session-header">
+        {!embeddedSession && <header className="session-header">
           <button
             className="mobile-back"
             onClick={() => setRoute("dashboard")}
@@ -3094,20 +3083,22 @@ export function Workspace({
           </button>
           <div className="session-heading">
             <span className="session-heading-copy">
-              <span className="session-title">
+              {!embeddedSession && <span className="session-title">
                 <i className={working ? "working" : ""} />
                 <span className="session-title-text">
                   {state.selected.details?.name ??
                     selectedSummary?.name ??
                     "Session"}
                 </span>
-              </span>
+              </span>}
               <small>
-                {selectedProject?.name ??
-                  state.selected.details?.currentDirectoryDisplay ??
-                  selectedSummary?.displayPath ??
-                  "Synchronizing"}
-                {" · "}
+                {!embeddedSession && <>
+                  {selectedProject?.name ??
+                    state.selected.details?.currentDirectoryDisplay ??
+                    selectedSummary?.displayPath ??
+                    "Synchronizing"}
+                  {" · "}
+                </>}
                 {state.selected.details?.model?.modelId ?? "gpt-5.6-sol"}
                 {" · "}
                 {state.selected.details?.thinkingLevel ?? "Medium"}
@@ -3131,7 +3122,7 @@ export function Workspace({
               <Ellipsis aria-hidden="true" size={20} />
             </SheetTrigger>}
           </div>
-        </header>
+        </header>}
 
         <ConnectionNotice state={state} />
 
@@ -3801,13 +3792,6 @@ export function Workspace({
       )}
     </main>
     </Sheet>
-    {keepQuickSessionOpen && <KeepSessionModal
-      open={true}
-      state={state}
-      onClose={() => setKeepQuickSessionOpen(false)}
-      onListDirectory={(path, hidden) => onListDirectory?.(path, hidden) ?? client?.listDirectory(path, hidden)}
-      onKeep={(destination) => { setKeepQuickSessionOpen(false); void client?.keepQuickSession(destination).catch(() => undefined); }}
-    />}
     {contextMenu}
     </>
   );

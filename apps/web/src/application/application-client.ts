@@ -207,6 +207,7 @@ export class ApplicationClient extends ApplicationClientBase {
   async openQuickSession(): Promise<SessionKey> {
     const response = await mutate("/v2/quick-session", "POST", {}) as { session: SavedSession };
     await this.refresh();
+    this.updateRpcState({ connection: "ready" });
     const key = keyFromSession(response.session);
     this.select(key);
     return key;

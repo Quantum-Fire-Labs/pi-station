@@ -1,4 +1,4 @@
-import { lazy, StrictMode, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, StrictMode, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ApplicationState } from "./application/application-client-base";
 import { MaintenanceMonitor } from "./application/maintenance";
@@ -6,6 +6,7 @@ import { ApplicationClient } from "./application/application-client";
 import { Pairing } from "./components/Pairing";
 import { UpdatingScreen } from "./components/UpdatingScreen";
 import { Workspace } from "./components/Workspace";
+import { QuickSessionDialog } from "./components/QuickSessionDialog";
 import { fixtureState, selectFixtureSession } from "./fixtures/workspace";
 import { notificationPresence } from "./notifications";
 import "./styles.css";
@@ -39,6 +40,12 @@ function Root() {
     return new ApplicationClient();
   });
   const [updating, setUpdating] = useState(false);
+  const [quickSessionOpen, setQuickSessionOpen] = useState(false);
+  const quickSessionTrigger = useRef<HTMLElement | null>(null);
+  const changeQuickSessionOpen = (open: boolean): void => {
+    setQuickSessionOpen(open);
+    if (!open) queueMicrotask(() => quickSessionTrigger.current?.focus());
+  };
   const [state, setState] = useState<ApplicationState>(() => {
     if (fixtureMode) {
       return fixtureState;
@@ -208,6 +215,7 @@ function Root() {
   }
 
   return (
+    <>
     <Workspace
       state={state}
       client={client}
@@ -234,7 +242,24 @@ function Root() {
       onReorderProjectBookmark={reorderProjectBookmark}
       onSetSessionBookmark={setSessionBookmark}
       onReorderSessionBookmark={reorderSessionBookmark}
+      onOpenQuickSession={() => {
+        if (quickSessionOpen) {
+          changeQuickSessionOpen(false);
+          return;
+        }
+        quickSessionTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setQuickSessionOpen(true);
+      }}
     />
+    <QuickSessionDialog
+      open={quickSessionOpen}
+      onOpenChange={changeQuickSessionOpen}
+      onKept={(key) => {
+        client?.connect();
+        window.setTimeout(() => client?.select(key), 100);
+      }}
+    />
+    </>
   );
 }
 
