@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TimelineImage, TimelineItem } from "../application/workspace-model";
 import { FeedItem } from "./Timeline";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const assistantItem = (text: string): TimelineItem => ({
   timelineItemId: "markdown-message",
@@ -110,6 +113,29 @@ describe("tool activity", () => {
       <FeedItem item={toolItem("saved")} sessionWorking={false} />,
     );
     expect(container.querySelector("details")).not.toHaveAttribute("open");
+  });
+});
+
+describe("user messages", () => {
+  it("confirms before undoing the message and later turns", () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onUndo = vi.fn();
+    render(<FeedItem item={userImageItem([])} onUndoUserMessage={onUndo} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo this message" }));
+
+    expect(confirm).toHaveBeenCalledWith("Undo this message? This will remove it and all later turns from the active conversation.");
+    expect(onUndo).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the conversation when undo confirmation is cancelled", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const onUndo = vi.fn();
+    render(<FeedItem item={userImageItem([])} onUndoUserMessage={onUndo} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo this message" }));
+
+    expect(onUndo).not.toHaveBeenCalled();
   });
 });
 

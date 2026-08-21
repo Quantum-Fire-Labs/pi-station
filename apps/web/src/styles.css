@@ -834,6 +834,22 @@ body.sidebar-resizing {
   font-size: 15px;
   line-height: 1.5;
 }
+.message.user .message-undo {
+  display: flex;
+  margin: 8px 0 -7px auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+  padding: 4px;
+}
+.message.user:hover .message-undo,
+.message.user:focus-within .message-undo {
+  opacity: 1;
+}
+.message.user .message-undo:hover {
+  color: var(--text);
+}
 .message.scheduled-job {
   width: min(92%, 680px);
   margin: 18px auto 18px 0;
