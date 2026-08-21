@@ -56,9 +56,12 @@ export function ProjectsPage({
       (positions.get(left.projectId) ?? Number.MAX_SAFE_INTEGER)
       - (positions.get(right.projectId) ?? Number.MAX_SAFE_INTEGER)
     ));
-  const other = state.projects.filter(
-    (project) => !positions.has(project.projectId),
-  );
+  const other = state.projects
+    .filter((project) => !positions.has(project.projectId))
+    .sort((left, right) => (
+      left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
+      || left.projectId.localeCompare(right.projectId)
+    ));
 
   return (
     <main className="projects-index projects-index-page">
