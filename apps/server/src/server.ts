@@ -915,6 +915,26 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         return
       }
 
+      if (request.method === "POST" && route.action === "undo") {
+        assertJsonMutation(request)
+        if (saved === undefined) throw new HttpError(404, "Session not found")
+        if (saved.state === "closed") throw new HttpError(409, "Closed Session is read-only")
+        if (turns.isWorking(route.key)) throw new HttpError(409, "Working Session cannot undo a message")
+        const value = await readJsonBody(request)
+        if (!isUndoRequest(value)) throw new HttpError(400, "Undo request is invalid")
+        const project = await resolveProject(route.key, saved)
+        try {
+          // The Session file can change through another Pi process. Reload it before
+          // branching so the SDK runtime validates against the latest active leaf.
+          await turns.control(route.key, saved.path, project.root, { type: "reload" })
+          await turns.control(route.key, saved.path, project.root, { type: "undo_user_message", entryId: value.entryId })
+        } catch (error) {
+          throw new HttpError(422, error instanceof Error ? error.message : "Pi rejected the message undo")
+        }
+        sendJson(response, 200, { version: PROTOCOL_VERSION, undone: true })
+        return
+      }
+
       if (request.method === "POST" && route.action === "clone") {
         assertJsonMutation(request)
         if (saved === undefined) throw new HttpError(404, "Session not found")
@@ -1231,7 +1251,13 @@ function directoryEntry(path: string): { readonly name: string; readonly path: s
 
 interface SessionRoute {
   readonly key: SessionKey
-  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "abort" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
+  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "abort" | "undo" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
+}
+
+function isUndoRequest(value: unknown): value is { readonly entryId: string } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return Object.keys(record).length === 1 && typeof record.entryId === "string" && /^[A-Za-z0-9_-]{1,200}$/u.test(record.entryId)
 }
 
 interface SessionAttachmentRoute { readonly key: SessionKey; readonly attachmentId?: string }
@@ -1267,7 +1293,7 @@ function decodeRouteId(value: string): string | undefined {
 }
 
 function parseSessionRoute(pathname: string): SessionRoute | undefined {
-  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|abort|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
+  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|abort|undo|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
   if (match === null) return undefined
   const projectId = decodeURIComponent(match[1]!)
   const sessionId = decodeURIComponent(match[2]!)

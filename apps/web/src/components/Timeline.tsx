@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
+import { Undo2 } from "lucide-react";
 import remarkGfm from "remark-gfm";
 import type { TimelineItem } from "../application/workspace-model";
 
@@ -211,10 +212,12 @@ export function FeedItem({
   item,
   sessionWorking = false,
   onOpenSharedMarkdown,
+  onUndoUserMessage,
 }: {
   item: TimelineItem;
   sessionWorking?: boolean;
   onOpenSharedMarkdown?: ((url: string) => void) | undefined;
+  onUndoUserMessage?: (() => void) | undefined;
 }) {
   switch (item.category) {
     case "user-message": {
@@ -241,6 +244,19 @@ export function FeedItem({
             </div>
           )}
           {item.content.text !== "" && <div className="message-body">{item.content.text}</div>}
+          {onUndoUserMessage !== undefined && (
+            <button
+              className="message-undo"
+              type="button"
+              aria-label="Undo this message"
+              title="Undo this message and later turns"
+              onClick={() => {
+                if (window.confirm("Undo this message? This will remove it and all later turns from the active conversation.")) onUndoUserMessage();
+              }}
+            >
+              <Undo2 aria-hidden="true" size={14} />
+            </button>
+          )}
         </article>
       );
     }
