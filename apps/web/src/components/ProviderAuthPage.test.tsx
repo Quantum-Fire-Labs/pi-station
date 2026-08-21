@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProviderAuthPage } from "./ProviderAuthPage";
 
@@ -13,6 +14,7 @@ const chooseSignIn = (): void => { fireEvent.click(screen.getByText("Sign in", {
 describe("ProviderAuthPage", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
   it("filters providers, selects an equal-weight method, and renders safe secret interactions", async () => {
+    const user = userEvent.setup();
     const api = client(); const open = vi.spyOn(window, "open").mockImplementation(() => null);
     render(<ProviderAuthPage client={api} onboarding />);
     await screen.findByText("Example");
@@ -24,7 +26,8 @@ describe("ProviderAuthPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Open sign-in page/ }));
     expect(open).toHaveBeenCalledWith("https://login.example/authorize", "_blank", "noopener,noreferrer");
     const secret = screen.getByLabelText("API key"); expect(secret).toHaveAttribute("type", "password");
-    fireEvent.change(secret, { target: { value: "private" } }); fireEvent.submit(secret.closest("form")!);
+    await user.type(secret, "private");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() => expect(api.answerAuthPrompt).toHaveBeenCalledWith("tx", "private"));
     expect(api.startProviderLogin).toHaveBeenCalledWith("example", "oauth");
   });
