@@ -27,12 +27,28 @@ describe("ProviderAuthService", () => {
     notify?.({ type: "progress", message: "Checking" })
     await settle()
     expect(service.transaction(started.id)).toMatchObject({ status: "running", events: [{ type: "progress", message: "Checking" }], prompt: { type: "secret", message: "API key" } })
-    expect(() => service.start("example", "oauth")).toThrow(ProviderAuthError)
     const answered = service.respond(started.id, "super-secret")
     expect(JSON.stringify(answered)).not.toContain("super-secret")
     expect(answered.prompt).toBeUndefined()
     await settle()
     expect(service.transaction(started.id).status).toBe("succeeded")
+  })
+
+  it("cancels an abandoned attempt when the user starts a replacement", async () => {
+    const signals: AbortSignal[] = []
+    const login = vi.fn((_id: string, _type: ProviderAuthType, interaction: Parameters<ProviderAuthRuntime["login"]>[2]) => {
+      signals.push(interaction.signal!)
+      return new Promise<never>((_resolve, reject) => interaction.signal!.addEventListener("abort", () => reject(new Error("cancelled")), { once: true }))
+    })
+    const service = new ProviderAuthService(runtime(login))
+    const abandoned = service.start("example", "oauth")
+    const replacement = service.start("example", "oauth")
+    expect(service.transaction(abandoned.id)).toMatchObject({ status: "cancelled", error: "Authentication replaced by a new attempt" })
+    expect(signals[0]?.aborted).toBe(true)
+    expect(replacement.id).not.toBe(abandoned.id)
+    expect(replacement.status).toBe("running")
+    service.cancel(replacement.id)
+    await settle()
   })
 
   it("cancels and expires pending prompts", async () => {

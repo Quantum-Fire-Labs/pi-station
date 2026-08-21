@@ -54,7 +54,17 @@ export function ProviderAuthPage({ client, onboarding = false, onBack, onComplet
     if (transaction === undefined) return;
     try { setTransaction(await client.answerAuthPrompt(transaction.id, answer)); setAnswer(""); } catch (reason) { setError(reason instanceof Error ? reason.message : "Response was not accepted."); }
   };
-  const cancel = async (): Promise<void> => { if (transaction !== undefined) setTransaction(await client.cancelProviderLogin(transaction.id)); };
+  const cancel = async (): Promise<void> => {
+    if (transaction === undefined) return;
+    try { setTransaction(await client.cancelProviderLogin(transaction.id)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Authentication could not be cancelled."); }
+  };
+  const leaveConnection = async (): Promise<void> => {
+    if (transaction?.status === "running") {
+      try { await client.cancelProviderLogin(transaction.id); } catch { /* The transaction can already be complete or expired. */ }
+    }
+    setTransaction(undefined);
+    setSelectedProviderId(undefined);
+  };
   const logout = async (providerId: string): Promise<void> => { if (!window.confirm("Sign out from this provider?")) return; setProviders(await client.logoutProvider(providerId)); };
   const chooseProvider = (providerId: string): void => { setSelectedProviderId(providerId); setTransaction(undefined); setModelSetup(undefined); setError(undefined); };
   const saveModel = async (): Promise<void> => {
@@ -64,7 +74,7 @@ export function ProviderAuthPage({ client, onboarding = false, onBack, onComplet
     try { await saveSessionDefaults({ provider, modelId, thinkingLevel: modelSetup.defaults.thinkingLevel }); onComplete?.(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save the model."); } finally { setSavingModel(false); }
   };
 
-  if (!onboarding) return <SettingsLayout title="Model Providers" description="Manage provider accounts and API keys." onBack={onBack ?? (() => undefined)}><ProviderAccounts providers={providers} loading={loading} error={error} onConnect={chooseProvider} onLogout={logout} />{selectedProvider !== undefined && <ConnectionDialog provider={selectedProvider} transaction={transaction} answer={answer} setAnswer={setAnswer} onStart={start} onRespond={respond} onCancel={cancel} onClose={() => setSelectedProviderId(undefined)} />}</SettingsLayout>;
+  if (!onboarding) return <SettingsLayout title="Model Providers" description="Manage provider accounts and API keys." onBack={onBack ?? (() => undefined)}><ProviderAccounts providers={providers} loading={loading} error={error} onConnect={chooseProvider} onLogout={logout} />{selectedProvider !== undefined && <ConnectionDialog provider={selectedProvider} transaction={transaction} answer={answer} setAnswer={setAnswer} onStart={start} onRespond={respond} onCancel={cancel} onReset={() => setTransaction(undefined)} onClose={() => void leaveConnection()} />}</SettingsLayout>;
 
   const step = modelSetup !== undefined ? 3 : selectedProvider === undefined ? 1 : 2;
   return <main className="provider-auth-onboarding">
@@ -72,7 +82,7 @@ export function ProviderAuthPage({ client, onboarding = false, onBack, onComplet
     <SetupSteps current={step} />
     {error !== undefined && <p className="form-error provider-auth-error" role="alert">{error}</p>}
     {step === 1 && <ProviderPicker providers={providers} loading={loading} query={query} setQuery={setQuery} showAll={showAll} setShowAll={setShowAll} onChoose={chooseProvider} />}
-    {step === 2 && selectedProvider !== undefined && <ConnectionStep provider={selectedProvider} transaction={transaction} answer={answer} setAnswer={setAnswer} onStart={start} onRespond={respond} onCancel={cancel} onBack={() => { setSelectedProviderId(undefined); setTransaction(undefined); }} onUseConnected={() => { setTransaction({ id: "existing", providerId: selectedProvider.id, status: "succeeded", events: [], expiresAt: new Date().toISOString() }); }} />}
+    {step === 2 && selectedProvider !== undefined && <ConnectionStep provider={selectedProvider} transaction={transaction} answer={answer} setAnswer={setAnswer} onStart={start} onRespond={respond} onCancel={cancel} onReset={() => setTransaction(undefined)} onBack={() => void leaveConnection()} onUseConnected={() => { setTransaction({ id: "existing", providerId: selectedProvider.id, status: "succeeded", events: [], expiresAt: new Date().toISOString() }); }} />}
     {step === 3 && modelSetup !== undefined && <ModelStep setup={modelSetup} value={selectedModel} onChange={setSelectedModel} saving={savingModel} onSave={saveModel} onSkip={() => onComplete?.()} />}
   </main>;
 }
@@ -93,8 +103,8 @@ function ProviderIdentity({ provider }: { provider: ProviderAuthStatus }) {
   return <><span className="provider-avatar" aria-hidden="true">{provider.name.slice(0, 1).toUpperCase()}</span><span className="provider-choice-copy"><strong>{provider.name}</strong><small>{providerDescription(provider)}</small></span>{provider.configured && <Badge variant="secondary"><Check aria-hidden="true" />Connected</Badge>}</>;
 }
 
-function ConnectionStep({ provider, transaction, answer, setAnswer, onStart, onRespond, onCancel, onBack, onUseConnected }: { provider: ProviderAuthStatus; transaction: AuthTransaction | undefined; answer: string; setAnswer: (value: string) => void; onStart: (id: string, type: ProviderAuthType) => Promise<void>; onRespond: () => Promise<void>; onCancel: () => Promise<void>; onBack: () => void; onUseConnected: () => void }) {
-  return <section className="provider-connection-step"><Button type="button" variant="ghost" className="provider-back" onClick={onBack}><ArrowLeft aria-hidden="true" />Choose another provider</Button>{transaction === undefined ? <Card className="provider-connection-card"><CardHeader><ProviderIdentity provider={provider} /></CardHeader><CardContent className="provider-methods">{provider.configured && <button type="button" className="provider-method" onClick={onUseConnected}><ShieldCheck aria-hidden="true" /><span><strong>Use connected account</strong><small>Continue with the credential that is already configured.</small></span><ChevronRight aria-hidden="true" /></button>}{provider.methods.map((method) => <button type="button" className="provider-method" key={method.type} onClick={() => void onStart(provider.id, method.type)}><KeyRound aria-hidden="true" /><span><strong>{method.name}</strong><small>{methodDescription(method.type)}</small></span><ChevronRight aria-hidden="true" /></button>)}</CardContent></Card> : <AuthInteractionPanel transaction={transaction} answer={answer} setAnswer={setAnswer} onRespond={onRespond} onCancel={onCancel} />}</section>;
+function ConnectionStep({ provider, transaction, answer, setAnswer, onStart, onRespond, onCancel, onReset, onBack, onUseConnected }: { provider: ProviderAuthStatus; transaction: AuthTransaction | undefined; answer: string; setAnswer: (value: string) => void; onStart: (id: string, type: ProviderAuthType) => Promise<void>; onRespond: () => Promise<void>; onCancel: () => Promise<void>; onReset: () => void; onBack: () => void; onUseConnected: () => void }) {
+  return <section className="provider-connection-step"><Button type="button" variant="ghost" className="provider-back" onClick={onBack}><ArrowLeft aria-hidden="true" />Choose another provider</Button>{transaction === undefined ? <Card className="provider-connection-card"><CardHeader><ProviderIdentity provider={provider} /></CardHeader><CardContent className="provider-methods">{provider.configured && <button type="button" className="provider-method" onClick={onUseConnected}><ShieldCheck aria-hidden="true" /><span><strong>Use connected account</strong><small>Continue with the credential that is already configured.</small></span><ChevronRight aria-hidden="true" /></button>}{provider.methods.map((method) => <button type="button" className="provider-method" key={method.type} onClick={() => void onStart(provider.id, method.type)}><KeyRound aria-hidden="true" /><span><strong>{method.name}</strong><small>{methodDescription(method.type)}</small></span><ChevronRight aria-hidden="true" /></button>)}</CardContent></Card> : <AuthInteractionPanel transaction={transaction} answer={answer} setAnswer={setAnswer} onRespond={onRespond} onCancel={onCancel} onReset={onReset} />}</section>;
 }
 
 function ModelStep({ setup, value, onChange, saving, onSave, onSkip }: { setup: ModelSetup; value: string; onChange: (value: string) => void; saving: boolean; onSave: () => Promise<void>; onSkip: () => void }) {
@@ -106,11 +116,11 @@ function ProviderAccounts({ providers, loading, error, onConnect, onLogout }: { 
   return <div className="provider-account-list">{error !== undefined && <p className="form-error" role="alert">{error}</p>}{providers.filter(({ configured, methods }) => configured || methods.length > 0).map((provider) => <Card key={provider.id} size="sm"><CardHeader><CardTitle>{provider.name}</CardTitle><CardDescription>{provider.configured ? `Connected${provider.configuredType === undefined ? "" : ` with ${provider.configuredType === "oauth" ? "OAuth" : "an API key"}`}` : "Not connected"}</CardDescription><CardAction>{provider.configured ? <Button type="button" size="sm" variant="outline" onClick={() => void onLogout(provider.id)}>Sign out</Button> : <Button type="button" size="sm" variant="outline" onClick={() => onConnect(provider.id)}>Connect</Button>}</CardAction></CardHeader></Card>)}</div>;
 }
 
-function ConnectionDialog({ provider, transaction, answer, setAnswer, onStart, onRespond, onCancel, onClose }: { provider: ProviderAuthStatus; transaction: AuthTransaction | undefined; answer: string; setAnswer: (value: string) => void; onStart: (id: string, type: ProviderAuthType) => Promise<void>; onRespond: () => Promise<void>; onCancel: () => Promise<void>; onClose: () => void }) {
-  return <Card className="provider-settings-connect"><CardHeader><CardTitle>Connect {provider.name}</CardTitle><CardAction><Button type="button" size="sm" variant="ghost" onClick={onClose}>Close</Button></CardAction></CardHeader><CardContent>{transaction === undefined ? <div className="provider-auth-actions">{provider.methods.map((method) => <Button key={method.type} type="button" variant="outline" onClick={() => void onStart(provider.id, method.type)}>{method.name}</Button>)}</div> : <AuthInteractionPanel transaction={transaction} answer={answer} setAnswer={setAnswer} onRespond={onRespond} onCancel={onCancel} />}</CardContent></Card>;
+function ConnectionDialog({ provider, transaction, answer, setAnswer, onStart, onRespond, onCancel, onReset, onClose }: { provider: ProviderAuthStatus; transaction: AuthTransaction | undefined; answer: string; setAnswer: (value: string) => void; onStart: (id: string, type: ProviderAuthType) => Promise<void>; onRespond: () => Promise<void>; onCancel: () => Promise<void>; onReset: () => void; onClose: () => void }) {
+  return <Card className="provider-settings-connect"><CardHeader><CardTitle>Connect {provider.name}</CardTitle><CardAction><Button type="button" size="sm" variant="ghost" onClick={onClose}>Close</Button></CardAction></CardHeader><CardContent>{transaction === undefined ? <div className="provider-auth-actions">{provider.methods.map((method) => <Button key={method.type} type="button" variant="outline" onClick={() => void onStart(provider.id, method.type)}>{method.name}</Button>)}</div> : <AuthInteractionPanel transaction={transaction} answer={answer} setAnswer={setAnswer} onRespond={onRespond} onCancel={onCancel} onReset={onReset} />}</CardContent></Card>;
 }
 
-function AuthInteractionPanel({ transaction, answer, setAnswer, onRespond, onCancel }: { transaction: AuthTransaction; answer: string; setAnswer: (value: string) => void; onRespond: () => Promise<void>; onCancel: () => Promise<void> }) {
+function AuthInteractionPanel({ transaction, answer, setAnswer, onRespond, onCancel, onReset }: { transaction: AuthTransaction; answer: string; setAnswer: (value: string) => void; onRespond: () => Promise<void>; onCancel: () => Promise<void>; onReset: () => void }) {
   const prompt = transaction.prompt;
   return <Card className="provider-auth-interaction"><CardContent>
     {transaction.status === "running" && transaction.events.length === 0 && <div className="auth-waiting"><LoaderCircle className="spin" aria-hidden="true" /><p>Starting authentication…</p></div>}
@@ -123,6 +133,7 @@ function AuthInteractionPanel({ transaction, answer, setAnswer, onRespond, onCan
     {transaction.status === "running" && <Button type="button" variant="ghost" onClick={() => void onCancel()}>Cancel</Button>}
     {transaction.status === "succeeded" && <div className="auth-success" role="status"><span><Check aria-hidden="true" /></span><div><strong>Provider connected</strong><p>Loading available models…</p></div></div>}
     {transaction.error !== undefined && <p className="form-error" role="alert">{transaction.error}</p>}
+    {(transaction.status === "cancelled" || transaction.status === "expired" || transaction.status === "failed") && <Button type="button" variant="outline" onClick={onReset}>Try again</Button>}
   </CardContent></Card>;
 }
 

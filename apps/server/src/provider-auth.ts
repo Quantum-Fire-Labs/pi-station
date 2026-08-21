@@ -60,7 +60,7 @@ export class ProviderAuthService {
       if (item.status === "running" && item.expiresAt <= this.now()) this.#expire(item)
     }
     const active = [...this.#transactions.values()].find((item) => item.providerId === providerId && item.status === "running")
-    if (active !== undefined) throw new ProviderAuthError(409, "Authentication is already in progress for this provider")
+    if (active !== undefined) this.#cancel(active, "Authentication replaced by a new attempt")
     const transaction: MutableTransaction = { id: randomUUID(), providerId, status: "running", events: [], prompt: undefined, error: undefined, pending: undefined, expiresAt: this.now() + this.ttlMs, abort: new AbortController() }
     this.#transactions.set(transaction.id, transaction)
     const timer = setTimeout(() => {
@@ -104,12 +104,7 @@ export class ProviderAuthService {
   cancel(id: string): AuthTransaction {
     const transaction = this.#find(id)
     if (transaction.status === "running" && transaction.expiresAt <= this.now()) this.#expire(transaction)
-    if (transaction.status === "running") {
-      transaction.status = "cancelled"
-      transaction.error = CANCELLED
-      transaction.abort.abort()
-      this.#rejectPending(transaction, CANCELLED)
-    }
+    if (transaction.status === "running") this.#cancel(transaction, CANCELLED)
     return this.#public(transaction)
   }
 
@@ -141,6 +136,13 @@ export class ProviderAuthService {
     })
   }
 
+  #cancel(transaction: MutableTransaction, message: string): void {
+    if (transaction.status !== "running") return
+    transaction.status = "cancelled"
+    transaction.error = message
+    transaction.abort.abort(new Error(message))
+    this.#rejectPending(transaction, message)
+  }
   #expire(transaction: MutableTransaction): void {
     if (transaction.status !== "running") return
     transaction.status = "expired"
