@@ -1150,7 +1150,7 @@ function projectionFor(session: SavedSession, phase: SessionPhase): SessionSumma
       : { hasUnread: false },
     management: { kind: "unmanaged" },
     capabilities: session.state !== "open" ? [] : session.quickSession === true
-      ? ["session.prompt.text", "session.prompt.steer", "session.prompt.follow-up", "session.abort"]
+      ? ["session.prompt.text", "session.prompt.steer", "session.prompt.follow-up", "session.abort", "session.model.set", "session.thinking.set"]
       : [...RPC_CAPABILITIES],
   };
 }

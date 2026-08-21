@@ -62,6 +62,16 @@ describe("Pi Station incremental Session summaries", () => {
     expect(summary?.displayPath).toBe("/work/outside");
   });
 
+  it("allows model and thinking changes for an open Quick Session without general Session management", () => {
+    const quick = upsertSessionSummary([], {
+      ...saved("quick", "2026-01-01T00:00:00.000Z"),
+      quickSession: true,
+    })[0]!;
+
+    expect(quick.projection.capabilities).toEqual(expect.arrayContaining(["session.model.set", "session.thinking.set"]));
+    expect(quick.projection.capabilities).not.toEqual(expect.arrayContaining(["session.rename", "session.clone", "session.close"]));
+  });
+
   it("updates close and open state in place by stable Session ID", () => {
     const open = upsertSessionSummary([], saved("one", "2026-01-01T00:00:00.000Z"));
     const closed = upsertSessionSummary(open, saved("one", "2026-01-01T00:00:00.000Z", "closed"));
