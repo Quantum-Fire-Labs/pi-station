@@ -32,6 +32,23 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("button", { name: "Add Project" })).toBeInTheDocument();
   });
 
+  it("lists Other Projects alphabetically", () => {
+    render(
+      <ProjectsPage
+        {...pageProps}
+        state={fixtureState}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    const otherProjects = screen.getByRole("heading", { name: "Other Projects" })
+      .closest("section");
+    if (otherProjects === null) throw new Error("Other Projects section is missing");
+
+    expect([...otherProjects.querySelectorAll("h3")].map((heading) => heading.textContent))
+      .toEqual(["Field Notes", "Pi Station"]);
+  });
+
   it("opens a Project from its card area without a visible Open Project button", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();
