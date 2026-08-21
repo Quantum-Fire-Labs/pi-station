@@ -6,6 +6,7 @@ import {
   deployAfterValidation,
   parseSystemdEnvironment,
   resolveDeploymentOrigins,
+  resolveDeploymentSharedRoot,
   validationArguments,
 } from "./sdk-deploy-worker-lib.mjs"
 
@@ -40,6 +41,14 @@ describe("SDK deployment worker", () => {
     })
   })
 
+  it("stores shared files in the application data directory by default", () => {
+    const input = { dataDir: "/home/example/.local/share/pi-station", retiredDefault: "/home/example/.pi/agent/pi-station/shared" }
+    expect(resolveDeploymentSharedRoot(input)).toBe("/home/example/.local/share/pi-station/shared")
+    expect(resolveDeploymentSharedRoot({ ...input, effectiveEnvironment: `PI_STATION_SHARED_ROOT=${input.retiredDefault}` })).toBe("/home/example/.local/share/pi-station/shared")
+    expect(resolveDeploymentSharedRoot({ ...input, effectiveEnvironment: "PI_STATION_SHARED_ROOT=/srv/pi-station-shared" })).toBe("/srv/pi-station-shared")
+    expect(resolveDeploymentSharedRoot({ ...input, environment: { PI_STATION_SHARED_ROOT: "/mnt/shared" } })).toBe("/mnt/shared")
+  })
+
   it("rejects values that are not exact HTTP origins", () => {
     expect(() => resolveDeploymentOrigins({ environment: { PI_STATION_WEB_ORIGIN: "https://station.example.test/path" } })).toThrow("HTTP or HTTPS origin")
   })
@@ -49,7 +58,7 @@ describe("SDK deployment worker", () => {
       root: "/home/example/Pi Station",
       node: "/usr/bin/node",
       dataDir: "/home/example/.local/share/pi-station",
-      sharedRoot: "/home/example/.pi/agent/pi-station/shared",
+      sharedRoot: "/home/example/.local/share/pi-station/shared",
       port: "9900",
       webOrigin: "https://station.example.test:9443",
       localOrigin: "http://127.0.0.1:9900",

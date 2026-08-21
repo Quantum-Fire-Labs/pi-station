@@ -71,6 +71,13 @@ export function resolveDeploymentOrigins({ environment = {}, effectiveEnvironmen
   }
 }
 
+export function resolveDeploymentSharedRoot({ dataDir, retiredDefault, environment = {}, effectiveEnvironment = "" }) {
+  if (environment.PI_STATION_SHARED_ROOT !== undefined) return environment.PI_STATION_SHARED_ROOT
+  const saved = parseSystemdEnvironment(effectiveEnvironment).PI_STATION_SHARED_ROOT
+  if (saved !== undefined && saved !== retiredDefault) return saved
+  return `${dataDir}/shared`
+}
+
 export function buildSystemdService({ root, node, dataDir, sharedRoot, port = "8801", webOrigin, localOrigin, path }) {
   const loopbackOrigin = `http://127.0.0.1:${port}`
   return `[Unit]

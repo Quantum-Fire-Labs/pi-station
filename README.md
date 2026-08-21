@@ -13,7 +13,7 @@ There is one production path:
 - `apps/server/`: the loopback HTTP server and SDK Session runtime.
 - `packages/application-protocol/`: the normalized application contract. Stable HTTP endpoints remain under `/v2/**`.
 - `~/.local/share/pi-station`: Pi Station application data.
-- `~/.pi/agent/pi-station/shared`: Session shared files. This data is not moved by the application-data migration.
+- `~/.local/share/pi-station/shared`: Session shared files.
 - `pi-station.service`: the only application service.
 
 The retired broker, Pi process bridge, alternate RPC UI, and their protocols are not part of this architecture.
@@ -55,7 +55,7 @@ tar -xzf pi-station-VERSION-linux-ARCH.tar.gz -C pi-station-release
 ./pi-station-release/install.sh
 ```
 
-The installer creates `pi-station.service` as a user service. It installs application files below `~/.local/share/pi-station/app`, stores application data in `~/.local/share/pi-station`, and stores shared Session files in `~/.pi/agent/pi-station/shared`. It binds the server to loopback and opens the Workspace at `http://127.0.0.1:8801/workspace`.
+The installer creates `pi-station.service` as a user service. It installs application files below `~/.local/share/pi-station/app` and stores application data, including shared Session files, in `~/.local/share/pi-station`. It binds the server to loopback and opens the Workspace at `http://127.0.0.1:8801/workspace`.
 
 Run the same installer from a newer release to update. The installer preserves the existing port, data directories, and public and local origins unless you supply replacement environment variables. It waits for active turns, changes the current release, restarts only Pi Station, checks service health, and confirms that Pi process IDs did not change. If validation fails, it restores the previous release and service configuration.
 
@@ -116,6 +116,8 @@ Do not deploy from a feature worktree. Do not restart Pi processes.
 The first new server start atomically renames the retired default `~/.local/share/pi-station-rpc-v2` to `~/.local/share/pi-station` only when the canonical directory does not exist. It never merges or replaces directories. A failed rename leaves the retired directory unchanged.
 
 `PI_STATION_DATA_DIR` is canonical. `PI_STATION_RPC_V2_DATA_DIR` is accepted for one deployment boundary only and prints a retirement warning. Set the canonical variable before the next release. For rollback, point the previous release at the directory explicitly; do not copy, merge, or delete Session history.
+
+When the shared-file location still has its retired default, an installation moves it from `~/.pi/agent/pi-station/shared` to the `shared` directory below `PI_STATION_DATA_DIR`. It leaves a compatibility symlink at the retired location. An explicit custom `PI_STATION_SHARED_ROOT` is not moved.
 
 ## Open-source audit
 
