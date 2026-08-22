@@ -283,13 +283,14 @@ export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options
     if (existing !== undefined) return existing
     const created = createSession(input).then(async (session) => {
       try {
-        if (input.mode === "new") {
+        if (input.mode === "new" || needsPlaceholderDefaults(session)) {
           const settings = input.settings ?? await options.sessionDefaults?.()
           if (settings !== undefined) {
             const model = session.modelRuntime.getModel(settings.provider, settings.modelId)
             if (model === undefined) throw new Error(`Default model not found: ${settings.provider}/${settings.modelId}`)
             await session.setModel(model)
             session.setThinkingLevel(settings.thinkingLevel)
+            session.sessionManager.appendCustomEntry("pi-station-session-defaults-applied")
           }
         }
         return session
@@ -473,6 +474,16 @@ export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options
       sessions.clear()
     },
   }
+}
+
+function needsPlaceholderDefaults(session: RuntimeSession): boolean {
+  const entries = session.sessionManager.getBranch()
+  const placeholder = entries.some((entry) => entry.type === "custom"
+    && (entry.customType === "pi-station-empty-session" || entry.customType === "pi-station-quick-session"))
+  if (!placeholder) return false
+  return !entries.some((entry) => entry.type === "model_change"
+    || entry.type === "thinking_level_change"
+    || (entry.type === "custom" && entry.customType === "pi-station-session-defaults-applied"))
 }
 
 async function createSdkSession(input: {
