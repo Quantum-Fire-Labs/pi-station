@@ -4141,6 +4141,8 @@ body.sidebar-resizing {
   background: var(--page);
 }
 .quick-session-dialog.is-dragging { user-select: none; }
+.quick-session-mobile-back { display: none; }
+.quick-session-mobile-heading { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .quick-session-dialog-actions { display: flex; align-items: center; gap: 4px; }
 .quick-session-dialog-body { position: relative; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--page); }
 .quick-session-loading { display: grid; min-height: 100%; place-items: center; background: var(--page); }
@@ -4237,7 +4239,13 @@ body.sidebar-resizing {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  .quick-session-dialog-header { min-height: 52px; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  .quick-session-dialog-header { min-height: 64px; align-items: center; justify-content: flex-start; padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left)); }
+  .quick-session-mobile-back { display: inline-flex; }
+  .quick-session-mobile-heading { position: static; display: grid; width: auto; height: auto; min-width: 0; flex: 1; overflow: visible; clip: auto; gap: 2px; white-space: normal; }
+  .quick-session-mobile-heading [data-slot="dialog-title"] { overflow: hidden; font-size: 16px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .quick-session-mobile-heading small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .quick-session-dialog-actions { margin-left: auto; }
+  .quick-session-minimize { display: none; }
   .quick-session-dialog-body .embedded-session .session-header { display: none; }
   .quick-session-dialog-body .embedded-session .composer-shell { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 }

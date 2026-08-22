@@ -77,10 +77,11 @@ describe("QuickSessionDialog", () => {
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
   });
 
-  it("hides the Quick Session title, Session name, and file path", async () => {
+  it("shows the mobile Session heading without the internal Session name or file path", async () => {
     render(<Harness />);
     const dialog = await openDialog();
-    expect(within(dialog).getByRole("heading", { name: "Quick Session" })).toHaveClass("sr-only");
+    expect(within(dialog).getByRole("heading", { name: "Quick Session" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Back to Dashboard" })).toBeInTheDocument();
     expect(dialog.querySelector(".session-header")).not.toBeInTheDocument();
     expect(dialog.querySelector(".sidebar")).not.toBeInTheDocument();
     expect(within(dialog).queryByText("Dashboard")).not.toBeInTheDocument();
@@ -114,15 +115,14 @@ describe("QuickSessionDialog", () => {
     expect(mock.command).toHaveBeenCalledWith({ kind: "session.model.set", provider: "anthropic", modelId: "claude-sonnet-4-5" }, quickKey);
   });
 
-  it("shows Clear between the actions and close buttons, then clears after confirmation", async () => {
+  it("puts Quick Session actions in the menu and uses a minimize control", async () => {
     render(<Harness />); const dialog = await openDialog();
-    const actions = within(dialog).getByRole("button", { name: "Quick Session actions" });
-    const clear = within(dialog).getByRole("button", { name: "Clear" });
-    const close = within(dialog).getByRole("button", { name: "Close Quick Session" });
-    expect(actions.compareDocumentPosition(clear) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(clear.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    await userEvent.click(clear); await userEvent.click(screen.getByRole("button", { name: "Clear Session" }));
-    expect(mock.clear).toHaveBeenCalledOnce(); expect(screen.getByRole("dialog", { name: "Quick Session" })).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "Minimize Quick Session" })).toBeInTheDocument();
+    await openActions();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Clear Session" }));
+    await userEvent.click(screen.getByRole("button", { name: "Clear Session" }));
+    expect(mock.clear).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog", { name: "Quick Session" })).toBeVisible();
   });
 
   it("keeps to the selected Project and closes", async () => {
