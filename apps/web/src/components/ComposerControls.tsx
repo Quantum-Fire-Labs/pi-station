@@ -59,8 +59,10 @@ export function ComposerControls(props: ComposerControlsProps) {
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button type="button" variant="ghost" className="composer-mobile-thinking-trigger" aria-label={`Change thinking level. Current level: ${thinking ?? "unavailable"}`} disabled={settingDisabled || !props.canChangeThinking || !props.details?.supportedThinkingLevels?.length} />}><Brain aria-hidden="true" /><span>{thinking === undefined ? "Unavailable" : titleCase(thinking)}</span></DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="composer-settings-mobile-menu z-[90] min-w-44" positionerClassName="z-[90]">
-          <DropdownMenuLabel className="composer-mobile-setting-label">Thinking level</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={thinking ?? ""} onValueChange={setThinking}>{props.details?.supportedThinkingLevels?.map((level) => <DropdownMenuRadioItem className="composer-mobile-setting-option" key={level} value={level}>{titleCase(level)}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="composer-mobile-setting-label">Thinking level</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={thinking ?? ""} onValueChange={setThinking}>{props.details?.supportedThinkingLevels?.map((level) => <DropdownMenuRadioItem className="composer-mobile-setting-option" key={level} value={level}>{titleCase(level)}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       <DropdownMenu>

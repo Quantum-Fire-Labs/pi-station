@@ -1600,7 +1600,7 @@ describe("Workspace", () => {
       name: "Change thinking level. Current level: medium",
     });
     expect(thinking).toHaveTextContent("Medium");
-    await user.click(thinking);
+    fireEvent.click(thinking);
 
     const menu = await screen.findByRole("menu");
     expect(within(menu).getByText("Thinking level")).toBeVisible();
