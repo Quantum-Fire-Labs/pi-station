@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { CLOSE_DELEGATED_AGENT_TOOL_NAME, createSdkSessionRuntime, DELEGATED_SESSION_EXCLUDED_TOOLS, DELEGATION_TOOL_NAME, delegatedSessionSettings, deliverDelegationReport, MAX_ACTIVE_DELEGATIONS_PER_SESSION, RECOVER_DELEGATED_AGENT_TOOL_NAME, type RuntimeEvent, type RuntimeSession } from "../session-runtime.js"
 
-function fakeSession() {
+function fakeSession(entries: readonly Record<string, unknown>[] = []) {
   let listener: ((event: RuntimeEvent) => void) | undefined
   let model = { provider: "openai", id: "gpt-a", name: "GPT A", reasoning: true }
   let thinkingLevel = "medium"
@@ -24,7 +24,7 @@ function fakeSession() {
       return Promise.resolve()
     }),
     sendCustomMessage: vi.fn(() => Promise.resolve()),
-    sessionManager: { appendSessionInfo: vi.fn() },
+    sessionManager: { appendCustomEntry: vi.fn(), appendSessionInfo: vi.fn(), getBranch: vi.fn(() => entries) },
     setModel: vi.fn((next: typeof model) => { model = next; return Promise.resolve() }),
     setThinkingLevel: vi.fn((next: string) => { thinkingLevel = next }),
     steer: vi.fn(() => Promise.resolve()),
@@ -214,11 +214,13 @@ describe("SDK Session runtime", () => {
     expect(session.reload).not.toHaveBeenCalled()
   })
 
-  it("applies saved defaults to new SDK Sessions but not opened Sessions", async () => {
+  it("applies saved defaults to new and placeholder SDK Sessions but not opened Sessions", async () => {
     const newSession = fakeSession()
+    const placeholderSession = fakeSession([{ type: "custom", customType: "pi-station-empty-session" }])
     const openedSession = fakeSession()
     const factory = vi.fn()
       .mockResolvedValueOnce(newSession)
+      .mockResolvedValueOnce(placeholderSession)
       .mockResolvedValueOnce(openedSession)
     const sessionDefaults = vi.fn(() => Promise.resolve({
       provider: "openai",
@@ -228,11 +230,16 @@ describe("SDK Session runtime", () => {
     const runtime = createSdkSessionRuntime(factory, { sessionDefaults })
 
     await runtime.run({ projectId: "p1", sessionId: "new-id", session: "new", cwd: "/project", prompt: "Fake prompt" }).completion
+    await runtime.control({ projectId: "p1", sessionId: "placeholder-id", sessionPath: "/sessions/placeholder.jsonl", cwd: "/project", command: { type: "get_state" } })
     await runtime.control({ projectId: "p1", sessionId: "opened-id", sessionPath: "/sessions/opened.jsonl", cwd: "/project", command: { type: "get_state" } })
 
-    expect(sessionDefaults).toHaveBeenCalledOnce()
+    expect(sessionDefaults).toHaveBeenCalledTimes(2)
     expect(newSession.setModel).toHaveBeenCalledWith(expect.objectContaining({ id: "gpt-b" }))
     expect(newSession.setThinkingLevel).toHaveBeenCalledWith("high")
+    expect(placeholderSession.setModel).toHaveBeenCalledWith(expect.objectContaining({ id: "gpt-b" }))
+    expect(placeholderSession.setThinkingLevel).toHaveBeenCalledWith("high")
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(placeholderSession.sessionManager.appendCustomEntry).toHaveBeenCalledWith("pi-station-session-defaults-applied")
     expect(openedSession.setModel).not.toHaveBeenCalled()
     expect(openedSession.setThinkingLevel).not.toHaveBeenCalled()
   })
