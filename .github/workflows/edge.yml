@@ -68,18 +68,22 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: pi-station-edge-*
           path: release
           merge-multiple: true
-      - name: Verify complete artifact set
+      - name: Verify complete artifact set and write version metadata
         shell: bash
         run: |
           for platform in linux-x64 linux-arm64 macos-x64 macos-arm64; do
             test -f "release/pi-station-edge-${platform}.tar.gz"
             test -f "release/pi-station-edge-${platform}.tar.gz.sha256"
           done
+          version="$(node -p 'require("./package.json").version')+${GITHUB_SHA::7}"
+          printf '{"version":"%s","commit":"%s"}\n' "$version" "$GITHUB_SHA" > release/pi-station-edge-version.json
+          grep -F "\"version\":\"$version\"" release/pi-station-edge-version.json
       - name: Move edge tag
         env:
           GH_TOKEN: ${{ github.token }}

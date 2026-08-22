@@ -15,6 +15,7 @@ import { resolveDataDirectory } from "./data-directory.js"
 import { ScheduledJobAgentBridge, ScheduledJobStore, SettingsStore } from "./scheduled-jobs.js"
 import { SessionMoveAgentBridge } from "./session-moves.js"
 import { ProviderAuthService } from "./provider-auth.js"
+import { GitHubReleaseVersions, PiStationUpdater, readInstalledVersion, ServiceManagerUpdateLauncher, UpdateSettingsStore } from "./updater.js"
 
 const dataDirectory = resolveDataDirectory()
 const dataDir = dataDirectory.path
@@ -33,6 +34,12 @@ const sessionDefaults = new SessionDefaultsStore(dataDir)
 const scheduledJobStore = new ScheduledJobStore(dataDir)
 const projectStore = new ProjectStore(dataDir)
 const settingsStore = new SettingsStore(dataDir)
+const updater = new PiStationUpdater(
+  await readInstalledVersion(process.cwd(), process.env.npm_package_version ?? "development"),
+  new UpdateSettingsStore(dataDir),
+  new GitHubReleaseVersions(),
+  new ServiceManagerUpdateLauncher(dataDir),
+)
 const scheduledJobAgentBridge = new ScheduledJobAgentBridge()
 const sessionMoves = new SessionMoveAgentBridge()
 const modelRuntime = await ModelRuntime.create()
@@ -80,6 +87,7 @@ const server = createPiStationServer({
   sharedFiles,
   scheduledJobStore,
   settingsStore,
+  updater,
   scheduledJobAgentBridge,
   agentMessaging,
   sessionMoves,

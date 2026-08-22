@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { Bell, Bot, ChevronRight, Clock, FilePenLine, KeyRound, Mic, Palette } from "lucide-react";
+import { Bell, Bot, ChevronRight, Clock, FilePenLine, KeyRound, Mic, Palette, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 import { SettingsLayout } from "./SettingsLayout";
 
-export type SettingsRoute = "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers";
+export type SettingsRoute = "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers" | "update";
 
 export function SettingsPage({ onBack, onOpen }: { onBack: () => void; onOpen: (route: SettingsRoute) => void }) {
   return (
@@ -19,6 +19,7 @@ export function SettingsPage({ onBack, onOpen }: { onBack: () => void; onOpen: (
             <SettingLink icon={<Bell aria-hidden="true" />} title="Notifications" description="Choose when Pi Station sends completion notifications." onClick={() => onOpen("notifications")} />
             <SettingLink icon={<Mic aria-hidden="true" />} title="Voice Messages" description="Configure transcription and voice responses." onClick={() => onOpen("voice-messages")} />
             <SettingLink icon={<Palette aria-hidden="true" />} title="Themes" description="Choose how Pi Station looks on this device." onClick={() => onOpen("themes")} />
+            <SettingLink icon={<RefreshCw aria-hidden="true" />} title="Pi Station Update" description="Choose a release channel and install updates." onClick={() => onOpen("update")} />
           </CardContent>
         </Card>
       </section>

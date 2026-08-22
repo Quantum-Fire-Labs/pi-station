@@ -1,6 +1,7 @@
 import type {
   AuthTransaction,
   PiStationSettings,
+  PiStationUpdateStatus,
   ProviderAuthStatus,
   ProviderAuthType,
   Project,
@@ -14,6 +15,7 @@ import type {
   SessionUpdatedEvent,
   SessionView,
   StreamEvent,
+  UpdateChannel,
   TimelineItem as RpcTimelineItem,
 } from "@pi-station/application-protocol";
 import type {
@@ -260,6 +262,9 @@ export class ApplicationClient extends ApplicationClientBase {
   async logoutProvider(providerId: string): Promise<readonly ProviderAuthStatus[]> { return (await mutate(`/v2/auth/providers/${encodeURIComponent(providerId)}`, "DELETE") as { providers: ProviderAuthStatus[] }).providers; }
   async getPiStationSettings(): Promise<PiStationSettings> { return (await request<{ settings: PiStationSettings }>("/v2/settings")).settings; }
   async setPiStationTimezone(timezone: string): Promise<PiStationSettings> { return (await mutate("/v2/settings", "PUT", { timezone }) as { settings: PiStationSettings }).settings; }
+  async getUpdateStatus(): Promise<PiStationUpdateStatus> { return (await request<{ update: PiStationUpdateStatus }>("/v2/update")).update; }
+  async setUpdateChannel(channel: UpdateChannel): Promise<PiStationUpdateStatus> { return (await mutate("/v2/update/channel", "PUT", { channel }) as { update: PiStationUpdateStatus }).update; }
+  async requestUpdate(): Promise<void> { await mutate("/v2/update", "POST", {}); }
   async listScheduledJobs(projectId: string): Promise<readonly ScheduledJob[]> { return (await request<{ jobs: ScheduledJob[] }>(`/v2/scheduled-jobs?projectId=${encodeURIComponent(projectId)}`)).jobs; }
   async createScheduledJob(projectId: string, input: ScheduledJobMutation): Promise<ScheduledJob> { return (await mutate("/v2/scheduled-jobs", "POST", { projectId, ...input }) as { job: ScheduledJob }).job; }
   async updateScheduledJob(id: string, input: ScheduledJobMutation): Promise<ScheduledJob> { return (await mutate(`/v2/scheduled-jobs/${encodeURIComponent(id)}`, "PUT", input) as { job: ScheduledJob }).job; }

@@ -24,6 +24,7 @@ import {
   isIanaTimezone,
   isScheduledJobMutation,
   isThinkingSettingRequest,
+  isUpdateChannelMutation,
   PROTOCOL_VERSION,
 } from "@pi-station/application-protocol"
 import type { ModelChoice, Project, SavedSession, ScheduledJob, SessionKey, SessionSettings, ThinkingLevel } from "@pi-station/application-protocol"
@@ -70,6 +71,7 @@ import { SystemThemeService } from "./system-theme.js"
 import { rewriteSessionCwd, type SessionMoveAgentBridge } from "./session-moves.js"
 import { QuickSessionStore, QUICK_SESSION_PROJECT_ID } from "./quick-session.js"
 import { ProviderAuthError, type ProviderAuthService } from "./provider-auth.js"
+import type { PiStationUpdater } from "./updater.js"
 
 const HOST = "127.0.0.1"
 const shutdownContexts = new WeakMap<Server, { shutdown: (timeoutMs: number) => Promise<void> }>()
@@ -98,6 +100,7 @@ export interface PiStationServerOptions {
   readonly sessionMoves?: SessionMoveAgentBridge
   readonly newAgentInProject?: NewAgentInProjectBridge
   readonly providerAuth?: ProviderAuthService
+  readonly updater?: PiStationUpdater
   readonly webRoot?: string
   /** Test seam for the opaque process epoch. Production uses a random UUID. */
   readonly phaseEpoch?: string
@@ -577,6 +580,24 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       }
       if (request.method === "GET" && url.pathname === "/v2/appearance/system-theme/events") {
         openSystemThemeStream(request, response, systemTheme, eventStreams)
+        return
+      }
+      if (options.updater !== undefined && request.method === "GET" && url.pathname === "/v2/update") {
+        sendJson(response, 200, { version: PROTOCOL_VERSION, update: await options.updater.status() })
+        return
+      }
+      if (options.updater !== undefined && request.method === "PUT" && url.pathname === "/v2/update/channel") {
+        assertJsonMutation(request)
+        const value = await readJsonBody(request)
+        if (!isUpdateChannelMutation(value)) throw new HttpError(400, "Update channel must be stable or edge")
+        sendJson(response, 200, { version: PROTOCOL_VERSION, update: await options.updater.setChannel(value.channel) })
+        return
+      }
+      if (options.updater !== undefined && request.method === "POST" && url.pathname === "/v2/update") {
+        assertJsonMutation(request)
+        await requireEmptyJsonObject(request)
+        await options.updater.requestUpdate()
+        sendJson(response, 202, { version: PROTOCOL_VERSION, accepted: true })
         return
       }
       if (request.method === "GET" && url.pathname === "/v2/settings") {

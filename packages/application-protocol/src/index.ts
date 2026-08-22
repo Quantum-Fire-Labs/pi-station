@@ -1,5 +1,8 @@
 export { PROTOCOL_VERSION } from "./version.js"
 
+export { isUpdateChannel, isUpdateChannelMutation } from "./update.js"
+export type { PiStationUpdateStatus, UpdateChannel, UpdateChannelMutation } from "./update.js"
+
 export { isAuthLoginRequest, isAuthPromptResponse } from "./auth.js"
 export type { AuthNotification, AuthPromptView, AuthTransaction, ProviderAuthMethod, ProviderAuthStatus, ProviderAuthType } from "./auth.js"
 

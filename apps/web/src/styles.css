@@ -4081,6 +4081,13 @@ body.sidebar-resizing {
 .settings-toggle-row > span { display: grid; gap: 3px; }
 .settings-toggle-row small { color: var(--muted); font-size: 12px; }
 .settings-card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.settings-card-actions small { color: var(--muted); font-size: 12px; }
+.update-settings-content { display: grid; gap: 18px; }
+.update-version-list { display: grid; margin: 0; border-block: 1px solid var(--line); }
+.update-version-list > div { display: flex; justify-content: space-between; gap: 18px; padding: 11px 0; }
+.update-version-list > div + div { border-top: 1px solid var(--line); }
+.update-version-list dt { color: var(--muted); font-size: 12px; }
+.update-version-list dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
 .voice-settings-content { display: grid; gap: 16px; }
 .voice-settings-content .settings-panel { display: grid; gap: 14px; border: 1px solid var(--line); border-radius: var(--radius-xl); background: transparent; padding: 18px; box-shadow: none; }
 .voice-settings-content .settings-panel h2 { margin: 0; font-size: 15px; }

@@ -75,6 +75,16 @@ describe("release bootstrap installer", () => {
   })
 })
 
+describe("edge release metadata", () => {
+  it("publishes the immutable internal VERSION beside the moving edge assets", () => {
+    const workflow = readFileSync(resolve(import.meta.dirname, "../.github/workflows/edge.yml"), "utf8")
+    expect(workflow).toContain("pi-station-edge-version.json")
+    expect(workflow).toContain("require(\"./package.json\").version")
+    expect(workflow).toContain("+${GITHUB_SHA::7}")
+    expect(workflow).toContain("gh release upload edge release/*")
+  })
+})
+
 describe("Linux release installer", () => {
   it.runIf(process.platform === "linux")("restores the previous release and service files when health validation fails", () => {
     const root = mkdtempSync(resolve(tmpdir(), "pi-station-installer-")); roots.push(root)
