@@ -780,6 +780,26 @@ describe("Workspace", () => {
     expect(within(dashboard).getByRole("heading", { name: "Earlier" })).toBeVisible();
   });
 
+  it("orders unbookmarked sidebar Projects by name instead of Session activity", () => {
+    const sessions = fixtureState.sessions.map((session) => ({
+      ...session,
+      lastActivityAt: session.projectId === fixtureState.projects[0]?.projectId
+        ? "2026-08-10T10:00:00.000Z"
+        : "2026-08-09T10:00:00.000Z",
+    }));
+    const { container } = render(
+      <Workspace
+        state={{ ...fixtureState, projectBookmarks: [], sessions }}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(
+      [...container.querySelectorAll(".project-name-link")]
+        .map((element) => element.textContent),
+    ).toEqual(["Field Notes", "Pi Station"]);
+  });
+
   it("shows an empty open state for an expanded bookmarked Project", () => {
     const project = fixtureState.projects[0];
     if (project === undefined) throw new Error("Project fixture is missing");

@@ -707,15 +707,6 @@ function Sidebar({
       position,
     ]),
   );
-  const latestActivity = (projectId: string): number => {
-    const activity = state.sessions
-      .filter((session) => (
-        session.projectId === projectId
-        && sessionIsOpen(session)
-      ))
-      .map((session) => sessionTime(session.lastActivityAt));
-    return Math.max(...activity, 0);
-  };
   let sessionShortcutNumber = 0;
   const projects = state.projects
     .filter((project) => (
@@ -732,16 +723,11 @@ function Sidebar({
         return (leftPosition ?? Number.MAX_SAFE_INTEGER)
           - (rightPosition ?? Number.MAX_SAFE_INTEGER);
       }
-      const activityDifference = latestActivity(right.projectId)
-        - latestActivity(left.projectId);
-      const nameDifference = left.name.localeCompare(
+      return left.name.localeCompare(
         right.name,
         undefined,
         { sensitivity: "base" },
-      );
-      return activityDifference
-        || nameDifference
-        || left.projectId.localeCompare(right.projectId);
+      ) || left.projectId.localeCompare(right.projectId);
     });
   const sessionPosition = new Map(
     state.sessionBookmarks.map(({ sessionKey, position }) => [
