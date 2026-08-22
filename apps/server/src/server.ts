@@ -596,7 +596,11 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (options.updater !== undefined && request.method === "POST" && url.pathname === "/v2/update") {
         assertJsonMutation(request)
         await requireEmptyJsonObject(request)
-        await options.updater.requestUpdate()
+        try {
+          await options.updater.requestUpdate()
+        } catch {
+          throw new HttpError(503, "The update job could not start. Check the Pi Station service logs and try again.")
+        }
         sendJson(response, 202, { version: PROTOCOL_VERSION, accepted: true })
         return
       }

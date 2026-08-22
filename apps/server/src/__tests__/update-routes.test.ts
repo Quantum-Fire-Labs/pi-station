@@ -54,6 +54,11 @@ describe("update routes", () => {
       expect(requested.status).toBe(202)
       expect(requestUpdate).toHaveBeenCalledOnce()
       expect(JSON.stringify(await requested.json())).not.toContain("credential")
+
+      requestUpdate.mockRejectedValueOnce(new Error("private launcher details"))
+      const failed = await fetch(`${base}/v2/update`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+      expect(failed.status).toBe(503)
+      expect(await failed.json()).toEqual({ error: "The update job could not start. Check the Pi Station service logs and try again." })
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }

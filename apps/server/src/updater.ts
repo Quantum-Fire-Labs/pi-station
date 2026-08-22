@@ -112,6 +112,8 @@ function runLauncher(command: string, arguments_: readonly string[]): Promise<vo
         HOME: homedir(),
         PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
         ...(process.env.TMPDIR === undefined ? {} : { TMPDIR: process.env.TMPDIR }),
+        ...(process.env.XDG_RUNTIME_DIR === undefined ? {} : { XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR }),
+        ...(process.env.DBUS_SESSION_BUS_ADDRESS === undefined ? {} : { DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS }),
       },
     })
     child.once("error", reject)
