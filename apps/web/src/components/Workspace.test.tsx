@@ -1591,6 +1591,28 @@ describe("Workspace", () => {
     expect(screen.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
   });
 
+  it("exposes thinking level directly in the mobile composer", async () => {
+    enableMobileViewport();
+    const user = userEvent.setup();
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    const thinking = screen.getByRole("button", {
+      name: "Change thinking level. Current level: medium",
+    });
+    expect(thinking).toHaveTextContent("Medium");
+    await user.click(thinking);
+
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByText("Thinking level")).toBeVisible();
+    expect(within(menu).getByRole("menuitemradio", { name: "Medium" }))
+      .toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("region", { name: "Selected Session" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(thinking).toHaveFocus();
+  });
+
   it("opens and closes the mobile Session settings menu without removing the app", async () => {
     enableMobileViewport();
     const user = userEvent.setup();
@@ -1601,7 +1623,6 @@ describe("Workspace", () => {
     const menu = await screen.findByRole("menu");
     expect(menu).toBeVisible();
     expect(within(menu).getByText(/Model ·/)).toBeVisible();
-    expect(within(menu).getByText(/Thinking ·/)).toBeVisible();
     expect(screen.getByRole("region", { name: "Selected Session" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");

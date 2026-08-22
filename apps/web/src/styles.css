@@ -1367,6 +1367,8 @@ body.sidebar-resizing {
 .composer-settings-mobile-menu { background: var(--raised); color: var(--text); }
 .composer-settings-mobile-menu .composer-mobile-setting-label,
 .composer-settings-mobile-menu .composer-mobile-setting-option { font-size: 12px; }
+.composer-mobile-thinking-trigger { gap: 5px; padding-inline: 8px; font-size: 12px; }
+.composer-mobile-thinking-trigger svg { width: 15px; height: 15px; }
 .composer-send-mode { padding: 0 4px; white-space: nowrap; }
 .composer-primary-actions { display: flex; align-items: center; gap: 8px !important; }
 .composer-primary-actions > button:last-child {
@@ -4090,9 +4092,9 @@ body.sidebar-resizing {
 .theme-grid { gap: 14px; }
 @media (max-width: 760px) {
   .composer-settings-desktop { display: none; }
-  .composer-settings-mobile { display: block; }
+  .composer-settings-mobile { display: flex; align-items: center; gap: 2px; }
   .composer-controls > span { gap: 6px; }
-  .voice-mode .composer-settings-mobile { display: block; }
+  .voice-mode .composer-settings-mobile { display: flex; }
 
   .creation-page, .settings-page { padding: 24px 18px 48px; }
   .creation-page-header, .settings-page-header { margin-bottom: 22px; }
