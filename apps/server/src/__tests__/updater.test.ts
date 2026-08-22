@@ -65,18 +65,28 @@ describe("Pi Station updater", () => {
     const root = await temporaryDirectory()
     const bin = join(root, "bin")
     const invocation = join(root, "invocation")
+    const launcherEnvironment = join(root, "launcher-environment")
     await mkdir(bin)
     const command = join(bin, "systemd-run")
-    await writeFile(command, `#!/bin/bash\nprintf '%s\\n' "$@" > '${invocation}'\n`)
+    await writeFile(command, `#!/bin/bash\nprintf '%s\\n' "$@" > '${invocation}'\nprintf '%s\\n%s\\n' "$XDG_RUNTIME_DIR" "$DBUS_SESSION_BUS_ADDRESS" > '${launcherEnvironment}'\n`)
     await chmod(command, 0o755)
     const originalPath = process.env.PATH
+    const originalRuntimeDirectory = process.env.XDG_RUNTIME_DIR
+    const originalBusAddress = process.env.DBUS_SESSION_BUS_ADDRESS
     process.env.PATH = `${bin}:/usr/bin:/bin`
-    try { await new ServiceManagerUpdateLauncher(root, "linux").launch("edge") } finally { process.env.PATH = originalPath }
+    process.env.XDG_RUNTIME_DIR = "/run/user/test"
+    process.env.DBUS_SESSION_BUS_ADDRESS = "unix:path=/run/user/test/bus"
+    try { await new ServiceManagerUpdateLauncher(root, "linux").launch("edge") } finally {
+      process.env.PATH = originalPath
+      if (originalRuntimeDirectory === undefined) delete process.env.XDG_RUNTIME_DIR; else process.env.XDG_RUNTIME_DIR = originalRuntimeDirectory
+      if (originalBusAddress === undefined) delete process.env.DBUS_SESSION_BUS_ADDRESS; else process.env.DBUS_SESSION_BUS_ADDRESS = originalBusAddress
+    }
 
     const arguments_ = await readFile(invocation, "utf8")
     expect(arguments_).toContain("--service-type=exec")
     expect(arguments_).toContain("run-update.sh")
     expect(arguments_).toContain("edge")
+    expect(await readFile(launcherEnvironment, "utf8")).toBe("/run/user/test\nunix:path=/run/user/test/bus\n")
     const script = await readFile(join(root, "updater", "run-update.sh"), "utf8")
     expect(script).toContain("PI_STATION_CHANNEL=\"$channel\"")
     expect(script).not.toContain("auth.json")
