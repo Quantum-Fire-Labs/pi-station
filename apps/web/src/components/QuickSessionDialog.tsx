@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Ellipsis } from "lucide-react";
+import { ArrowLeft, Ellipsis, Minus } from "lucide-react";
 import { ApplicationClient } from "../application/application-client";
 import type { ApplicationState } from "../application/application-client-base";
 import type { SessionKey } from "../application/workspace-model";
 import { KeepSessionModal } from "./KeepSessionModal";
 import { Workspace } from "./Workspace";
 import { Button } from "./ui/button";
-import { Dialog, DialogCloseButton, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 
@@ -98,16 +98,24 @@ export function QuickSessionDialog({ open, onOpenChange, onKept }: QuickSessionD
         onPointerCancel={() => { dragOffset.current = undefined; setPosition(dragPosition.current); setDragging(false); }}
       >
         <DialogHeader className="quick-session-dialog-header flex-row gap-1 text-left">
-          <DialogTitle className="sr-only">Quick Session</DialogTitle>
+          <button className="mobile-back quick-session-mobile-back" type="button" onClick={() => onOpenChange(false)} aria-label="Back to Dashboard">
+            <ArrowLeft aria-hidden="true" size={19} />
+          </button>
+          <div className="quick-session-mobile-heading">
+            <DialogTitle>Quick Session</DialogTitle>
+            <small>{state.selected.details?.model?.modelId ?? "gpt-5.6-sol"} · {state.selected.details?.thinkingLevel ?? "Medium"}</small>
+          </div>
           <span className="quick-session-dialog-actions">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Quick Session actions" />}><Ellipsis aria-hidden="true" size={18} /></DropdownMenuTrigger>
               <DropdownMenuContent className="z-[90] bg-popover" positionerClassName="z-[90]" align="end">
                 <DropdownMenuItem onClick={() => setKeepOpen(true)}>Keep Session</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setClearOpen(true)}>Clear Session</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setClearOpen(true)}>Clear</Button>
-            <DialogCloseButton />
+            <Button className="quick-session-minimize" type="button" variant="ghost" size="icon" aria-label="Minimize Quick Session" onClick={() => onOpenChange(false)}>
+              <Minus aria-hidden="true" size={18} />
+            </Button>
           </span>
         </DialogHeader>
         {error !== undefined && <p className="quick-session-error" role="alert">{error}</p>}
