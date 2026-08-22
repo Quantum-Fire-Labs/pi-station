@@ -1,4 +1,4 @@
-import { SlidersHorizontal } from "lucide-react";
+import { Brain, SlidersHorizontal } from "lucide-react";
 import type { ThinkingLevel } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
 import { Button } from "./ui/button";
@@ -57,16 +57,18 @@ export function ComposerControls(props: ComposerControlsProps) {
     </div>
     <div className="composer-settings-mobile">
       <DropdownMenu>
+        <DropdownMenuTrigger render={<Button type="button" variant="ghost" className="composer-mobile-thinking-trigger" aria-label={`Change thinking level. Current level: ${thinking ?? "unavailable"}`} disabled={settingDisabled || !props.canChangeThinking || !props.details?.supportedThinkingLevels?.length} />}><Brain aria-hidden="true" /><span>{thinking === undefined ? "Unavailable" : titleCase(thinking)}</span></DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="composer-settings-mobile-menu z-[90] min-w-44" positionerClassName="z-[90]">
+          <DropdownMenuLabel className="composer-mobile-setting-label">Thinking level</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={thinking ?? ""} onValueChange={setThinking}>{props.details?.supportedThinkingLevels?.map((level) => <DropdownMenuRadioItem className="composer-mobile-setting-option" key={level} value={level}>{titleCase(level)}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
         <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" aria-label="Session and delivery settings" disabled={settingDisabled} />}><SlidersHorizontal aria-hidden="true" /></DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="composer-settings-mobile-menu z-[90] min-w-64" positionerClassName="z-[90]">
           <DropdownMenuGroup>
             <DropdownMenuLabel className="composer-mobile-setting-label">Model · {modelLabel}</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={modelValue} onValueChange={setModel}>{props.details?.modelInventory?.map((item) => <DropdownMenuRadioItem className="composer-mobile-setting-option" key={`${item.provider}:${item.modelId}`} value={encodeModel(item.provider, item.modelId)} disabled={!props.canChangeModel}>{item.displayName ?? item.modelId}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="composer-mobile-setting-label">Thinking · {thinking === undefined ? "Unavailable" : titleCase(thinking)}</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={thinking ?? ""} onValueChange={setThinking}>{props.details?.supportedThinkingLevels?.map((level) => <DropdownMenuRadioItem className="composer-mobile-setting-option" key={level} value={level} disabled={!props.canChangeThinking}>{titleCase(level)}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
