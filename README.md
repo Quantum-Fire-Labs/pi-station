@@ -73,7 +73,15 @@ To update manually to the current edge build:
 curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh | PI_STATION_CHANNEL=edge bash
 ```
 
-The edge workflow builds and checks native Linux and macOS artifacts for x64 and ARM64 after changes reach `master`. Edge installation is manual. Pi Station does not enable automatic updates or an update timer.
+The edge workflow builds and checks native Linux and macOS artifacts for x64 and ARM64 after changes reach `master`. It publishes `pi-station-edge-version.json` with the same immutable version stored in each archive's `VERSION` file. An older edge release without this metadata remains installable, but Settings reports its latest version as unavailable instead of guessing.
+
+### Update from Settings
+
+Open **Settings > Pi Station Update** to select the stable or edge channel, compare the installed and latest versions, and request an update. The selected channel is stored in `update-settings.json` under the Pi Station data directory. It is not stored with provider credentials. Pi Station never installs updates automatically and does not create an update timer.
+
+The server checks GitHub's `releases/latest` tag for stable. It reads the immutable metadata asset for edge. When you request an update, the server starts the existing release bootstrap installer with `PI_STATION_CHANNEL` in a separate systemd user service on Linux or a separate launchd job on macOS. This detached job remains active when the Pi Station service restarts. The normal maintenance screen remains visible while the installer waits for active Sessions, switches the release, validates health, and completes.
+
+The Settings updater supports release installations on Linux and macOS. A source checkout can show version information, but update execution requires the applicable user service manager and a supported release installation.
 
 ### Linux
 

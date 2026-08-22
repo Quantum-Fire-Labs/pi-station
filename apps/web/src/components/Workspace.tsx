@@ -88,6 +88,7 @@ const SessionDefaultsPage = lazy(async () => ({
 const TimezoneSettingsPage = lazy(async () => ({ default: (await import("./TimezoneSettingsPage")).TimezoneSettingsPage }));
 const EditorSettingsPage = lazy(async () => ({ default: (await import("./EditorSettingsPage")).EditorSettingsPage }));
 const ProviderAuthPage = lazy(async () => ({ default: (await import("./ProviderAuthPage")).ProviderAuthPage }));
+const UpdateSettingsPage = lazy(async () => ({ default: (await import("./UpdateSettingsPage")).UpdateSettingsPage }));
 
 interface WorkspaceProps {
   state: ApplicationState;
@@ -689,7 +690,7 @@ function Sidebar({
   onOpenProject: (projectId: ProjectId) => void;
   onSessionContextMenu: (session: SessionSummary, x: number, y: number) => void;
   onOpenQuickSession: () => void;
-  activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers";
+  activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers" | "update";
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
   onCollapse: () => void;
@@ -2902,6 +2903,7 @@ export function Workspace({
   if (route === "providers" && client !== undefined) return renderPage(<ProviderAuthPage client={client} onBack={() => setRoute("settings")} />);
   if (route === "timezone") return renderPage(<TimezoneSettingsPage client={client} onBack={() => setRoute("settings")} />);
   if (route === "editor") return renderPage(<EditorSettingsPage onBack={() => setRoute("settings")} />);
+  if (route === "update" && client !== undefined) return renderPage(<UpdateSettingsPage client={client} onBack={() => setRoute("settings")} />);
   if (route === "voice-messages") {
     return renderPage(
       <VoiceSettingsPage onBack={() => setRoute("settings")} />,
