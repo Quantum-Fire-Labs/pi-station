@@ -1204,35 +1204,42 @@ body.sidebar-resizing {
   max-height: min(32dvh, 260px);
   overflow-y: auto;
   margin: 0 auto 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--raised);
-  padding: 10px 14px;
+  padding: 0 6px;
 }
 .follow-up-queue > strong {
   display: block;
+  margin: 0 4px 6px;
   color: var(--muted);
-  font: 11px var(--mono);
+  font: 10px var(--mono);
+  text-align: right;
 }
 .follow-up-queue ul {
-  margin: 7px 0 0;
+  display: grid;
+  gap: 8px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 .follow-up-queue li {
   display: grid;
-  gap: 3px;
-  border-top: 1px solid var(--line);
-  padding: 8px 0 2px;
+  width: min(92%, 620px);
+  gap: 6px;
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 14px 14px 3px;
+  background: var(--user);
+  padding: 12px 16px;
 }
 .follow-up-queue li > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 .follow-up-queue li > small {
   color: var(--faint);
   font: 9px var(--mono);
+  text-align: right;
 }
 .composer {
   position: relative;
@@ -1352,8 +1359,7 @@ body.sidebar-resizing {
 }
 .composer-controls > span:first-child { min-width: 0; flex-wrap: wrap; }
 .composer-settings-desktop { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 10px; }
-.composer-attachment-button { border-color: var(--ui-input); color: var(--text); }
-.composer-settings-desktop [data-slot="select-trigger"] { min-width: 0; flex: 0 1 auto; color: var(--text); font-family: var(--sans); }
+.composer-settings-desktop [data-slot="select-trigger"] { min-width: 0; flex: 0 1 auto; border-color: var(--muted); color: var(--text); font-family: var(--sans); }
 .composer-settings-desktop .composer-model-trigger,
 .composer-settings-desktop .composer-thinking-trigger,
 .composer-settings-desktop .composer-delivery-trigger { font-size: 12px; }

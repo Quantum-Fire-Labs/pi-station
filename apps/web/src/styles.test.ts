@@ -15,6 +15,7 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer\s*{[^}]*var\(--composer-content\)/s);
     expect(styles).toMatch(/\.composer\s*{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 16px;/s);
     expect(styles).toMatch(/\.follow-up-queue\s*{[^}]*var\(--composer-content\)/s);
+    expect(styles).toMatch(/\.follow-up-queue li\s*\{[^}]*width: min\(92%, 620px\);[^}]*border-radius: 14px 14px 3px;[^}]*background: var\(--user\);/s);
     expect(styles).toMatch(/\.voice-mode\s*{[^}]*var\(--composer-content\)/s);
   });
 
@@ -40,7 +41,10 @@ describe("composer width", () => {
     expect(workspaceSource).toContain('className="voice-mode-record"');
   });
 
-  it("uses 12px type and opaque theme surfaces for composer setting menus", () => {
+  it("uses muted borders, 12px type, and opaque theme surfaces for composer setting menus", () => {
+    expect(styles).toMatch(/\.composer-settings-desktop \[data-slot="select-trigger"\]\s*\{[^}]*border-color: var\(--muted\);/s);
+    expect(workspaceSource).toMatch(/variant="ghost"\s*size="icon"\s*disabled=[\s\S]*aria-label="Attach files"/);
+    expect(styles).not.toContain(".composer-attachment-button");
     expect(styles).toMatch(/\.composer-settings-desktop \.composer-model-trigger,\s*\.composer-settings-desktop \.composer-thinking-trigger,\s*\.composer-settings-desktop \.composer-delivery-trigger\s*{[^}]*font-size: 12px;/s);
     expect(styles).toMatch(/\.composer-setting-select-menu\s*{[^}]*background: var\(--raised\);[^}]*color: var\(--text\);/s);
     expect(styles).toMatch(/\.composer-setting-select-menu \[data-slot="select-item"\]\s*{[^}]*font-size: 12px;/s);
