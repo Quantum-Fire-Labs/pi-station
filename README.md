@@ -83,6 +83,41 @@ The server checks GitHub's `releases/latest` tag for stable. It reads the immuta
 
 The Settings updater supports release installations on Linux and macOS. A source checkout can show version information, but update execution requires the applicable user service manager and a supported release installation.
 
+### Tailnet access on Linux
+
+Pi Station can use Tailscale Serve for private HTTPS access from authorized devices on the same tailnet. The setup keeps Pi Station bound to loopback and does not use Tailscale Funnel. A connected Pi Station client can ask tools to act with the host user's authority, so restrict tailnet membership and access controls accordingly.
+
+Install and connect Tailscale first. Then run the opt-in setup:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/setup-tailscale.sh | bash
+```
+
+The script reads the installed Pi Station port and the machine's MagicDNS name, adds the HTTPS origin through a systemd drop-in, restarts only Pi Station, configures Tailscale Serve, and validates both local and tailnet access. If validation fails, it restores the prior Pi Station and Tailscale Serve configuration. It refuses to replace an unrelated route on HTTPS port 443.
+
+If port 443 is already assigned, choose an unused HTTPS port explicitly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/setup-tailscale.sh |
+  PI_STATION_TAILSCALE_HTTPS_PORT=8443 bash
+```
+
+Inspect the configuration and service:
+
+```bash
+tailscale serve status
+systemctl --user status pi-station.service
+journalctl --user -u pi-station.service
+```
+
+For a headless machine that must continue running after logout, enable the systemd user manager for the account:
+
+```bash
+loginctl enable-linger "$USER"
+```
+
+The helper currently supports Linux installations. It does not install Tailscale, change tailnet access controls, enable Funnel, or configure automatic updates.
+
 ### Linux
 
 The installer creates `pi-station.service` as a user service. It installs application files below `~/.local/share/pi-station/app` and stores application data, including shared Session files, in `~/.local/share/pi-station`. It binds the server to loopback and opens the Workspace at `http://127.0.0.1:8801/workspace`.
