@@ -3397,9 +3397,8 @@ export function Workspace({
               <span>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  className="composer-attachment-button"
                   disabled={!commandAvailable || commandPending || images.length >= 4}
                   aria-label="Attach files"
                   onClick={() => fileInput.current?.click()}
