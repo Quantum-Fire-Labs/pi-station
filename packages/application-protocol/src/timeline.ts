@@ -38,6 +38,13 @@ export type TimelineItem =
     }
   | {
       readonly id: string
+      readonly kind: "context-summary"
+      readonly summaryType: "compaction" | "branch"
+      readonly text: string
+      readonly timestamp?: string
+    }
+  | {
+      readonly id: string
       readonly kind: "agent"
       readonly fromSessionId: string
       readonly fromName?: string

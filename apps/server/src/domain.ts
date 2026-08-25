@@ -62,7 +62,13 @@ function normalizedActiveTimeline(entries: readonly SessionEntry[]): readonly Ti
   for (let entryIndex = 0; entryIndex < entries.length; entryIndex += 1) {
     const entry = entries[entryIndex]!
     if (entry.type === "compaction" || entry.type === "branch_summary") {
-      timeline.push({ id: entry.id, kind: "system", text: entry.summary, timestamp: entry.timestamp })
+      timeline.push({
+        id: entry.id,
+        kind: "context-summary",
+        summaryType: entry.type === "compaction" ? "compaction" : "branch",
+        text: entry.summary,
+        timestamp: entry.timestamp,
+      })
       continue
     }
     if (entry.type === "custom_message" && entry.customType === ATTACHMENT_CUSTOM_TYPE) {

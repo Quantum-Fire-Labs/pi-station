@@ -208,6 +208,27 @@ function ToolActivity({
   );
 }
 
+function ContextSummary({
+  item,
+  onOpenSharedMarkdown,
+}: {
+  item: Extract<TimelineItem, { category: "context-summary" }>;
+  onOpenSharedMarkdown?: ((url: string) => void) | undefined;
+}) {
+  const label = item.content.summaryType === "compaction" ? "Compaction summary" : "Branch summary";
+  return (
+    <article className="message context-summary">
+      <details>
+        <summary>
+          <span>{label}</span>
+          <small>Context preserved by Pi</small>
+        </summary>
+        <Markdown text={item.content.text} onOpenSharedMarkdown={onOpenSharedMarkdown} />
+      </details>
+    </article>
+  );
+}
+
 export function FeedItem({
   item,
   sessionWorking = false,
@@ -280,6 +301,8 @@ export function FeedItem({
       );
     case "tool-activity":
       return <ToolActivity item={item} sessionWorking={sessionWorking} />;
+    case "context-summary":
+      return <ContextSummary item={item} onOpenSharedMarkdown={onOpenSharedMarkdown} />;
     case "assistant-response":
       return (
         <article className="message assistant">
