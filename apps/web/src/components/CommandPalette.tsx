@@ -15,6 +15,7 @@ import {
   Brain,
   FolderKanban,
   FolderPlus,
+  History,
   Hash,
   Info,
   LayoutDashboard,
@@ -32,11 +33,19 @@ interface PaletteAction {
   run: () => void;
 }
 
+export interface PaletteSession {
+  readonly id: string;
+  readonly name: string;
+  readonly projectName?: string | undefined;
+  readonly closed: boolean;
+}
+
 type Flow =
   | { kind: "actions" }
   | { kind: "rename"; value: string }
   | { kind: "model" }
   | { kind: "thinking" }
+  | { kind: "sessions" }
   | { kind: "close" };
 
 export interface CommandPaletteProps {
@@ -57,6 +66,7 @@ export interface CommandPaletteProps {
   thinkingLevels?: readonly ThinkingLevel[] | undefined;
   currentModel?: ModelChoice | undefined;
   currentThinking?: ThinkingLevel | undefined;
+  sessions?: readonly PaletteSession[] | undefined;
   pending?: boolean | undefined;
   error?: string | undefined;
   onDashboard: () => void;
@@ -69,6 +79,7 @@ export interface CommandPaletteProps {
   onRename?: ((name: string) => void) | undefined;
   onSetModel?: ((provider: string, modelId: string) => void) | undefined;
   onSetThinking?: ((level: ThinkingLevel) => void) | undefined;
+  onOpenSession?: ((id: string) => void) | undefined;
   onSetBookmark?: ((bookmarked: boolean) => void) | undefined;
   onClone?: (() => void) | undefined;
   onAbort?: (() => void) | undefined;
@@ -92,6 +103,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       { glyph: <FolderKanban aria-hidden="true" size={16} />, name: "Projects", run: () => closeAfter(props.onProjects) },
       { glyph: <FolderPlus aria-hidden="true" size={16} />, name: "Add Project", run: () => closeAfter(props.onAddProject) },
     ];
+    if (props.onOpenSession) items.push({ glyph: <History aria-hidden="true" size={16} />, name: "Sessions", run: () => { setFlow({ kind: "sessions" }); setQuery(""); } });
     if (props.canCreateSession && props.onNewSession) items.push({ glyph: <Plus aria-hidden="true" size={16} />, name: "New Session", run: () => closeAfter(props.onNewSession) });
     if (props.projectName && props.onOpenProject) items.push({ glyph: <FolderKanban aria-hidden="true" size={16} />, name: `Open Project: ${props.projectName}`, run: () => closeAfter(props.onOpenProject) });
     if (props.projectName && props.canCreateSession && props.onNewProjectSession) items.push({ glyph: <Plus aria-hidden="true" size={16} />, name: `New Session in ${props.projectName}`, run: () => closeAfter(props.onNewProjectSession) });
@@ -110,11 +122,20 @@ export function CommandPalette(props: CommandPaletteProps) {
   }, [props]);
   const shownActions = useMemo(() => actions.filter(({ name }) => name.toLowerCase().includes(query.toLowerCase())), [actions, query]);
   const choices = flow.kind === "model" ? props.models ?? [] : flow.kind === "thinking" ? props.thinkingLevels ?? [] : [];
+  const shownSessions = useMemo(() => {
+    if (flow.kind !== "sessions") return [];
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    return [...(props.sessions ?? [])]
+      .filter((session) => session.name.toLocaleLowerCase().includes(normalizedQuery))
+      .sort((left, right) => Number(left.closed) - Number(right.closed)
+        || left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
+        || (left.projectName ?? "").localeCompare(right.projectName ?? "", undefined, { sensitivity: "base" }));
+  }, [flow.kind, props.sessions, query]);
   const closeChoices = [
     { glyph: <ArrowLeft aria-hidden="true" size={16} />, name: "Keep Session open", danger: false },
     { glyph: <X aria-hidden="true" size={16} />, name: props.working ? "Stop work and close Session" : "Close Session", danger: true },
   ] as const;
-  const count = flow.kind === "actions" ? shownActions.length : flow.kind === "close" ? closeChoices.length : choices.length;
+  const count = flow.kind === "actions" ? shownActions.length : flow.kind === "sessions" ? shownSessions.length : flow.kind === "close" ? closeChoices.length : choices.length;
 
   useEffect(() => () => returnFocusRef.current?.focus(), []);
   useLayoutEffect(() => {
@@ -135,6 +156,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     if (flow.kind === "actions") shownActions[activeIndex]?.run();
     else if (flow.kind === "model") { const model = props.models?.[activeIndex]; if (model) props.onSetModel?.(model.provider, model.modelId); }
     else if (flow.kind === "thinking") { const level = props.thinkingLevels?.[activeIndex]; if (level) props.onSetThinking?.(level); }
+    else if (flow.kind === "sessions") { const session = shownSessions[activeIndex]; if (session) closeAfter(() => props.onOpenSession?.(session.id)); }
     else if (flow.kind === "close") {
       if (activeIndex === 0) back();
       else props.onConfirmClose?.();
@@ -147,13 +169,13 @@ export function CommandPalette(props: CommandPaletteProps) {
     if (event.key === "Enter" && flow.kind !== "rename") { event.preventDefault(); select(); }
   };
   const closeSessionName = props.sessionName?.trim();
-  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?";
-  const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
+  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?";
+  const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
 
   return <div className="palette-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) back(); }}>
     <section ref={panelRef} className="palette" role="dialog" aria-modal="true" aria-labelledby="palette-title" tabIndex={-1} onKeyDown={handleKeyDown}>
-      {flow.kind === "actions" && <label className="palette-search"><Search aria-hidden="true" size={17} /><span id="palette-title" className="sr-only">{title}</span><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder="Choose an action…" aria-controls="palette-results" /><kbd>Esc</kbd></label>}
-      {flow.kind !== "actions" && <header className="palette-flow-header"><button type="button" onClick={back} disabled={props.pending} aria-label="Back to actions">{flowGlyph}</button><h2 id="palette-title">{title}</h2><kbd>Esc</kbd></header>}
+      {(flow.kind === "actions" || flow.kind === "sessions") && <label className="palette-search"><Search aria-hidden="true" size={17} /><span id="palette-title" className="sr-only">{title}</span><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "sessions" ? "Search Sessions…" : "Choose an action…"} aria-controls="palette-results" /><kbd>Esc</kbd></label>}
+      {flow.kind !== "actions" && flow.kind !== "sessions" && <header className="palette-flow-header"><button type="button" onClick={back} disabled={props.pending} aria-label="Back to actions">{flowGlyph}</button><h2 id="palette-title">{title}</h2><kbd>Esc</kbd></header>}
       {flow.kind === "rename" && <form className="palette-form" onSubmit={(event) => { event.preventDefault(); const value = flow.value.trim(); if (value && !props.pending) props.onRename?.(value); }}><label>Session name<input ref={inputRef} value={flow.value} maxLength={120} onChange={(event) => setFlow({ kind: "rename", value: event.target.value })} /></label><button type="submit" disabled={!flow.value.trim() || props.pending}>{props.pending ? "Saving…" : "Save"}</button></form>}
       {(flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking") && <div id="palette-results" className="palette-results" role="listbox">
         {(flow.kind === "actions" ? shownActions : choices).map((item, index) => {
@@ -175,6 +197,13 @@ export function CommandPalette(props: CommandPaletteProps) {
         })}
         {count === 0 && <p className="palette-empty" role="status">No actions match that search.</p>}
       </div>}
+      {flow.kind === "sessions" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Sessions">
+        {shownSessions.map((session, index) => <button type="button" key={session.id} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => closeAfter(() => props.onOpenSession?.(session.id))}>
+          <span className="palette-option-glyph" aria-hidden="true"><History size={14} /></span>
+          <span className="palette-option-copy"><span className="palette-option-name">{session.name}</span><small>{[session.projectName, session.closed ? "Closed" : undefined].filter(Boolean).join(" · ")}</small></span>
+        </button>)}
+        {count === 0 && <p className="palette-empty" role="status">No named Sessions match that search.</p>}
+      </div>}
       {flow.kind === "close" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Close Session confirmation">
         {closeChoices.map((item, index) => <button
           type="button"
@@ -191,7 +220,7 @@ export function CommandPalette(props: CommandPaletteProps) {
         ><span className="palette-option-glyph" aria-hidden="true">{item.glyph}</span><span className="palette-option-name">{item.danger && props.pending ? "Closing…" : item.name}</span></button>)}
       </div>}
       {props.error && <p className="palette-error" role="alert">{props.error}</p>}
-      <footer>{flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" ? "↑↓/Tab navigate · Enter select" : "Escape goes back"}</footer>
+      <footer>{flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "sessions" ? "↑↓/Tab navigate · Enter select" : "Escape goes back"}</footer>
     </section>
   </div>;
 }
