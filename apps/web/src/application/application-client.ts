@@ -1197,6 +1197,9 @@ export function mapTimeline(
     if (item.kind === "assistant") {
       return { ...base, category: "assistant-response", content: { text: item.text, state: "complete" } };
     }
+    if (item.kind === "context-summary") {
+      return { ...base, category: "context-summary", content: { summaryType: item.summaryType, text: item.text } };
+    }
     if (item.kind === "thinking") {
       return { ...base, category: "thinking", content: { text: item.text, state: "complete" } };
     }

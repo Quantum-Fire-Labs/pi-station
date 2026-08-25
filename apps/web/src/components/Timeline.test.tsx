@@ -69,6 +69,28 @@ describe("Scheduled Job history", () => {
   });
 });
 
+describe("context summaries", () => {
+  it("renders compaction context as a distinct collapsed, expandable card", () => {
+    const { container } = render(<FeedItem item={{
+      ...assistantItem("unused"),
+      timelineItemId: "compaction",
+      category: "context-summary",
+      content: { summaryType: "compaction", text: "## Goal\nPreserve **important context**" },
+    }} />);
+
+    const entry = container.querySelector("article.message.context-summary");
+    expect(entry).toBeInTheDocument();
+    expect(entry?.querySelector("details")).not.toHaveAttribute("open");
+    expect(within(entry as HTMLElement).getByText("Compaction summary")).toBeVisible();
+    expect(within(entry as HTMLElement).getByText("Context preserved by Pi")).toBeVisible();
+
+    fireEvent.click(within(entry as HTMLElement).getByText("Compaction summary"));
+    expect(entry?.querySelector("details")).toHaveAttribute("open");
+    expect(within(entry as HTMLElement).getByRole("heading", { name: "Goal" })).toBeVisible();
+    expect(within(entry as HTMLElement).getByText("important context").tagName).toBe("STRONG");
+  });
+});
+
 describe("tool activity", () => {
   it("opens live tools while Pi works and collapses them when Pi settles", () => {
     const { container, rerender } = render(

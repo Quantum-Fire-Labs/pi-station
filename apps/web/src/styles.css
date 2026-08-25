@@ -1032,6 +1032,42 @@ body.sidebar-resizing {
 .message.tool summary small {
   color: var(--muted);
 }
+.message.context-summary {
+  padding: 2px 0;
+}
+.message.context-summary details {
+  overflow: hidden;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 65%, var(--line));
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--raised) 55%, transparent);
+}
+.message.context-summary details summary {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  color: var(--accent);
+  font: 12px var(--mono);
+  cursor: pointer;
+  list-style: none;
+}
+.message.context-summary summary:before {
+  content: "+";
+  color: var(--faint);
+}
+.message.context-summary details[open] summary:before {
+  content: "−";
+}
+.message.context-summary summary small {
+  color: var(--muted);
+}
+.message.context-summary .message-body {
+  border-top: 1px solid var(--line);
+  padding: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
 .message.tool pre,
 .markdown-body pre {
   max-width: 100%;
