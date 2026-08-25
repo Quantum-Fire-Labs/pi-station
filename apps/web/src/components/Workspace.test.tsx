@@ -1988,7 +1988,11 @@ describe("Workspace", () => {
     render(<Workspace state={state} onSelect={onSelect} />);
     fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
     await user.click(screen.getByRole("option", { name: "Sessions" }));
-    const search = screen.getByPlaceholderText("Search Sessions…");
+    expect(screen.getByPlaceholderText("Search Sessions…")).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.getByPlaceholderText("Choose an action…")).toBeVisible();
+    await user.click(screen.getByRole("option", { name: "Sessions" }));
+    const sessionSearch = screen.getByPlaceholderText("Search Sessions…");
     const options = screen.getAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual([
       "Application clientPi Station",
@@ -1998,7 +2002,7 @@ describe("Workspace", () => {
       "Alpha closedPi Station · Closed",
     ]);
     expect(screen.queryByText("unnamed")).not.toBeInTheDocument();
-    await user.type(search, "zulu");
+    await user.type(sessionSearch, "zulu");
     await user.keyboard("{Enter}");
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ piSessionId: "open-zulu" }));
   });

@@ -162,8 +162,17 @@ export function CommandPalette(props: CommandPaletteProps) {
       else props.onConfirmClose?.();
     }
   };
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      back();
+    };
+    window.addEventListener("keydown", handleEscape, true);
+    return () => window.removeEventListener("keydown", handleEscape, true);
+  });
   const handleKeyDown = (event: ReactKeyboardEvent): void => {
-    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); back(); return; }
     if (event.key === "ArrowDown" || (event.key === "Tab" && !event.shiftKey)) { event.preventDefault(); if (count) setActiveIndex((i) => (i + 1) % count); return; }
     if (event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey)) { event.preventDefault(); if (count) setActiveIndex((i) => (i - 1 + count) % count); return; }
     if (event.key === "Enter" && flow.kind !== "rename") { event.preventDefault(); select(); }
