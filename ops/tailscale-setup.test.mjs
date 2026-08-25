@@ -19,7 +19,7 @@ function fixture(serveStatus = "{}") {
   executable(resolve(bin, "systemctl"), `#!/bin/bash\nprintf 'systemctl %s\\n' "$*" >> '${calls}'\nexit 0\n`)
   executable(resolve(bin, "tailscale"), `#!/bin/bash\nprintf 'tailscale %s\\n' "$*" >> '${calls}'\nif [[ $1 == status && $2 == --json ]]; then printf '%s' '{"BackendState":"Running","Self":{"DNSName":"station.example.ts.net."}}'; exit 0; fi
 if [[ $1 == serve && $2 == status ]]; then printf '%s' '${serveStatus}'; exit 0; fi
-if [[ $1 == serve && $2 == get-config ]]; then printf '{}' > "$3"; exit 0; fi
+if [[ $1 == serve && $2 == get-config ]]; then printf '{}'; exit 0; fi
 exit 0
 `)
   executable(resolve(bin, "curl"), `#!/bin/bash\nprintf 'curl %s\\n' "$*" >> '${calls}'\nif [[ $* == *healthz* ]]; then printf '{"status":"ok","activeTurns":0}'; fi
@@ -50,6 +50,7 @@ describe("Tailscale setup", () => {
     expect(result.stdout).toContain("https://station.example.ts.net/workspace")
     expect(readFileSync(resolve(value.dropins, "90-tailscale-origin.conf"), "utf8")).toBe('[Service]\nEnvironment="PI_STATION_WEB_ORIGIN=https://station.example.ts.net"\n')
     const calls = readFileSync(value.calls, "utf8")
+    expect(calls).toContain("tailscale serve get-config --all")
     expect(calls).toContain("tailscale serve --bg --yes --https=443 http://127.0.0.1:18801")
     expect(calls).toContain("systemctl --user restart pi-station.service")
     expect(calls).not.toContain("funnel")
@@ -65,7 +66,7 @@ describe("Tailscale setup", () => {
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain("restoring the previous Pi Station and Tailscale configuration")
     expect(readFileSync(dropin, "utf8")).toContain("https://old.example.ts.net")
-    expect(readFileSync(value.calls, "utf8")).toContain("tailscale serve set-config")
+    expect(readFileSync(value.calls, "utf8")).toContain("tailscale serve set-config --all ")
   })
 
   it("does not replace an unrelated HTTPS route", () => {

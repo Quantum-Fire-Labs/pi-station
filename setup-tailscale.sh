@@ -62,7 +62,7 @@ process.stdin.on("end", () => {
 work_directory=$(mktemp -d "${TMPDIR:-/tmp}/pi-station-tailscale.XXXXXX")
 trap 'rm -rf -- "$work_directory"' EXIT
 serve_backup="$work_directory/serve.json"
-tailscale serve get-config "$serve_backup" --all >/dev/null
+tailscale serve get-config --all > "$serve_backup"
 had_dropin=0
 if [[ -f "$dropin_file" ]]; then cp "$dropin_file" "$work_directory/origin.conf"; had_dropin=1; fi
 changed=0
@@ -70,7 +70,7 @@ rollback() {
   (( changed )) || return 0
   printf 'Validation failed; restoring the previous Pi Station and Tailscale configuration...\n' >&2
   if (( had_dropin )); then cp "$work_directory/origin.conf" "$dropin_file"; else rm -f "$dropin_file"; fi
-  tailscale serve set-config "$serve_backup" --all >/dev/null 2>&1 || true
+  tailscale serve set-config --all "$serve_backup" >/dev/null 2>&1 || true
   systemctl --user daemon-reload || true
   systemctl --user restart "$service" || true
 }
