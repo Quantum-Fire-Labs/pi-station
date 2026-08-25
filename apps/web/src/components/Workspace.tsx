@@ -3770,6 +3770,16 @@ export function Workspace({
           thinkingLevels={state.selected.details?.supportedThinkingLevels}
           currentModel={state.selected.details?.model}
           currentThinking={state.selected.details?.thinkingLevel}
+          sessions={state.sessions.flatMap((session) => {
+            const name = session.name?.trim();
+            if (!name) return [];
+            return [{
+              id: session.sessionKey.piSessionId,
+              name,
+              projectName: state.projects.find((project) => project.projectId === session.projectId)?.name,
+              closed: session.projection.availability === "closed",
+            }];
+          })}
           pending={sessionSettingPending || closeSessionPending}
           error={sessionSettingError ?? closeSessionError}
           onDashboard={() => setRoute("dashboard")}
@@ -3797,6 +3807,10 @@ export function Workspace({
           onSetThinking={(level) => {
             const requestId = onCommand?.({ kind: "session.thinking.set", level });
             if (requestId !== undefined) setSessionSettingRequestId(requestId);
+          }}
+          onOpenSession={(id) => {
+            const session = state.sessions.find((candidate) => candidate.sessionKey.piSessionId === id);
+            if (session) openSession(session.sessionKey);
           }}
           onSetBookmark={selectedProject === undefined || selectedSummary === undefined
             ? undefined

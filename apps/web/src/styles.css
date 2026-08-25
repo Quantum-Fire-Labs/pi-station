@@ -1574,6 +1574,8 @@ body.sidebar-resizing {
 }
 .palette-option-glyph svg { width: 14px; height: 14px; stroke-width: 1.7; }
 .palette-results button.active .palette-option-glyph { color: var(--accent2); }
+.palette-option-copy { min-width: 0; }
+.palette-option-copy small { display: block; margin-top: 3px; overflow: hidden; color: var(--faint); font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
 .palette-option-name {
   display: block;
   overflow: hidden;

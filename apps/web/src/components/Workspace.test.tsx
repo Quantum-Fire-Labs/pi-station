@@ -1960,6 +1960,53 @@ describe("Workspace", () => {
     expect(screen.getByRole("dialog")).toBeVisible();
   });
 
+  it("searches named open and closed Sessions with open Sessions first", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const state = {
+      ...fixtureState,
+      sessions: [
+        ...fixtureState.sessions,
+        {
+          ...fixtureState.sessions[0]!,
+          sessionKey: { ...fixtureState.sessions[0]!.sessionKey, piSessionId: "closed-alpha" },
+          name: "Alpha closed",
+          projection: { ...fixtureState.sessions[0]!.projection, availability: "closed" as const },
+        },
+        {
+          ...fixtureState.sessions[0]!,
+          sessionKey: { ...fixtureState.sessions[0]!.sessionKey, piSessionId: "open-zulu" },
+          name: "Zulu open",
+        },
+        {
+          ...fixtureState.sessions[0]!,
+          sessionKey: { ...fixtureState.sessions[0]!.sessionKey, piSessionId: "unnamed" },
+          name: "   ",
+        },
+      ],
+    };
+    render(<Workspace state={state} onSelect={onSelect} />);
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
+    await user.click(screen.getByRole("option", { name: "Sessions" }));
+    expect(screen.getByPlaceholderText("Search Sessions…")).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.getByPlaceholderText("Choose an action…")).toBeVisible();
+    await user.click(screen.getByRole("option", { name: "Sessions" }));
+    const sessionSearch = screen.getByPlaceholderText("Search Sessions…");
+    const options = screen.getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Application clientPi Station",
+      "Release notesField Notes",
+      "Workspace shellPi Station",
+      "Zulu openPi Station",
+      "Alpha closedPi Station · Closed",
+    ]);
+    expect(screen.queryByText("unnamed")).not.toBeInTheDocument();
+    await user.type(sessionSearch, "zulu");
+    await user.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ piSessionId: "open-zulu" }));
+  });
+
   it("runs palette setting subflows with authoritative choices", async () => {
     const user = userEvent.setup();
     const onCommand = vi.fn(() => "request-setting");
