@@ -37,6 +37,7 @@ function run(value) {
       PATH: `${value.bin}:${resolve(process.execPath, "..")}:/usr/bin:/bin`,
       PI_STATION_ENVIRONMENT_FILE: value.config,
       PI_STATION_SYSTEMD_DROPIN_DIR: value.dropins,
+      PI_STATION_TAILSCALE_REMOTE_ATTEMPTS: "2",
     },
   })
 }
