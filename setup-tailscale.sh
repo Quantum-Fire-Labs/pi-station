@@ -12,6 +12,8 @@ environment_file=${PI_STATION_ENVIRONMENT_FILE:-"$HOME/.config/pi-station/enviro
 dropin_directory=${PI_STATION_SYSTEMD_DROPIN_DIR:-"$HOME/.config/systemd/user/pi-station.service.d"}
 dropin_file="$dropin_directory/90-tailscale-origin.conf"
 https_port=${PI_STATION_TAILSCALE_HTTPS_PORT:-443}
+remote_attempts=${PI_STATION_TAILSCALE_REMOTE_ATTEMPTS:-60}
+[[ "$remote_attempts" =~ ^[0-9]+$ ]] && (( remote_attempts >= 1 )) || fail "PI_STATION_TAILSCALE_REMOTE_ATTEMPTS is invalid"
 [[ "$https_port" =~ ^[0-9]+$ ]] && (( https_port >= 1 && https_port <= 65535 )) || fail "PI_STATION_TAILSCALE_HTTPS_PORT is invalid"
 [[ -f "$environment_file" ]] || fail "Pi Station environment file was not found at $environment_file"
 systemctl --user cat "$service" >/dev/null 2>&1 || fail "$service is not installed"
@@ -97,7 +99,7 @@ curl --fail --silent --output /dev/null --request OPTIONS --header "Origin: $web
 tailscale serve --bg --yes --https="$https_port" "$local_origin" >/dev/null
 
 remote_healthy=0
-for _ in $(seq 1 60); do
+for _ in $(seq 1 "$remote_attempts"); do
   if curl --fail --silent "$web_origin/healthz" >/dev/null 2>&1 && curl --fail --silent "$web_origin/workspace" >/dev/null 2>&1; then remote_healthy=1; break; fi
   sleep 0.5
 done
