@@ -17,6 +17,13 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.follow-up-queue\s*{[^}]*var\(--composer-content\)/s);
     expect(styles).toMatch(/\.follow-up-queue li\s*\{[^}]*width: min\(92%, 620px\);[^}]*border-radius: 14px 14px 3px;[^}]*background: var\(--user\);/s);
     expect(styles).toMatch(/\.voice-mode\s*{[^}]*var\(--composer-content\)/s);
+    expect(styles).toMatch(/\.composer\s*{[^}]*min-height: 120px;/s);
+    expect(styles).toMatch(/\.voice-mode\s*{[^}]*min-height: 120px;[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 16px;/s);
+    expect(styles).toMatch(/\.voice-mode-status\s*{[^}]*display: flex;/s);
+    expect(styles).toMatch(/\.voice-mode-primary-slot\s*{[^}]*width: 48px;/s);
+    expect(styles).toMatch(/\.voice-mode-record-icon\s*{[^}]*width: 48px;[^}]*height: 48px;/s);
+    expect(styles).not.toMatch(/\.voice-mode button, \.voice-mode select/);
+    expect(styles).not.toContain(".session:has(.voice-mode)");
   });
 
   it("does not override all shadcn composer buttons with circular legacy styles", () => {

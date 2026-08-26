@@ -3357,13 +3357,20 @@ export function Workspace({
           {voiceMode ? (
             <section className="voice-mode" aria-label="Voice mode">
               {composerFeedback !== undefined && <p className="composer-feedback" role="alert" title={composerFeedback}>{composerFeedback}</p>}
-              <header><Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" aria-label="Switch to typing mode" title="Switch to typing mode" onClick={() => { setVoiceMode(false); localStorage.setItem("pi-station:composer-mode", "text"); }}><Keyboard aria-hidden="true" size={18} /></Button></header>
-              <Button className="voice-mode-record" variant="ghost" type="button" disabled={!commandAvailable || commandPending || voiceState === "transcribing"} data-state={voiceState} aria-label={voiceState === "recording" ? "Stop and send recording" : voiceState === "transcribing" ? "Transcribing and sending recording" : voiceState === "playing" ? "Stop response" : "Start recording"} onClick={() => { if (voiceState === "recording") stopVoiceRecording(true); else if (voiceState === "playing") stopSpeech(); else void startVoiceRecording(true); }}>
-                <span className="voice-mode-record-icon" aria-hidden="true">{voiceState === "transcribing" ? <LoaderCircle className="composer-spinner" size={38} /> : voiceState === "recording" || voiceState === "playing" ? <Square size={33} /> : <Mic size={38} />}</span>
-              </Button>
+              <header>
+                <span className="voice-mode-status">
+                  <Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" role="switch" aria-checked={voiceAutoplay} aria-label={`Auto-play ${voiceAutoplay ? "on" : "off"}`} title={`Auto-play ${voiceAutoplay ? "on" : "off"}`} onClick={() => setVoiceAutoplay((value) => !value)}>{voiceAutoplay ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}</Button>
+                  <span>{voiceState === "recording" ? "Listening…" : voiceState === "transcribing" ? "Transcribing and sending…" : voiceState === "playing" ? "Playing response…" : "Ready to record"}</span>
+                </span>
+                <span className="voice-mode-primary-slot"><Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" aria-label="Switch to typing mode" title="Switch to typing mode" onClick={() => { setVoiceMode(false); localStorage.setItem("pi-station:composer-mode", "text"); }}><Keyboard aria-hidden="true" size={18} /></Button></span>
+              </header>
               <footer>
                 <ComposerControls details={state.selected.details} delivery={workingDelivery} working={working} disabled={commandPending || voiceState !== "idle"} canChangeModel={capabilities.includes("session.model.set")} canChangeThinking={capabilities.includes("session.thinking.set")} onSetModel={(provider, modelId) => { const id = onCommand?.({ kind: "session.model.set", provider, modelId }); if (id !== undefined) setSessionSettingRequestId(id); }} onSetThinking={(level) => { const id = onCommand?.({ kind: "session.thinking.set", level }); if (id !== undefined) setSessionSettingRequestId(id); }} onSetDelivery={setWorkingDelivery} />
-                <Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" role="switch" aria-checked={voiceAutoplay} aria-label={`Auto-play ${voiceAutoplay ? "on" : "off"}`} title={`Auto-play ${voiceAutoplay ? "on" : "off"}`} onClick={() => setVoiceAutoplay((value) => !value)}>{voiceAutoplay ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}</Button>
+                <span className="voice-mode-primary-slot">
+                  <Button className="voice-mode-record" variant="ghost" type="button" disabled={!commandAvailable || commandPending || voiceState === "transcribing"} data-state={voiceState} aria-label={voiceState === "recording" ? "Stop and send recording" : voiceState === "transcribing" ? "Transcribing and sending recording" : voiceState === "playing" ? "Stop response" : "Start recording"} onClick={() => { if (voiceState === "recording") stopVoiceRecording(true); else if (voiceState === "playing") stopSpeech(); else void startVoiceRecording(true); }}>
+                    <span className="voice-mode-record-icon" aria-hidden="true">{voiceState === "transcribing" ? <LoaderCircle className="composer-spinner" size={26} /> : voiceState === "recording" || voiceState === "playing" ? <Square size={22} /> : <Mic size={26} />}</span>
+                  </Button>
+                </span>
               </footer>
             </section>
           ) : <form

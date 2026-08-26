@@ -1280,6 +1280,7 @@ body.sidebar-resizing {
 .composer {
   position: relative;
   width: min(100%, var(--composer-content));
+  min-height: 120px;
   margin: auto;
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -4034,13 +4035,15 @@ body.sidebar-resizing {
 .composer-file.error { color: var(--danger, #a33); }
 .message-attachment small { opacity: .65; }
 
-.session:has(.voice-mode) { padding-bottom: 270px; }
-.voice-mode { position: relative; width: min(100%, var(--composer-content)); min-height: 178px; margin: auto; border-radius: 14px; background: var(--input); padding: 10px; display: grid; gap: 12px; }
+.voice-mode { position: relative; width: min(100%, var(--composer-content)); min-height: 120px; margin: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--input); padding: 10px; display: grid; grid-template-rows: auto 1fr; gap: 8px; }
 .voice-mode > header, .voice-mode > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: .72rem; }
-.voice-mode > header { justify-content: flex-end; }
-.voice-mode button, .voice-mode select { border: 0; background: transparent; color: inherit; font: inherit; }
-.voice-mode-record { justify-self: center; display: grid; justify-items: center; gap: 9px; cursor: pointer; }
-.voice-mode-record-icon { width: 93px; height: 93px; border: 1px solid var(--accent); border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--page); }
+.voice-mode > header { padding-left: 6px; }
+.voice-mode > footer > .composer-settings-desktop,
+.voice-mode > footer > .composer-settings-mobile { align-self: flex-end; }
+.voice-mode-status { display: flex; align-items: center; gap: 6px; }
+.voice-mode-primary-slot { display: grid; width: 48px; flex: 0 0 48px; place-items: center; }
+.voice-mode-record { display: grid; padding: 0; cursor: pointer; }
+.voice-mode-record-icon { width: 48px; height: 48px; border: 1px solid var(--accent); border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--page); }
 .voice-mode-record:hover .voice-mode-record-icon { border-color: var(--accent2); background: var(--accent2); }
 .voice-mode-record[data-state="recording"] .voice-mode-record-icon, .voice-mode-record[data-state="playing"] .voice-mode-record-icon { background: var(--danger); color: white; border-color: var(--danger); }
 .voice-mode .voice-mode-icon-action { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; }
