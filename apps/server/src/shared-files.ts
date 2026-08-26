@@ -60,7 +60,7 @@ export function normalizeSharedFileOrigin(value: string): string {
   return origin.origin
 }
 
-export function sharedFileInstructions(directory: string, origins: SharedFileOrigins, sessionId: string): string {
+export function sharedFileInstructions(directory: string, origins: SharedFileOrigins, sessionId: string, projectId?: string): string {
   const sessionDirectory = sharedSessionDirectoryName(sessionId)
   const relativeUrl = `/shared/${encodeURIComponent(sessionDirectory)}/<filename>`
   const publicUrl = `${withoutTrailingSlash(origins.publicOrigin)}${relativeUrl}`
@@ -80,7 +80,42 @@ Public Workspace URL:
 
 ${publicUrl}
 ${localLine}
-Replace <filename> with the encoded filename. Do not share a file from another Session directory. Markdown files open in an editable Workspace pane and require a manual save. HTML, PDF, images, text, and JSON open safely. Other file types download. Files remain available until manually removed.`
+Replace <filename> with the encoded filename. Do not share a file from another Session directory. Markdown files open in an editable Workspace pane and require a manual save. HTML, PDF, images, text, and JSON open safely. Other file types download. Files remain available until manually removed.${projectId === undefined ? "" : `
+
+## Editing Project Markdown files with the user
+
+To let the user edit an existing Markdown file in this Session's Project directly, link to:
+
+/project-files/${encodeURIComponent(projectId)}/${encodeURIComponent(sessionId)}?path=<project-relative-path>
+
+Percent-encode <project-relative-path>. The file must already exist beneath the Project working directory and end in .md or .markdown. Use this for collaborative Project files; use the shared directory above for copies and generated artifacts.`}`
+}
+
+export async function serveProjectMarkdown(root: string, relativePath: string, request: IncomingMessage, response: ServerResponse): Promise<void> {
+  if (relativePath === "" || relativePath.startsWith("/") || relativePath.includes("\\") || relativePath.includes("\0")) throw new SharedFileError(403)
+  const extension = extname(relativePath).toLowerCase()
+  if (extension !== ".md" && extension !== ".markdown") throw new SharedFileError(415)
+  const projectRoot = await realpath(root).catch(() => { throw new SharedFileError(404) })
+  const candidate = resolve(projectRoot, relativePath)
+  if (!within(projectRoot, candidate) || candidate === projectRoot) throw new SharedFileError(403)
+  const parameters = new URL(request.url ?? "/", "http://localhost").searchParams
+
+  if (request.method === "GET" && parameters.has("watch")) {
+    await assertSafeFile(projectRoot, candidate)
+    serveWatch(candidate, request, response)
+    return
+  }
+  if (request.method === "PUT") {
+    await saveMarkdown(projectRoot, candidate, request, response)
+    return
+  }
+  if (request.method !== "GET" && request.method !== "HEAD") throw new SharedFileError(405)
+  const { content } = await readSafeFile(projectRoot, candidate, MAX_MARKDOWN_BYTES)
+  response.writeHead(200, {
+    ...fileHeaders("text/markdown; charset=utf-8", content.byteLength, "inline", relativePath),
+    etag: revision(content),
+  })
+  response.end(request.method === "HEAD" ? undefined : content)
 }
 
 export class SharedFileService {
@@ -163,7 +198,7 @@ export class SharedFileService {
     }
 
     if (markdown && request.method === "PUT") {
-      await this.#saveMarkdown(sessionDirectory, candidate, request, response)
+      await saveMarkdown(sessionDirectory, candidate, request, response)
       return
     }
 
@@ -190,39 +225,39 @@ export class SharedFileService {
     response.end(request.method === "HEAD" ? undefined : content)
   }
 
-  async #saveMarkdown(sessionDirectory: string, candidate: string, request: IncomingMessage, response: ServerResponse): Promise<void> {
-    const mediaType = request.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase()
-    if (mediaType !== "text/markdown") throw new SharedFileError(415)
-    const declaredLength = Number.parseInt(request.headers["content-length"] ?? "0", 10)
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_MARKDOWN_BYTES) throw new SharedFileError(413)
-    const next = await readBody(request, MAX_MARKDOWN_BYTES)
-    const handle = await openSafeFile(sessionDirectory, candidate, constants.O_RDWR)
-    try {
-      const metadata = await handle.stat()
-      if (metadata.size > MAX_MARKDOWN_BYTES) throw new SharedFileError(413)
-      const current = await readHandle(handle, metadata.size)
-      const expected = request.headers["if-match"]
-      if (typeof expected === "string" && expected !== revision(current)) throw new SharedFileError(412)
-      await handle.truncate(0)
-      await handle.writeFile(next)
-      await handle.sync()
-      const visible = await lstat(candidate).catch(() => undefined)
-      if (visible === undefined || visible.isSymbolicLink()
-        || visible.dev !== metadata.dev || visible.ino !== metadata.ino) throw new SharedFileError(412)
-      const persisted = await handle.stat()
-      if (persisted.size > MAX_MARKDOWN_BYTES
-        || revision(await readHandle(handle, persisted.size)) !== revision(next)) throw new SharedFileError(412)
-    } finally {
-      await handle.close()
-    }
-    response.writeHead(204, { ...securityHeaders(), "cache-control": "no-store", etag: revision(next) })
-    response.end()
-  }
-
   #requiredRoot(): string {
     if (this.#root === undefined) throw new Error("Shared file service is not initialized")
     return this.#root
   }
+}
+
+async function saveMarkdown(root: string, candidate: string, request: IncomingMessage, response: ServerResponse): Promise<void> {
+  const mediaType = request.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase()
+  if (mediaType !== "text/markdown") throw new SharedFileError(415)
+  const declaredLength = Number.parseInt(request.headers["content-length"] ?? "0", 10)
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_MARKDOWN_BYTES) throw new SharedFileError(413)
+  const next = await readBody(request, MAX_MARKDOWN_BYTES)
+  const handle = await openSafeFile(root, candidate, constants.O_RDWR)
+  try {
+    const metadata = await handle.stat()
+    if (metadata.size > MAX_MARKDOWN_BYTES) throw new SharedFileError(413)
+    const current = await readHandle(handle, metadata.size)
+    const expected = request.headers["if-match"]
+    if (typeof expected === "string" && expected !== revision(current)) throw new SharedFileError(412)
+    await handle.truncate(0)
+    await handle.writeFile(next)
+    await handle.sync()
+    const visible = await lstat(candidate).catch(() => undefined)
+    if (visible === undefined || visible.isSymbolicLink()
+      || visible.dev !== metadata.dev || visible.ino !== metadata.ino) throw new SharedFileError(412)
+    const persisted = await handle.stat()
+    if (persisted.size > MAX_MARKDOWN_BYTES
+      || revision(await readHandle(handle, persisted.size)) !== revision(next)) throw new SharedFileError(412)
+  } finally {
+    await handle.close()
+  }
+  response.writeHead(204, { ...securityHeaders(), "cache-control": "no-store", etag: revision(next) })
+  response.end()
 }
 
 function parseRequestedPath(requestedPath: string): { readonly sessionDirectoryName: string; readonly filename: string } {

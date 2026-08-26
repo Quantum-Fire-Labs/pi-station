@@ -49,7 +49,7 @@ import { ProjectStore } from "./project-store.js"
 import { SessionBookmarkStore } from "./session-bookmarks.js"
 import { isSessionDefaults, normalizeSessionDefaults, SessionDefaultsStore } from "./session-defaults.js"
 import { SessionMetadataStore } from "./session-metadata.js"
-import { SharedFileError, type SharedFileService } from "./shared-files.js"
+import { serveProjectMarkdown, SharedFileError, type SharedFileService } from "./shared-files.js"
 import { SessionUpdates } from "./session-updates.js"
 import { TurnService } from "./turn-service.js"
 import { maintenanceIsActive } from "./maintenance.js"
@@ -469,6 +469,27 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (url.pathname.startsWith("/shared/") && options.sharedFiles !== undefined) {
         try {
           await options.sharedFiles.serve(url.pathname.slice("/shared/".length), request, response)
+        } catch (error) {
+          sendSharedFileError(response, error)
+        }
+        return
+      }
+      const projectFileRoute = /^\/project-files\/([^/]+)\/([^/]+)$/u.exec(url.pathname)
+      if (projectFileRoute !== null) {
+        try {
+          const key = { projectId: decodeURIComponent(projectFileRoute[1]!), sessionId: decodeURIComponent(projectFileRoute[2]!) }
+          const saved = await findSession(key)
+          if (saved === undefined || saved.projectId !== key.projectId) throw new SharedFileError(404)
+          const project = await resolveProject(key, saved)
+          const path = url.searchParams.get("path")
+          if (path === null) throw new SharedFileError(400)
+          if ((request.method === "GET" || request.method === "HEAD") && !url.searchParams.has("raw") && !url.searchParams.has("watch")) {
+            const editorUrl = `/shared-editor?file=${encodeURIComponent(`${url.pathname}?path=${encodeURIComponent(path)}`)}`
+            response.writeHead(302, { location: editorUrl, "cache-control": "no-store" })
+            response.end()
+          } else {
+            await serveProjectMarkdown(project.root, path, request, response)
+          }
         } catch (error) {
           sendSharedFileError(response, error)
         }

@@ -7,9 +7,12 @@ import type { TimelineItem } from "../application/workspace-model";
 function isSharedMarkdownUrl(url: string): boolean {
   try {
     const parsed = new URL(url, window.location.origin);
-    return parsed.origin === window.location.origin
-      && parsed.pathname.startsWith("/shared/")
-      && /\.(?:md|markdown)$/iu.test(parsed.pathname);
+    if (parsed.origin !== window.location.origin) return false;
+    if (parsed.pathname.startsWith("/shared/")) return /\.(?:md|markdown)$/iu.test(parsed.pathname);
+    const projectPath = parsed.searchParams.get("path");
+    return /^\/project-files\/[^/]+\/[^/]+$/u.test(parsed.pathname)
+      && projectPath !== null
+      && /\.(?:md|markdown)$/iu.test(projectPath);
   } catch {
     return false;
   }

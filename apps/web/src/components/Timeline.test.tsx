@@ -276,6 +276,16 @@ describe("agent Markdown", () => {
     expect(onOpenSharedMarkdown).toHaveBeenCalledWith(url);
   });
 
+  it("opens a Project Markdown collaboration link in the editor pane", () => {
+    const onOpenSharedMarkdown = vi.fn();
+    const url = "/project-files/project/session?path=docs%2Fplan.md";
+    render(<FeedItem item={assistantItem(`[plan](${url})`)} onOpenSharedMarkdown={onOpenSharedMarkdown} />);
+
+    fireEvent.click(screen.getByRole("link", { name: "plan" }));
+
+    expect(onOpenSharedMarkdown).toHaveBeenCalledWith(url);
+  });
+
   it("renders CommonMark and GFM without active HTML or remote images", () => {
     const { container } = render(<FeedItem item={assistantItem(`
 # Result

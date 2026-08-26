@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, truncate, writeFile } from "node:fs/promises"
+import { mkdtemp, mkdir, readFile, rm, symlink, truncate, writeFile } from "node:fs/promises"
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import {
   MAX_SHARED_FILE_BYTES,
   normalizeSharedFileOrigin,
+  serveProjectMarkdown,
   SharedFileError,
   SharedFileService,
   sharedFileInstructions,
@@ -48,12 +49,13 @@ describe("SDK shared files", () => {
     const instructions = sharedFileInstructions("/home/user/.pi/agent/pi-station/shared", {
       publicOrigin: "https://station.example.ts.net:8797",
       localOrigin: "http://127.0.0.1:8801",
-    }, "child/session")
+    }, "child/session", "project-1")
     expect(instructions).toContain("/home/user/.pi/agent/pi-station/shared/session-")
     expect(instructions).toContain("/shared/session-")
     expect(instructions).toContain("https://station.example.ts.net:8797/shared/")
     expect(instructions).toContain("http://127.0.0.1:8801/shared/")
     expect(instructions).toContain("Do not share a file from another Session directory")
+    expect(instructions).toContain("/project-files/project-1/child%2Fsession?path=<project-relative-path>")
     const parentInstructions = sharedFileInstructions("/shared", { publicOrigin: "https://station.test", localOrigin: "http://127.0.0.1:8801" }, "parent")
     const childInstructions = sharedFileInstructions("/shared", { publicOrigin: "https://station.test", localOrigin: "http://127.0.0.1:8801" }, "child")
     expect(parentInstructions).toContain("/shared/parent/<filename>")
@@ -61,6 +63,45 @@ describe("SDK shared files", () => {
     expect(childInstructions).not.toContain("/shared/parent/")
     expect(normalizeSharedFileOrigin("https://station.test:8797")).toBe("https://station.test:8797")
     expect(() => normalizeSharedFileOrigin("https://station.test/path")).toThrow("exact HTTP or HTTPS origin")
+  })
+
+  it("edits existing Project Markdown directly and rejects traversal, non-Markdown, and escaping symlinks", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-station-project-files-"))
+    cleanup.push(root)
+    await mkdir(join(root, "docs"))
+    await writeFile(join(root, "docs", "plan.md"), "First\n")
+    await writeFile(join(root, "notes.txt"), "Private\n")
+    const outside = join(await mkdtemp(join(tmpdir(), "pi-station-project-outside-")), "secret.md")
+    cleanup.push(join(outside, ".."))
+    await writeFile(outside, "Secret\n")
+    await symlink(outside, join(root, "escape.md"))
+
+    const server = createServer((request, response) => {
+      const path = new URL(request.url ?? "/", "http://localhost").searchParams.get("path") ?? ""
+      void serveProjectMarkdown(root, path, request, response).catch((error: unknown) => {
+        response.statusCode = error instanceof SharedFileError ? error.status : 500
+        response.end()
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+    const address = server.address() as AddressInfo
+    const base = `http://127.0.0.1:${address.port}/project?path=`
+    try {
+      const first = await fetch(`${base}${encodeURIComponent("docs/plan.md")}`)
+      expect(await first.text()).toBe("First\n")
+      const saved = await fetch(`${base}${encodeURIComponent("docs/plan.md")}`, {
+        method: "PUT",
+        headers: { "content-type": "text/markdown", "if-match": first.headers.get("etag")! },
+        body: "Revised\n",
+      })
+      expect(saved.status).toBe(204)
+      expect(await readFile(join(root, "docs", "plan.md"), "utf8")).toBe("Revised\n")
+      expect((await fetch(`${base}${encodeURIComponent("../secret.md")}`)).status).toBe(403)
+      expect((await fetch(`${base}${encodeURIComponent("notes.txt")}`)).status).toBe(415)
+      expect((await fetch(`${base}${encodeURIComponent("escape.md")}`)).status).toBe(403)
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)))
+    }
   })
 
   it("lists only the selected Session and does not follow file or Session-directory symlinks", async () => {
