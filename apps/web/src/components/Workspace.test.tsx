@@ -629,6 +629,29 @@ describe("Workspace", () => {
     expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("opens the new Session dialog from a Dashboard Project action", async () => {
+    const user = userEvent.setup();
+    const activeProjectId = fixtureState.sessions.find(
+      (session) => session.projectId !== undefined,
+    )?.projectId;
+    const project = fixtureState.projects.find(
+      (candidate) => candidate.projectId === activeProjectId,
+    );
+    if (project === undefined) throw new Error("Active Project fixture is missing");
+
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Dashboard" }));
+    const dashboard = screen.getByRole("heading", { name: "Dashboard", level: 1 })
+      .closest("main");
+    if (dashboard === null) throw new Error("Dashboard is missing");
+    await user.click(within(dashboard).getByRole("button", {
+      name: `New Session in ${project.name}`,
+    }));
+
+    expect(screen.getByRole("dialog", { name: `New Session in ${project.name}` }))
+      .toBeVisible();
+  });
+
   it("restores the saved Dashboard Projects view", async () => {
     sessionStorage.setItem("pi-station:dashboard:view", "projects");
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);

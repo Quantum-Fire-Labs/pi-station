@@ -2794,6 +2794,71 @@ export function Workspace({
     event.preventDefault();
     setSidebarWidth(Math.min(500, Math.max(280, next)));
   };
+  const newSessionModal = (
+<Modal
+        open={newSessionProject !== undefined}
+        title={`New Session in ${newSessionProject?.name ?? "Project"}`}
+        initialFocus={newSessionNameInput}
+        busy={newSessionPending}
+        onClose={() => setNewSessionProject(undefined)}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (newSessionProject === undefined || newSessionPending) return;
+          const trimmedName = newSessionName.trim();
+          const requestId = onCreateManagedSession?.(
+            newSessionProject.displayPath,
+            trimmedName === "" ? undefined : trimmedName,
+          );
+          if (requestId !== undefined) setNewSessionRequestId(requestId);
+        }}
+        actions={(
+          <>
+            <button
+              type="button"
+              className="modal-button secondary"
+              onClick={() => setNewSessionProject(undefined)}
+              disabled={newSessionPending}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="modal-button primary"
+              disabled={
+                newSessionPending
+                || !state.hostCapabilities.some(
+                  (capability) => capability === "managed-session.create",
+                )
+              }
+              title={state.hostCapabilities.some(
+                (capability) => capability === "managed-session.create",
+              )
+                ? undefined
+                : "Managed Session creation is not available"}
+            >
+              {newSessionPending ? "Starting…" : "Start Pi"}
+            </button>
+          </>
+        )}
+      >
+        <label className="modal-field">
+          <span>
+            Session name <small>(optional)</small>
+          </span>
+          <input
+            ref={newSessionNameInput}
+            value={newSessionName}
+            onChange={(event) => setNewSessionName(event.target.value)}
+            maxLength={120}
+            autoComplete="off"
+            placeholder="e.g. Release planning"
+          />
+        </label>
+        {newSessionError && (
+          <p className="modal-error" role="alert">{newSessionError}</p>
+        )}
+      </Modal>
+  );
   const renderPage = (page: ReactNode): ReactNode => (
     <>
       <main
@@ -2837,6 +2902,7 @@ export function Workspace({
         </div>
       </main>
       {contextMenu}
+      {newSessionModal}
     </>
   );
 
@@ -3685,69 +3751,9 @@ export function Workspace({
         )}
       </Modal>
 
-      <Modal
-        open={newSessionProject !== undefined}
-        title={`New Session in ${newSessionProject?.name ?? "Project"}`}
-        initialFocus={newSessionNameInput}
-        busy={newSessionPending}
-        onClose={() => setNewSessionProject(undefined)}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (newSessionProject === undefined || newSessionPending) return;
-          const trimmedName = newSessionName.trim();
-          const requestId = onCreateManagedSession?.(
-            newSessionProject.displayPath,
-            trimmedName === "" ? undefined : trimmedName,
-          );
-          if (requestId !== undefined) setNewSessionRequestId(requestId);
-        }}
-        actions={(
-          <>
-            <button
-              type="button"
-              className="modal-button secondary"
-              onClick={() => setNewSessionProject(undefined)}
-              disabled={newSessionPending}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="modal-button primary"
-              disabled={
-                newSessionPending
-                || !state.hostCapabilities.some(
-                  (capability) => capability === "managed-session.create",
-                )
-              }
-              title={state.hostCapabilities.some(
-                (capability) => capability === "managed-session.create",
-              )
-                ? undefined
-                : "Managed Session creation is not available"}
-            >
-              {newSessionPending ? "Starting…" : "Start Pi"}
-            </button>
-          </>
-        )}
-      >
-        <label className="modal-field">
-          <span>
-            Session name <small>(optional)</small>
-          </span>
-          <input
-            ref={newSessionNameInput}
-            value={newSessionName}
-            onChange={(event) => setNewSessionName(event.target.value)}
-            maxLength={120}
-            autoComplete="off"
-            placeholder="e.g. Release planning"
-          />
-        </label>
-        {newSessionError && (
-          <p className="modal-error" role="alert">{newSessionError}</p>
-        )}
-      </Modal>
+
+
+      {newSessionModal}
 
       {paletteOpen && (
         <CommandPalette
