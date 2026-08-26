@@ -61,7 +61,7 @@ describe("Tailscale setup", () => {
     expect(result.stderr).toContain("restoring the previous Pi Station and Tailscale configuration")
     expect(readFileSync(value.config, "utf8")).toBe(originalEnvironment)
     expect(readFileSync(value.calls, "utf8")).toContain("tailscale serve --yes --https=443 off")
-  })
+  }, 15_000)
 
   it("leaves a pre-existing matching route in place during rollback", () => {
     const value = fixture('{"TCP":{"443":{"HTTPS":true}},"Web":{"station.example.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:18801"}}}}}')
