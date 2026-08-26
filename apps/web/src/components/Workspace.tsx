@@ -3262,10 +3262,15 @@ export function Workspace({
                 onUndoUserMessage={item.category === "user-message" && item.source === "saved" && !working && synchronized && capabilities.includes("session.undo")
                   ? () => { onCommand?.({ kind: "session.undo", entryId: item.timelineItemId }); }
                   : undefined}
-                onOpenSharedMarkdown={(url) => openSharedMarkdown({
-                  url,
-                  name: decodeURIComponent(new URL(url, window.location.origin).pathname.split("/").pop() ?? "Shared file"),
-                })}
+                onOpenSharedMarkdown={(url) => {
+                  const parsed = new URL(url, window.location.origin);
+                  const projectPath = parsed.searchParams.get("path") ?? undefined;
+                  openSharedMarkdown({
+                    url,
+                    name: projectPath?.split("/").pop() ?? decodeURIComponent(parsed.pathname.split("/").pop() ?? "Shared file"),
+                    ...(projectPath === undefined ? {} : { projectPath }),
+                  });
+                }}
               />
               {item.category === "assistant-response" && (
                 <button

@@ -6,6 +6,7 @@ import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 export interface SharedMarkdownFile {
   readonly name: string;
   readonly url: string;
+  readonly projectPath?: string;
 }
 
 interface RemoteVersion {
@@ -162,7 +163,7 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
     <aside className={`shared-markdown-editor${externalVersion === undefined ? "" : " has-external-change"}`} aria-label={`Edit ${file.name}`}>
       <header>
         <div>
-          <strong>{file.name}</strong>
+          <strong>{file.projectPath ?? file.name}{file.projectPath === undefined ? "" : " · Project file"}</strong>
           <span className={`shared-markdown-status ${displayStatus}`} role="status">
             {(displayStatus === "saved" || displayStatus === "updated") && <Check aria-hidden="true" size={13} />}
             {(displayStatus === "unsaved" || displayStatus === "conflict") && <Circle aria-hidden="true" size={10} fill="currentColor" />}

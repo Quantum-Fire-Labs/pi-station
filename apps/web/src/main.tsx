@@ -17,14 +17,20 @@ const StandaloneSharedMarkdownEditor = lazy(async () => ({
   default: (await import("./components/StandaloneSharedMarkdownEditor")).StandaloneSharedMarkdownEditor,
 }));
 
-const standaloneSharedFile = (): { name: string; url: string } | undefined => {
+const standaloneSharedFile = (): { name: string; url: string; projectPath?: string } | undefined => {
   if (location.pathname !== "/shared-editor") return undefined;
   const value = new URLSearchParams(location.search).get("file");
   if (value === null) return undefined;
   try {
     const url = new URL(value, location.origin);
-    if (url.origin !== location.origin || !url.pathname.startsWith("/shared/") || !/\.(?:md|markdown)$/iu.test(url.pathname)) return undefined;
-    return { name: decodeURIComponent(url.pathname.split("/").pop() ?? "Shared Markdown"), url: `${url.pathname}${url.search}` };
+    if (url.origin !== location.origin) return undefined;
+    const projectPath = url.searchParams.get("path") ?? undefined;
+    const sharedMarkdown = url.pathname.startsWith("/shared/") && /\.(?:md|markdown)$/iu.test(url.pathname);
+    const projectMarkdown = /^\/project-files\/[^/]+\/[^/]+$/u.test(url.pathname)
+      && projectPath !== undefined && /\.(?:md|markdown)$/iu.test(projectPath);
+    if (!sharedMarkdown && !projectMarkdown) return undefined;
+    const name = projectPath?.split("/").pop() ?? decodeURIComponent(url.pathname.split("/").pop() ?? "Shared Markdown");
+    return { name, url: `${url.pathname}${url.search}`, ...(projectPath === undefined ? {} : { projectPath }) };
   } catch { return undefined; }
 };
 

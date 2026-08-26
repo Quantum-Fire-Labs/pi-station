@@ -609,7 +609,7 @@ async function createSdkSession(input: {
     agentDir: getAgentDir(),
     appendSystemPromptOverride: (base) => [
       ...base,
-      sharedFileInstructions(sharedFiles.directory, sharedFiles.origins, input.sessionId),
+      sharedFileInstructions(sharedFiles.directory, sharedFiles.origins, input.sessionId, input.projectId),
     ],
   })
   await resourceLoader?.reload()
