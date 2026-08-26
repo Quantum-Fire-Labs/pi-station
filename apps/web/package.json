@@ -1,6 +1,6 @@
 {
   "name": "@pi-station/web",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,7 +19,7 @@
     "@codemirror/view": "^6.43.8",
     "@fontsource-variable/geist": "^5.3.0",
     "@lezer/highlight": "^1.2.3",
-    "@pi-station/application-protocol": "0.1.1",
+    "@pi-station/application-protocol": "0.1.2",
     "@replit/codemirror-vim": "^6.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
