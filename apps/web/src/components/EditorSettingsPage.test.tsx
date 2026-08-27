@@ -15,6 +15,19 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+it("saves the autosave preference for the Markdown editor", async () => {
+  render(<EditorSettingsPage onBack={vi.fn()} />);
+
+  const toggle = screen.getByRole("switch", { name: /Autosave/i });
+  expect(toggle).not.toBeChecked();
+
+  await userEvent.click(toggle);
+
+  expect(toggle).toBeChecked();
+  expect(values.get("pi-station:markdown-autosave")).toBe("true");
+  expect(screen.getByText(/Save button remains available/i)).toBeInTheDocument();
+});
+
 it("saves the Vim motions preference for the Markdown editor", async () => {
   render(<EditorSettingsPage onBack={vi.fn()} />);
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Circle, ExternalLink, LoaderCircle, TriangleAlert, X } from "lucide-react";
-import { readMarkdownVimMode } from "../editor-preferences";
+import { readMarkdownAutosave, readMarkdownVimMode } from "../editor-preferences";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 
 export interface SharedMarkdownFile {
@@ -28,6 +28,7 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
   const [externalVersion, setExternalVersion] = useState<RemoteVersion>();
   const [status, setStatus] = useState<"loading" | "idle" | "saving" | "saved" | "updated" | "error">("loading");
   const vimMode = readMarkdownVimMode();
+  const autosave = readMarkdownAutosave();
   const load = useRef(0);
   const contentRef = useRef(content);
   const savedContentRef = useRef(savedContent);
@@ -142,6 +143,12 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
       return true;
     } catch { setStatus("error"); return false; }
   };
+
+  useEffect(() => {
+    if (!autosave || !dirty || externalVersion !== undefined || (status !== "idle" && status !== "saved" && status !== "updated")) return;
+    const timer = window.setTimeout(() => { void save(); }, 750);
+    return () => window.clearTimeout(timer);
+  }, [autosave, content, dirty, externalVersion, status]);
 
   const loadAgentVersion = (): void => {
     if (externalVersion === undefined) return;

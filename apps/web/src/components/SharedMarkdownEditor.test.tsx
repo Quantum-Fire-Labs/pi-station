@@ -95,6 +95,23 @@ it("loads, edits, and manually saves shared Markdown", async () => {
   expect(onDirtyChange).toHaveBeenLastCalledWith(false);
 });
 
+it("automatically saves after editing when autosave is enabled", async () => {
+  storageValues.set("pi-station:markdown-autosave", "true");
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(new Response("Original"))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetch);
+  render(<SharedMarkdownEditor file={{ name: "draft.md", url: "/shared/session/draft.md" }} draftKey="autosave-draft" onClose={vi.fn()} onDirtyChange={vi.fn()} />);
+
+  const editor = await screen.findByRole("textbox", { name: "Markdown content for draft.md" });
+  fireEvent.change(editor, { target: { value: "Autosaved revision" } });
+
+  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2), { timeout: 2_000 });
+  expect(fetch).toHaveBeenLastCalledWith("/shared/session/draft.md", expect.objectContaining({ method: "PUT", body: "Autosaved revision" }));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved"));
+});
+
 it("shows an external-change choice when a stale Markdown save loses a revision race", async () => {
   const fetch = vi.fn()
     .mockResolvedValueOnce(new Response("Original", { headers: { etag: '"revision-1"' } }))
