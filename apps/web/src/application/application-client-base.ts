@@ -154,7 +154,7 @@ export class ApplicationClientBase {
   restartManagedSession(_sessionKey: SessionKey, _expectedGenerationId: string): string | undefined { return undefined; }
   requestEarlierHistory(): boolean { return false; }
   async uploadImage(file: File, signal?: AbortSignal): Promise<string> {
-    const response = await fetch(this.imageUploadPath(), {
+    const response = await fetch(`${this.imageUploadPath()}?name=${encodeURIComponent(file.name || "image")}`, {
       method: "POST",
       credentials: "same-origin",
       body: file,

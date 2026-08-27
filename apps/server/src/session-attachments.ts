@@ -20,6 +20,25 @@ export class SessionAttachmentStore {
   readonly #root: string
   constructor(dataDir: string) { this.#root = resolve(dataDir, "session-attachments") }
 
+  async save(key: SessionKey, data: Buffer, nameValue: string | undefined, mediaTypeValue: string): Promise<ResolvedAttachment> {
+    if (data.length === 0) throw new HttpError(400, "File is empty")
+    if (data.length > MAX_ATTACHMENT_BYTES) throw new HttpError(413, "File is larger than 25 MB")
+    const name = safeName(nameValue)
+    const mediaType = safeMediaType(mediaTypeValue)
+    const directory = this.#directory(key)
+    await mkdir(directory, { recursive: true, mode: 0o700 }); await chmod(directory, 0o700)
+    const id = randomBytes(24).toString("base64url")
+    const destination = join(directory, id)
+    const attachment = { id, name, mediaType, size: data.length }
+    try {
+      await writeFile(destination, data, { mode: 0o600, flag: "wx" })
+      await writeFile(join(directory, `${id}.json`), JSON.stringify(attachment), { mode: 0o600, flag: "wx" })
+      return { ...attachment, path: destination }
+    } catch (error) {
+      await rm(destination, { force: true }); await rm(join(directory, `${id}.json`), { force: true }); throw error
+    }
+  }
+
   async upload(key: SessionKey, request: IncomingMessage, nameValue: string | undefined): Promise<SessionAttachment> {
     const name = safeName(nameValue)
     const mediaType = safeMediaType(request.headers["content-type"])

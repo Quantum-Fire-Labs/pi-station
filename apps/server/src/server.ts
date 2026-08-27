@@ -849,7 +849,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (request.method === "POST" && url.pathname === "/v2/images") {
         const mediaType = imageMediaType(request)
         const data = await readImageBody(request, mediaType)
-        sendJson(response, 201, { version: PROTOCOL_VERSION, id: imageUploads.add(mediaType, data), mediaType, size: data.length })
+        sendJson(response, 201, { version: PROTOCOL_VERSION, id: imageUploads.add(url.searchParams.get("name") ?? "", mediaType, data), mediaType, size: data.length })
         return
       }
       const imageRoute = /^\/v2\/images\/([A-Za-z0-9_-]{1,64})$/u.exec(url.pathname)
@@ -935,12 +935,14 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const promptImages = images.map((image) => ({ mediaType: image.mediaType, data: image.data.toString("base64") }))
         const promptAttachments = await attachments.resolve(route.key, (value as typeof value & { attachmentIds?: readonly string[] }).attachmentIds ?? [])
         if (promptAttachments === undefined) throw new HttpError(400, "An attached file is missing")
+        const persistedImages = await Promise.all(images.map((image) => attachments.save(route.key, image.data, image.name, image.mediaType)))
+        const allAttachments = [...promptAttachments, ...persistedImages]
         const accepted = turns.start({
           ...route.key,
           cwd: project.root,
-          prompt: attachmentPrompt(value.prompt, promptAttachments),
+          prompt: attachmentPrompt(value.prompt, allAttachments),
           ...(promptImages.length === 0 ? {} : { images: promptImages }),
-          ...(promptAttachments.length === 0 ? {} : { attachmentMarker: attachmentMarker(promptAttachments) }),
+          ...(allAttachments.length === 0 ? {} : { attachmentMarker: attachmentMarker(allAttachments) }),
           ...(value.agentMentions === undefined ? {} : { agentMentions: value.agentMentions }),
           mode: isNew ? "new" : "existing",
           ...(saved === undefined ? {} : { sessionPath: saved.path }),
@@ -964,8 +966,10 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const promptImages = images.map((image) => ({ mediaType: image.mediaType, data: image.data.toString("base64") }))
         const promptAttachments = await attachments.resolve(route.key, (value as typeof value & { attachmentIds?: readonly string[] }).attachmentIds ?? [])
         if (promptAttachments === undefined) throw new HttpError(400, "An attached file is missing")
-        const injectedPrompt = attachmentPrompt(value.prompt, promptAttachments)
-        const marker = promptAttachments.length === 0 ? undefined : attachmentMarker(promptAttachments)
+        const persistedImages = await Promise.all(images.map((image) => attachments.save(route.key, image.data, image.name, image.mediaType)))
+        const allAttachments = [...promptAttachments, ...persistedImages]
+        const injectedPrompt = attachmentPrompt(value.prompt, allAttachments)
+        const marker = allAttachments.length === 0 ? undefined : attachmentMarker(allAttachments)
         let accepted = route.action === "steer"
           ? await turns.steer(route.key, injectedPrompt, promptImages.length === 0 ? undefined : promptImages, marker, value.agentMentions)
           : await turns.followUp(route.key, injectedPrompt, promptImages.length === 0 ? undefined : promptImages, marker, value.agentMentions)
