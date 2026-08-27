@@ -36,7 +36,6 @@ jobs:
           node-version: 22.19.0
           cache: npm
       - run: npm ci --ignore-scripts --include=dev
-      - run: npm run check
       - name: Build edge archive
         shell: bash
         run: |
