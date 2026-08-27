@@ -3,9 +3,10 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
-import { Decoration, EditorView, highlightActiveLine, keymap, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { Decoration, EditorView, highlightActiveLine, keymap, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { tags, type Highlighter, type Tag } from "@lezer/highlight";
 import { Vim, vim } from "@replit/codemirror-vim";
+import { GFM } from "@lezer/markdown";
 
 interface VimFileCommands {
   readonly save: () => void;
@@ -49,6 +50,36 @@ function wrapSelection(marker: "*" | "**") {
 
 const hiddenMarkdownMarks = new Set(["HeaderMark", "EmphasisMark", "LinkMark", "StrikethroughMark"]);
 
+class TaskCheckboxWidget extends WidgetType {
+  constructor(readonly from: number, readonly to: number, readonly checked: boolean) {
+    super();
+  }
+
+  override eq(other: TaskCheckboxWidget): boolean {
+    return this.from === other.from && this.to === other.to && this.checked === other.checked;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "md-task-checkbox";
+    checkbox.checked = this.checked;
+    checkbox.disabled = view.state.readOnly;
+    checkbox.setAttribute("aria-label", this.checked ? "Mark task incomplete" : "Mark task complete");
+    checkbox.addEventListener("change", () => {
+      view.dispatch({
+        changes: { from: this.from, to: this.to, insert: checkbox.checked ? "[x]" : "[ ]" },
+      });
+      view.focus();
+    });
+    return checkbox;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
 function livePreviewDecorations(view: EditorView): DecorationSet {
   const activeLines = new Set<number>();
   for (const range of view.state.selection.ranges) {
@@ -57,6 +88,15 @@ function livePreviewDecorations(view: EditorView): DecorationSet {
   const decorations: Array<{ from: number; to: number; value: Decoration }> = [];
   syntaxTree(view.state).iterate({
     enter(node) {
+      if (node.name === "TaskMarker") {
+        const checked = /^\[[xX]\]$/u.test(view.state.sliceDoc(node.from, node.to));
+        decorations.push({
+          from: node.from,
+          to: node.to,
+          value: Decoration.replace({ widget: new TaskCheckboxWidget(node.from, node.to, checked) }),
+        });
+        return;
+      }
       const hideInlineCodeMark = node.name === "CodeMark" && node.node.parent?.name === "InlineCode";
       const hideLinkUrl = node.name === "URL" && node.node.parent?.name === "Link";
       if ((!hiddenMarkdownMarks.has(node.name) && !hideInlineCodeMark && !hideLinkUrl)
@@ -127,7 +167,7 @@ export function MarkdownSourceEditor({ value, disabled, label, vimMode, onChange
     if (host.current === null) return;
     const extensions: Extension[] = [
       ...(vimMode ? [vim()] : []),
-      markdown(),
+      markdown({ extensions: [GFM] }),
       history(),
       highlightActiveLine(),
       syntaxHighlighting(markdownHighlight),

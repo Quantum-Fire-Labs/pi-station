@@ -3595,6 +3595,8 @@ body.sidebar-resizing {
 .markdown-source-editor .md-link { color: var(--accent2); text-decoration: underline; text-underline-offset: 2px; }
 .markdown-source-editor .md-quote { color: var(--muted); font-style: italic; }
 .markdown-source-editor .md-syntax { color: var(--faint); }
+.markdown-source-editor .md-task-checkbox { width: 16px; height: 16px; margin: 0 6px 0 0; vertical-align: -2px; accent-color: var(--accent); cursor: pointer; }
+.markdown-source-editor .md-task-checkbox:disabled { cursor: default; opacity: 0.65; }
 .shared-markdown-editor > p { margin: 24px; color: var(--danger); }
 .standalone-shared-editor {
   --editor-pane-width: 100vw;

@@ -19,6 +19,7 @@
     "@codemirror/view": "^6.43.8",
     "@fontsource-variable/geist": "^5.3.0",
     "@lezer/highlight": "^1.2.3",
+    "@lezer/markdown": "^1.7.2",
     "@pi-station/application-protocol": "0.1.2",
     "@replit/codemirror-vim": "^6.4.0",
     "class-variance-authority": "^0.7.1",
