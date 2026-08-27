@@ -60,7 +60,7 @@ bash install-release.sh
 Set `PI_STATION_VERSION` to install a specific release, for example:
 
 ```bash
-PI_STATION_VERSION=0.1.1 bash install-release.sh
+PI_STATION_VERSION=0.1.2 bash install-release.sh
 ```
 
 ### Edge channel
@@ -75,13 +75,49 @@ curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master
 
 The edge workflow builds and checks native Linux and macOS artifacts for x64 and ARM64 after changes reach `master`. It publishes `pi-station-edge-version.json` with the same immutable version stored in each archive's `VERSION` file. An older edge release without this metadata remains installable, but Settings reports its latest version as unavailable instead of guessing.
 
-### Update from Settings
+## Update Pi Station
 
-Open **Settings > Pi Station Update** to select the stable or edge channel, compare the installed and latest versions, and request an update. The selected channel is stored in `update-settings.json` under the Pi Station data directory. It is not stored with provider credentials. Pi Station never installs updates automatically and does not create an update timer.
+Before updating, back up important data and review the release notes. Wait for active Sessions to finish, then use either the built-in updater or the platform command below. Both methods preserve the existing port, data directories, and public and local origins. If health validation fails, the installer restores the previous release and service configuration.
 
-The server checks GitHub's `releases/latest` tag for stable. It reads the immutable metadata asset for edge. When you request an update, the server starts the existing release bootstrap installer with `PI_STATION_CHANNEL` in a separate systemd user service on Linux or a separate launchd job on macOS. This detached job remains active when the Pi Station service restarts. The normal maintenance screen remains visible while the installer waits for active Sessions, switches the release, validates health, and completes.
+### Update from Settings (Linux and macOS)
 
-The Settings updater supports release installations on Linux and macOS. A source checkout can show version information, but update execution requires the applicable user service manager and a supported release installation.
+Open **Settings > Pi Station Update**, select the stable or edge channel, and choose **Update Pi Station**. Pi Station never installs updates automatically and does not create an update timer.
+
+The selected channel is stored in `update-settings.json` under the Pi Station data directory, separately from provider credentials. The updater checks GitHub's latest release for stable builds and immutable release metadata for edge builds. It runs the installer in a detached systemd user service on Linux or launchd job on macOS, so the update continues while Pi Station restarts.
+
+The Settings updater requires a supported release installation. A source checkout can display version information but cannot update itself.
+
+### Update manually on Linux
+
+Run the release bootstrap installer again to update to the latest stable release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh | bash
+```
+
+To update to the latest edge build instead:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh | PI_STATION_CHANNEL=edge bash
+```
+
+The installer waits for active turns, switches the release, restarts only `pi-station.service`, validates service health, and confirms that Pi process IDs did not change.
+
+### Update manually on macOS
+
+Run the release bootstrap installer again to update to the latest stable release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh | bash
+```
+
+To update to the latest edge build instead:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Quantum-Fire-Labs/pi-station/master/install-release.sh | PI_STATION_CHANNEL=edge bash
+```
+
+The installer waits for active turns, switches the release, restarts only the `works.pistation.server` LaunchAgent, and validates service health.
 
 ### Tailnet access on Linux
 
@@ -122,7 +158,7 @@ The helper currently supports Linux installations. It does not install Tailscale
 
 The installer creates `pi-station.service` as a user service. It installs application files below `~/.local/share/pi-station/app` and stores application data, including shared Session files, in `~/.local/share/pi-station`. It binds the server to loopback and opens the Workspace at `http://127.0.0.1:8801/workspace`.
 
-Run the same installer from a newer release to update. The installer preserves the existing port, data directories, and public and local origins unless you supply replacement environment variables. It waits for active turns, changes the current release, restarts only Pi Station, checks service health, and confirms that Pi process IDs did not change. If validation fails, it restores the previous release and service configuration.
+See [Update Pi Station](#update-pi-station) for built-in and command-line update instructions.
 
 Configuration is in `~/.config/pi-station/environment`. View service logs with:
 
@@ -142,7 +178,9 @@ systemctl --user daemon-reload
 
 The installer creates the `works.pistation.server` LaunchAgent. Application files and data are below `~/Library/Application Support/Pi Station`. Logs are in `~/Library/Logs/Pi Station`. The server binds to loopback at `http://127.0.0.1:8801`.
 
-Run the installer from a newer release to update it. The installer preserves the existing port, data directories, and public and local origins unless you supply replacement environment variables. If validation fails, the installer restores the previous release and LaunchAgent configuration. To remove the LaunchAgent without removing Pi Station data:
+See [Update Pi Station](#update-pi-station) for built-in and command-line update instructions.
+
+To remove the LaunchAgent without removing Pi Station data:
 
 ```bash
 launchctl bootout "gui/$UID/works.pistation.server"
