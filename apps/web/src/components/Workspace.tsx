@@ -695,9 +695,6 @@ function Sidebar({
   shortcutsVisible: boolean;
   onCollapse: () => void;
 }) {
-  const [showingClosed, setShowingClosed] = useState<ReadonlySet<string>>(
-    new Set(),
-  );
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
     readCollapsedProjects,
   );
@@ -748,14 +745,6 @@ function Sidebar({
       if (next.has(projectId)) next.delete(projectId);
       else next.add(projectId);
       writeCollapsedProjects(next);
-      return next;
-    });
-  };
-  const toggleClosed = (projectId: string): void => {
-    setShowingClosed((current) => {
-      const next = new Set(current);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
       return next;
     });
   };
@@ -884,10 +873,6 @@ function Sidebar({
             (session) => session.projectId === project.projectId,
           );
           const runningCount = projectSessions.filter(sessionIsOpen).length;
-          const closedCount = projectSessions.length - runningCount;
-          const isShowingClosed = showingClosed.has(project.projectId);
-          const closedNoun = closedCount === 1 ? "Session" : "Sessions";
-          const closedLabel = `${isShowingClosed ? "Hide" : "Show"} ${closedCount} closed bookmarked ${closedNoun} in ${project.name}`;
           return <section
             key={project.projectId}
             className={`project${project.available ? "" : " unavailable"}`}
@@ -914,15 +899,6 @@ function Sidebar({
                 </button>
               </span>
               <span className="project-actions">
-                {closedCount > 0 && (
-                  <button
-                    aria-label={closedLabel}
-                    aria-pressed={isShowingClosed}
-                    onClick={() => toggleClosed(project.projectId)}
-                  >
-                    <Clock3 aria-hidden="true" size={14} strokeWidth={1.7} />
-                  </button>
-                )}
                 <button
                   aria-label={`New Session in ${project.name}`}
                   disabled={!project.available}
@@ -932,15 +908,11 @@ function Sidebar({
                 </button>
               </span>
             </header>
-            {!collapsed.has(project.projectId) && runningCount === 0
-              && !isShowingClosed && (
+            {!collapsed.has(project.projectId) && runningCount === 0 && (
                 <p className="project-session-empty">No open Sessions</p>
               )}
             {!collapsed.has(project.projectId) && nestedSessions(
-              projectSessions.filter((session) => (
-                sessionIsOpen(session)
-                || showingClosed.has(project.projectId)
-              )),
+              projectSessions.filter(sessionIsOpen),
             ).map(({ session, depth }) => {
                 const selected = activeRoute === "workspace"
                   && state.selectedSessionKey !== undefined
