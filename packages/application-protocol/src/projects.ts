@@ -2,16 +2,18 @@ export interface Project {
   readonly id: string
   readonly root: string
   readonly name?: string
+  readonly closed?: boolean
 }
 
 export function isProject(value: unknown): value is Project {
-  if (!isExactRecord(value, ["id", "root", "name"])) return false
+  if (!isExactRecord(value, ["id", "root", "name", "closed"])) return false
   return typeof value.id === "string"
     && value.id.length > 0
     && value.id.length <= 200
     && typeof value.root === "string"
     && isAbsolutePath(value.root)
     && (value.name === undefined || isProjectName(value.name))
+    && (value.closed === undefined || typeof value.closed === "boolean")
 }
 
 export function isProjectName(value: unknown): value is string {

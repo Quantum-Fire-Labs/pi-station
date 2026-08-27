@@ -203,8 +203,9 @@ describe("ProjectPage Settings", () => {
     expect(screen.getByRole("heading", { name: "Project details" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Development Server" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Project Bookmark" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Close Project" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Remove Project" })).toBeVisible();
-    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(4);
+    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(5);
 
     await user.click(screen.getByRole("button", { name: "Edit" }));
     const input = screen.getByLabelText("Project name");

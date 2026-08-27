@@ -87,6 +87,23 @@ describe("Workspace", () => {
     expect(sessionsVisibleInWorkspace([...fixtureState.sessions, quickSession], true)).toContain(quickSession);
   });
 
+  it("hides a closed Project and all of its Sessions from the sidebar", () => {
+    enableDesktopViewport();
+    const project = fixtureState.projects[0]!;
+    const state = {
+      ...fixtureState,
+      projects: fixtureState.projects.map((item) => item.projectId === project.projectId ? { ...item, closed: true } : item),
+    };
+    render(<Workspace state={state} onSelect={vi.fn()} />);
+
+    const sidebar = screen.getByRole("complementary", { name: "Projects and Sessions" });
+    expect([...sidebar.querySelectorAll(".project-name-link")].some((element) => element.textContent === project.name)).toBe(false);
+    for (const session of fixtureState.sessions.filter((item) => item.projectId === project.projectId)) {
+      expect(within(sidebar).queryByText(session.name!)).not.toBeInTheDocument();
+    }
+    expect(within(sidebar).getByText(fixtureState.projects[1]!.name)).toBeVisible();
+  });
+
   it("shows the default desktop sidebar and can collapse and expand it", async () => {
     enableDesktopViewport();
     const { container } = render(<Workspace state={fixtureState} onSelect={vi.fn()} />);

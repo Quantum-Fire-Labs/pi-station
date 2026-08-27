@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fixtureState } from "../fixtures/workspace";
@@ -47,6 +47,29 @@ describe("ProjectsPage", () => {
 
     expect([...otherProjects.querySelectorAll("h3")].map((heading) => heading.textContent))
       .toEqual(["Field Notes", "Pi Station"]);
+  });
+
+  it("separates closed Projects and requires an explicit Open action", async () => {
+    const user = userEvent.setup();
+    const project = fixtureState.projects[0]!;
+    const onOpen = vi.fn();
+    const onSetProjectClosed = vi.fn(() => Promise.resolve());
+    render(
+      <ProjectsPage
+        {...pageProps}
+        state={{ ...fixtureState, projects: fixtureState.projects.map((item) => item.projectId === project.projectId ? { ...item, closed: true } : item) }}
+        onOpen={onOpen}
+        onSetProjectClosed={onSetProjectClosed}
+      />,
+    );
+
+    const closed = screen.getByRole("heading", { name: "Closed Projects" }).closest("section");
+    if (closed === null) throw new Error("Closed Projects section is missing");
+    expect(within(closed).getByRole("heading", { name: project.name })).toBeVisible();
+    expect(within(closed).queryByRole("button", { name: `Open ${project.name}` })).not.toBeInTheDocument();
+    await user.click(within(closed).getByRole("button", { name: "Open Project" }));
+    expect(onSetProjectClosed).toHaveBeenCalledWith(project.projectId, false);
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("opens a Project from its card area without a visible Open Project button", async () => {

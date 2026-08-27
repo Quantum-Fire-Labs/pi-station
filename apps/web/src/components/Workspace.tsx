@@ -115,6 +115,7 @@ interface WorkspaceProps {
   ) => string | undefined;
   onCreateProject?: (name: string, directory: string) => string | undefined;
   onRemoveProject?: (projectId: ProjectId) => string | undefined;
+  onSetProjectClosed?: (projectId: ProjectId, closed: boolean) => Promise<void>;
   onSetProjectBookmark?: (projectId: ProjectId, bookmarked: boolean) => string | undefined;
   onReorderProjectBookmark?: (
     projectId: ProjectId,
@@ -709,6 +710,7 @@ function Sidebar({
   );
   let sessionShortcutNumber = 0;
   const projects = state.projects
+    .filter((project) => project.closed !== true)
     .filter((project) => (
       bookmarkPosition.has(project.projectId)
       || state.sessions.some((session) => (
@@ -1241,6 +1243,7 @@ export function Workspace({
   onListDirectory,
   onCreateProject,
   onRemoveProject,
+  onSetProjectClosed,
   onSetProjectBookmark,
   onReorderProjectBookmark,
   onSetSessionBookmark,
@@ -2912,6 +2915,7 @@ export function Workspace({
         onReorderBookmark={(projectId, direction) => (
           onReorderProjectBookmark?.(projectId, direction) ?? undefined
         )}
+        onSetProjectClosed={(projectId, closed) => onSetProjectClosed?.(projectId, closed) ?? Promise.reject(new Error("Project state changes are unavailable"))}
       />,
     );
   }
@@ -2936,6 +2940,11 @@ export function Workspace({
             onSetProjectBookmark?.(project.projectId, bookmarked) ?? undefined
           )}
           onRemoveProject={() => onRemoveProject?.(project.projectId)}
+          onCloseProject={() => onSetProjectClosed?.(project.projectId, true) ?? Promise.reject(new Error("Project state changes are unavailable"))}
+          onClosed={() => {
+            setSelectedProjectId(undefined);
+            setRouteState("projects");
+          }}
           onRemoved={() => {
             setSelectedProjectId(undefined);
             setRouteState("projects");
@@ -2977,6 +2986,7 @@ export function Workspace({
         onReorderBookmark={(projectId, direction) => (
           onReorderProjectBookmark?.(projectId, direction) ?? undefined
         )}
+        onSetProjectClosed={(projectId, closed) => onSetProjectClosed?.(projectId, closed) ?? Promise.reject(new Error("Project state changes are unavailable"))}
       />,
     );
   }

@@ -9,7 +9,7 @@ import type {
 export interface SessionKey { readonly hostId: string; readonly piSessionId: string }
 export type ProjectId = string;
 export type CapabilityId = string;
-export interface ProjectSummary { readonly projectId: ProjectId; readonly name: string; readonly displayPath: string; readonly available: boolean; readonly createdAt: string; readonly updatedAt: string }
+export interface ProjectSummary { readonly projectId: ProjectId; readonly name: string; readonly displayPath: string; readonly available: boolean; readonly closed?: boolean; readonly createdAt: string; readonly updatedAt: string }
 export interface ProjectBookmark { readonly projectId: ProjectId; readonly position: number }
 export interface SessionBookmark { readonly projectId: ProjectId; readonly sessionKey: SessionKey; readonly position: number }
 export interface SessionProjection {
