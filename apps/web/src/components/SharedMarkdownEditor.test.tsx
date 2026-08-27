@@ -54,6 +54,11 @@ it("uses the saved Vim preference without showing an editor toggle", async () =>
   const editor = await screen.findByRole("textbox", { name: "Markdown content for draft.md" });
   expect(editor).toHaveAttribute("data-vim-mode", "true");
   expect(screen.queryByRole("button", { name: "Vim" })).not.toBeInTheDocument();
+  const autosave = screen.getByRole("switch", { name: "Autosave" });
+  expect(autosave).not.toBeChecked();
+  await userEvent.click(autosave);
+  expect(autosave).toBeChecked();
+  expect(storageValues.get("pi-station:markdown-autosave")).toBe("true");
 });
 
 it("saves and closes after the Vim write-and-quit command succeeds", async () => {
@@ -104,6 +109,7 @@ it("automatically saves after editing when autosave is enabled", async () => {
   render(<SharedMarkdownEditor file={{ name: "draft.md", url: "/shared/session/draft.md" }} draftKey="autosave-draft" onClose={vi.fn()} onDirtyChange={vi.fn()} />);
 
   const editor = await screen.findByRole("textbox", { name: "Markdown content for draft.md" });
+  expect(screen.getByRole("switch", { name: "Autosave" })).toBeChecked();
   fireEvent.change(editor, { target: { value: "Autosaved revision" } });
 
   expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();

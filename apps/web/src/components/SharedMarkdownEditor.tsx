@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Circle, ExternalLink, LoaderCircle, TriangleAlert, X } from "lucide-react";
-import { readMarkdownAutosave, readMarkdownVimMode } from "../editor-preferences";
+import { readMarkdownAutosave, readMarkdownVimMode, writeMarkdownAutosave } from "../editor-preferences";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 
 export interface SharedMarkdownFile {
@@ -28,7 +28,7 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
   const [externalVersion, setExternalVersion] = useState<RemoteVersion>();
   const [status, setStatus] = useState<"loading" | "idle" | "saving" | "saved" | "updated" | "error">("loading");
   const vimMode = readMarkdownVimMode();
-  const autosave = readMarkdownAutosave();
+  const [autosave, setAutosave] = useState(readMarkdownAutosave);
   const load = useRef(0);
   const contentRef = useRef(content);
   const savedContentRef = useRef(savedContent);
@@ -180,6 +180,7 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
           </span>
         </div>
         <nav aria-label="Editor actions">
+          <label className="shared-markdown-autosave"><span>Autosave</span><input type="checkbox" role="switch" checked={autosave} onChange={(event) => { setAutosave(event.target.checked); writeMarkdownAutosave(event.target.checked); }} /></label>
           <button className={dirty ? "primary" : undefined} type="button" onClick={() => void save()} disabled={status === "loading" || status === "saving" || !dirty || externalVersion !== undefined}>{status === "saving" ? "Saving…" : "Save"}</button>
           <a href={`/shared-editor?file=${encodeURIComponent(file.url)}`} target="_blank" rel="noopener noreferrer" aria-label="Open in new tab" title="Open in new tab"><ExternalLink aria-hidden="true" size={16} /></a>
           <button type="button" onClick={onClose} aria-label="Close editor"><X aria-hidden="true" size={17} /></button>
