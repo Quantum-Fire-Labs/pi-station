@@ -30,8 +30,7 @@ export function ProjectPage({
   onOpenSession,
   onSetProjectBookmark,
   onRemoveProject,
-  onCloseProject = () => Promise.reject(new Error("Project state changes are unavailable")),
-  onClosed = () => undefined,
+  onSetProjectClosed = () => Promise.reject(new Error("Project state changes are unavailable")),
   onRemoved,
   onSetSessionBookmark,
   onReorderSessionBookmark,
@@ -47,8 +46,7 @@ export function ProjectPage({
   onOpenSession: (key: SessionKey) => void;
   onSetProjectBookmark: (bookmarked: boolean) => string | undefined;
   onRemoveProject: () => string | undefined;
-  onCloseProject?: () => Promise<void>;
-  onClosed?: () => void;
+  onSetProjectClosed?: (closed: boolean) => Promise<void>;
   onRemoved: () => void;
   onSetSessionBookmark: (key: SessionKey, bookmarked: boolean) => string | undefined;
   onReorderSessionBookmark: (key: SessionKey, direction: "up" | "down") => string | undefined;
@@ -64,8 +62,8 @@ export function ProjectPage({
   const [mutationRequestId, setMutationRequestId] = useState<string>();
   const [serverRequestId, setServerRequestId] = useState<string>();
   const [removalRequestId, setRemovalRequestId] = useState<string>();
-  const [closingProject, setClosingProject] = useState(false);
-  const [closeProjectError, setCloseProjectError] = useState<string>();
+  const [savingProjectState, setSavingProjectState] = useState(false);
+  const [projectStateError, setProjectStateError] = useState<string>();
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [confirmCloseAll, setConfirmCloseAll] = useState(false);
   const [closedOpen, setClosedOpen] = useState(false);
@@ -195,6 +193,22 @@ export function ProjectPage({
               <Plus data-icon="inline-start" aria-hidden="true" />
               New Session
             </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              disabled={savingProjectState}
+              onClick={() => {
+                setSavingProjectState(true);
+                setProjectStateError(undefined);
+                void onSetProjectClosed(project.closed !== true)
+                  .catch((reason: unknown) => setProjectStateError(reason instanceof Error ? reason.message : "Project state could not be changed"))
+                  .finally(() => setSavingProjectState(false));
+              }}
+            >
+              {savingProjectState ? (project.closed === true ? "Opening…" : "Closing…") : (project.closed === true ? "Open Project" : "Close Project")}
+            </Button>
+            {projectStateError && <p className="new-session-error" role="alert">{projectStateError}</p>}
           </div>
         </section>
 
@@ -417,31 +431,6 @@ export function ProjectPage({
                     {mutationError && (
                       <p className="new-session-error" role="alert">{mutationError}</p>
                     )}
-                  </CardContent>
-                </Card>
-
-                <Card className="project-settings-card gap-0 bg-transparent py-0">
-                  <CardHeader>
-                    <CardTitle><h3>Close Project</h3></CardTitle>
-                    <CardDescription>Hide this Project and its Sessions from the sidebar without removing or stopping anything.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={closingProject}
-                      onClick={() => {
-                        setClosingProject(true);
-                        setCloseProjectError(undefined);
-                        void onCloseProject()
-                          .then(onClosed)
-                          .catch((reason: unknown) => setCloseProjectError(reason instanceof Error ? reason.message : "Project could not be closed"))
-                          .finally(() => setClosingProject(false));
-                      }}
-                    >
-                      {closingProject ? "Closing…" : "Close Project"}
-                    </Button>
-                    {closeProjectError && <p className="new-session-error" role="alert">{closeProjectError}</p>}
                   </CardContent>
                 </Card>
 

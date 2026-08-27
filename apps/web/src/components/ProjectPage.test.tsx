@@ -75,6 +75,19 @@ describe("ProjectPage navigation", () => {
     expect(screen.getByRole("button", { name: "New Session" })).toBeDisabled();
   });
 
+  it("opens and closes the Project from the hero actions", async () => {
+    const user = userEvent.setup();
+    const onSetProjectClosed = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = renderProjectPage({ onSetProjectClosed });
+
+    await user.click(screen.getByRole("button", { name: "Close Project" }));
+    expect(onSetProjectClosed).toHaveBeenCalledWith(true);
+
+    rerender(<ProjectPage {...baseProps} project={{ ...project, closed: true }} onSetProjectClosed={onSetProjectClosed} />);
+    await user.click(screen.getByRole("button", { name: "Open Project" }));
+    expect(onSetProjectClosed).toHaveBeenCalledWith(false);
+  });
+
   it("resets the active tab and editable Project state when the Project changes", async () => {
     const user = userEvent.setup();
     const { rerender } = renderProjectPage({ client: { renameProject: vi.fn().mockResolvedValue(undefined) } as unknown as ApplicationClient });
@@ -203,9 +216,9 @@ describe("ProjectPage Settings", () => {
     expect(screen.getByRole("heading", { name: "Project details" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Development Server" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Project Bookmark" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Close Project" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Close Project" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Remove Project" })).toBeVisible();
-    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(5);
+    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(4);
 
     await user.click(screen.getByRole("button", { name: "Edit" }));
     const input = screen.getByLabelText("Project name");

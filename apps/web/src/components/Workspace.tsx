@@ -2940,11 +2940,7 @@ export function Workspace({
             onSetProjectBookmark?.(project.projectId, bookmarked) ?? undefined
           )}
           onRemoveProject={() => onRemoveProject?.(project.projectId)}
-          onCloseProject={() => onSetProjectClosed?.(project.projectId, true) ?? Promise.reject(new Error("Project state changes are unavailable"))}
-          onClosed={() => {
-            setSelectedProjectId(undefined);
-            setRouteState("projects");
-          }}
+          onSetProjectClosed={(closed) => onSetProjectClosed?.(project.projectId, closed) ?? Promise.reject(new Error("Project state changes are unavailable"))}
           onRemoved={() => {
             setSelectedProjectId(undefined);
             setRouteState("projects");
