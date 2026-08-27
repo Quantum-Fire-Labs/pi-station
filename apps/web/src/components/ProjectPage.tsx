@@ -30,6 +30,7 @@ export function ProjectPage({
   onOpenSession,
   onSetProjectBookmark,
   onRemoveProject,
+  onSetProjectClosed = () => Promise.reject(new Error("Project state changes are unavailable")),
   onRemoved,
   onSetSessionBookmark,
   onReorderSessionBookmark,
@@ -45,6 +46,7 @@ export function ProjectPage({
   onOpenSession: (key: SessionKey) => void;
   onSetProjectBookmark: (bookmarked: boolean) => string | undefined;
   onRemoveProject: () => string | undefined;
+  onSetProjectClosed?: (closed: boolean) => Promise<void>;
   onRemoved: () => void;
   onSetSessionBookmark: (key: SessionKey, bookmarked: boolean) => string | undefined;
   onReorderSessionBookmark: (key: SessionKey, direction: "up" | "down") => string | undefined;
@@ -60,6 +62,8 @@ export function ProjectPage({
   const [mutationRequestId, setMutationRequestId] = useState<string>();
   const [serverRequestId, setServerRequestId] = useState<string>();
   const [removalRequestId, setRemovalRequestId] = useState<string>();
+  const [savingProjectState, setSavingProjectState] = useState(false);
+  const [projectStateError, setProjectStateError] = useState<string>();
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [confirmCloseAll, setConfirmCloseAll] = useState(false);
   const [closedOpen, setClosedOpen] = useState(false);
@@ -189,6 +193,22 @@ export function ProjectPage({
               <Plus data-icon="inline-start" aria-hidden="true" />
               New Session
             </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              disabled={savingProjectState}
+              onClick={() => {
+                setSavingProjectState(true);
+                setProjectStateError(undefined);
+                void onSetProjectClosed(project.closed !== true)
+                  .catch((reason: unknown) => setProjectStateError(reason instanceof Error ? reason.message : "Project state could not be changed"))
+                  .finally(() => setSavingProjectState(false));
+              }}
+            >
+              {savingProjectState ? (project.closed === true ? "Opening…" : "Closing…") : (project.closed === true ? "Open Project" : "Close Project")}
+            </Button>
+            {projectStateError && <p className="new-session-error" role="alert">{projectStateError}</p>}
           </div>
         </section>
 

@@ -1965,6 +1965,7 @@ body.sidebar-resizing {
   display: flex;
   flex: none;
   align-items: center;
+  gap: 8px;
 }
 .project-page-new-session {
   min-height: 40px;
@@ -3357,7 +3358,11 @@ body.sidebar-resizing {
   .project-page-hero-path {
     max-width: 100%;
   }
-  .project-page-hero-actions,
+  .project-page-hero-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .project-page-hero-actions > button,
   .project-page-new-session {
     width: 100%;
   }

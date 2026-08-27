@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { ArrowDown, ArrowUp, Folder, Plus } from "lucide-react";
 import type { ProjectId } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
@@ -22,6 +22,7 @@ export function ProjectsPage({
   onProjects,
   onSettings,
   onReorderBookmark,
+  onSetProjectClosed = () => Promise.reject(new Error("Project state changes are unavailable")),
 }: {
   state: ApplicationState;
   onOpen: (projectId: ProjectId) => void;
@@ -34,8 +35,11 @@ export function ProjectsPage({
     projectId: ProjectId,
     direction: "up" | "down",
   ) => string | undefined;
+  onSetProjectClosed?: (projectId: ProjectId, closed: boolean) => Promise<void>;
 }) {
   const [mutationRequestId, setMutationRequestId] = useState<string>();
+  const [projectSaving, setProjectSaving] = useState<ProjectId>();
+  const [projectError, setProjectError] = useState<string>();
   const mutation = mutationRequestId === undefined
     ? undefined
     : state.bookmarkMutations[mutationRequestId];
@@ -51,17 +55,24 @@ export function ProjectsPage({
     ]),
   );
   const bookmarked = state.projects
-    .filter((project) => positions.has(project.projectId))
+    .filter((project) => project.closed !== true && positions.has(project.projectId))
     .sort((left, right) => (
       (positions.get(left.projectId) ?? Number.MAX_SAFE_INTEGER)
       - (positions.get(right.projectId) ?? Number.MAX_SAFE_INTEGER)
     ));
   const other = state.projects
-    .filter((project) => !positions.has(project.projectId))
-    .sort((left, right) => (
-      left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
-      || left.projectId.localeCompare(right.projectId)
-    ));
+    .filter((project) => project.closed !== true && !positions.has(project.projectId))
+    .sort(compareProjects);
+  const closed = state.projects
+    .filter((project) => project.closed === true)
+    .sort(compareProjects);
+  const setClosed = (projectId: ProjectId, value: boolean): void => {
+    setProjectSaving(projectId);
+    setProjectError(undefined);
+    void onSetProjectClosed(projectId, value)
+      .catch((reason: unknown) => setProjectError(reason instanceof Error ? reason.message : "Project state could not be changed"))
+      .finally(() => setProjectSaving(undefined));
+  };
 
   return (
     <main className="projects-index projects-index-page">
@@ -116,7 +127,18 @@ export function ProjectsPage({
                 saving={saving}
               />
             )}
-            {error && <p className="new-session-error" role="alert">{error}</p>}
+            {closed.length > 0 && (
+              <ProjectGroup
+                title="Closed Projects"
+                projects={closed}
+                onOpen={onOpen}
+                saving={saving}
+                closed
+                {...(projectSaving === undefined ? {} : { projectSaving })}
+                onSetClosed={setClosed}
+              />
+            )}
+            {(error ?? projectError) && <p className="new-session-error" role="alert">{error ?? projectError}</p>}
           </div>
         )}
       </div>
@@ -124,18 +146,29 @@ export function ProjectsPage({
   );
 }
 
+const compareProjects = (left: ApplicationState["projects"][number], right: ApplicationState["projects"][number]): number => (
+  left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
+  || left.projectId.localeCompare(right.projectId)
+);
+
 function ProjectGroup({
   title,
   projects,
   onOpen,
   saving,
   onReorder,
+  closed = false,
+  projectSaving,
+  onSetClosed,
 }: {
   title: string;
   projects: ApplicationState["projects"];
   onOpen: (projectId: ProjectId) => void;
   saving: boolean;
   onReorder?: (projectId: ProjectId, direction: "up" | "down") => void;
+  closed?: boolean;
+  projectSaving?: ProjectId;
+  onSetClosed?: (projectId: ProjectId, closed: boolean) => void;
 }) {
   const headingId = `projects-${title.toLowerCase().replaceAll(" ", "-")}`;
 
@@ -153,9 +186,9 @@ function ProjectGroup({
               className="projects-page-card-header projects-page-card-open"
               role="button"
               tabIndex={0}
-              aria-label={`Open ${project.name}`}
+              aria-label={`${closed ? "View" : "Open"} ${project.name}`}
               onClick={() => onOpen(project.projectId)}
-              onKeyDown={(event) => {
+              onKeyDown={(event: KeyboardEvent) => {
                 if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
                 onOpen(project.projectId);
@@ -172,6 +205,18 @@ function ProjectGroup({
               </div>
               {!project.available && <Badge variant="outline">Unavailable</Badge>}
             </CardHeader>
+            {closed && onSetClosed !== undefined && (
+              <CardFooter className="projects-page-card-footer border-foreground/10 bg-transparent">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={projectSaving !== undefined}
+                  onClick={() => onSetClosed(project.projectId, false)}
+                >
+                  {projectSaving === project.projectId ? "Opening…" : "Open Project"}
+                </Button>
+              </CardFooter>
+            )}
             {onReorder !== undefined && (
               <CardFooter
                 className="projects-page-card-footer border-foreground/10 bg-transparent"

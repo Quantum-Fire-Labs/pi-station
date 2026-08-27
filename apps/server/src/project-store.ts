@@ -5,14 +5,16 @@ import type { Project } from "@pi-station/application-protocol"
 import { AtomicJsonStore } from "./atomic-json-store.js"
 import { projectId } from "./domain.js"
 
+type StoredProject = Project & { readonly closed?: boolean }
+
 export class ProjectStore {
-  readonly #store: AtomicJsonStore<readonly Project[]>
+  readonly #store: AtomicJsonStore<readonly StoredProject[]>
 
   constructor(dataDir: string) {
-    this.#store = new AtomicJsonStore(join(dataDir, "projects.json"), isProjectList)
+    this.#store = new AtomicJsonStore(join(dataDir, "projects.json"), isStoredProjectList)
   }
 
-  read(): Promise<readonly Project[]> {
+  read(): Promise<readonly StoredProject[]> {
     return this.#store.read([])
   }
 
@@ -30,6 +32,21 @@ export class ProjectStore {
     return this.#store.replace(current.map((project) => project.id === id ? { ...project, name } : project))
   }
 
+  setClosed(id: string, closed: boolean): Promise<readonly Project[]> {
+    return this.#store.update([], (current) => {
+      if (!current.some((project) => project.id === id)) throw new Error("Project is not configured")
+      return current.map((project) => project.id === id
+        ? closed ? { ...project, closed: true } : openProject(project)
+        : project)
+    })
+  }
+
+  async ensureOpen(id: string): Promise<void> {
+    await this.#store.update([], (current) => current.some((project) => project.id === id && project.closed === true)
+      ? current.map((project) => project.id === id ? openProject(project) : project)
+      : current)
+  }
+
   async remove(id: string): Promise<readonly Project[]> {
     const current = await this.read()
     if (!current.some((project) => project.id === id)) throw new Error("Project is not configured")
@@ -45,10 +62,30 @@ export class ProjectStore {
       }
       const id = projectId(canonical)
       const existing = current.find((project) => project.id === id)
-      return { id, root: canonical, ...(existing?.name === undefined ? {} : { name: existing.name }) }
+      return {
+        id,
+        root: canonical,
+        ...(existing?.name === undefined ? {} : { name: existing.name }),
+        ...(existing?.closed === true ? { closed: true } : {}),
+      }
     }))
 
     const unique = [...new Map(configured.map((project) => [project.id, project])).values()]
     return this.#store.replace(unique)
   }
+}
+
+function openProject(project: StoredProject): StoredProject {
+  return { id: project.id, root: project.root, ...(project.name === undefined ? {} : { name: project.name }) }
+}
+
+function isStoredProjectList(value: unknown): value is readonly StoredProject[] {
+  if (!Array.isArray(value)) return false
+  const legacyProjects: unknown[] = (value as unknown[]).map((project: unknown): unknown => {
+    if (typeof project !== "object" || project === null || Array.isArray(project)) return project
+    const record = project as Record<string, unknown>
+    if (record.closed !== undefined && typeof record.closed !== "boolean") return project
+    return Object.fromEntries(Object.entries(record).filter(([key]) => key !== "closed"))
+  })
+  return isProjectList(legacyProjects)
 }

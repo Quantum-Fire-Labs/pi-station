@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { encodeSse, isModelSettingRequest, isNewTurnRequest, isPrompt, isSessionStateRequest, isThinkingSettingRequest, isTimelineImage } from "../index.js"
+import { encodeSse, isModelSettingRequest, isNewTurnRequest, isProject, isPrompt, isSessionStateRequest, isThinkingSettingRequest, isTimelineImage } from "../index.js"
 
 describe("Pi Station protocol", () => {
+  it("accepts existing and closed Project records compatibly", () => {
+    expect(isProject({ id: "project", root: "/work" })).toBe(true)
+    expect(isProject({ id: "project", root: "/work", closed: true })).toBe(true)
+    expect(isProject({ id: "project", root: "/work", closed: false })).toBe(true)
+    expect(isProject({ id: "project", root: "/work", closed: "true" })).toBe(false)
+    expect(isProject({ id: "project", root: "/work", closed: true, state: "closed" })).toBe(false)
+  })
+
   it("accepts only bounded non-empty prompts", () => {
     expect(isPrompt({ prompt: "hello" })).toBe(true)
     expect(isPrompt({ prompt: "  " })).toBe(false)

@@ -531,6 +531,28 @@ describe("Pi Station incremental Session summaries", () => {
     client.stop();
   });
 
+  it("persists Project close and open state through the server", async () => {
+    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const path = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [], bookmarks: [] }));
+      if (path === "/v2/projects/project/close" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project", closed: true }], bookmarks: [] }));
+      if (path === "/v2/projects/project/open" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    globalThis.fetch = fetchMock;
+    const client = new ApplicationClient();
+    client.connect();
+    await vi.waitFor(() => expect(client.snapshot.connection).toBe("ready"));
+
+    await client.setProjectClosed("project", true);
+    expect(client.snapshot.projects[0]?.closed).toBe(true);
+    await client.setProjectClosed("project", false);
+    expect(client.snapshot.projects[0]?.closed).toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith("/v2/projects/project/close", expect.objectContaining({ method: "POST", body: "{}" }));
+  });
+
   it("removes a Project and all of its current client views", async () => {
     globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
     const fetchMock = vi.fn<typeof fetch>((input, init) => {

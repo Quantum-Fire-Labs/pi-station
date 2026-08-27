@@ -143,6 +143,7 @@ export class ApplicationClientBase {
   reorderSessionBookmark(_projectId: ProjectId, _sessionKey: SessionKey, _direction: "up" | "down"): string | undefined { return undefined; }
   listClosedProjectSessions(_projectId: ProjectId): string | undefined { return undefined; }
   removeProject(_projectId: ProjectId): string | undefined { return undefined; }
+  setProjectClosed(_projectId: ProjectId, _closed: boolean): Promise<void> { return Promise.reject(new Error("Project state changes are unavailable")); }
   createProject(_name: string, _directory: string): string | undefined { return undefined; }
   renameProject(_projectId: ProjectId, _name: string): Promise<void> { return Promise.reject(new Error("Project rename is unavailable")); }
   configureDevelopmentServer(_projectId: ProjectId, _configuration: unknown): string | undefined { return undefined; }

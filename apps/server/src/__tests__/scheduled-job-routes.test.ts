@@ -59,7 +59,17 @@ describe("Scheduled Job HTTP routes", () => {
       expect((await json(base, `/v2/scheduled-jobs/${id}`, "PUT", { ...mutation, title: "Updated" })).body).toMatchObject({ job: { title: "Updated" } });
       expect((await json(base, `/v2/scheduled-jobs/${id}/pause`, "POST", {})).body).toMatchObject({ job: { state: "paused" } });
       expect((await json(base, `/v2/scheduled-jobs/${id}/resume`, "POST", {})).body).toMatchObject({ job: { state: "active" } });
+      expect((await json(base, `/v2/projects/${projectId}/close`, "POST", {})).body).toMatchObject({ projects: [{ id: projectId, closed: true }] });
       expect((await json(base, `/v2/scheduled-jobs/${id}/run-now`, "POST", {})).response.status).toBe(202);
+      expect((await json(base, "/v2/projects")).body).toMatchObject({ projects: [{ id: projectId }] });
+      expect(((await json(base, "/v2/projects")).body!.projects as Array<{ closed?: boolean }>)[0]?.closed).toBeUndefined();
+
+      const fixed = await json(base, "/v2/scheduled-jobs", "POST", { ...mutation, projectId, target: { type: "existing-session", sessionId: "missing-session" } });
+      const fixedId = (fixed.body!.job as { id: string }).id;
+      await json(base, `/v2/projects/${projectId}/close`, "POST", {});
+      expect((await json(base, `/v2/scheduled-jobs/${fixedId}/run-now`, "POST", {})).response.status).toBe(202);
+      expect(((await json(base, "/v2/projects")).body!.projects as Array<{ closed?: boolean }>)[0]?.closed).toBeUndefined();
+
       expect((await json(base, `/v2/scheduled-jobs/${id}`, "DELETE")).response.status).toBe(204);
       expect((await json(base, `/v2/scheduled-jobs/${id}`)).response.status).toBe(404);
     } finally {

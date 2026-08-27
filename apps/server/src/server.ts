@@ -273,7 +273,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   }
 
   options.newAgentInProject?.bind(async (input) => {
-    const project = (await projectStore.read()).find((item) => item.id === input.projectId)
+    let project = (await projectStore.read()).find((item) => item.id === input.projectId)
     if (project === undefined) throw new Error(`Project not found: ${input.projectId}`)
     if (!isProjectName(input.name)) throw new Error("Session name is invalid")
     let root: Awaited<ReturnType<typeof stat>>
@@ -286,6 +286,8 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
 
     const sessionId = randomUUID()
     const key = { projectId: project.id, sessionId }
+    await projectStore.ensureOpen(project.id)
+    project = (await projectStore.read()).find((item) => item.id === input.projectId) ?? project
     const manager = SessionManager.create(project.root, undefined, { id: sessionId })
     initializeEmptySession(manager, input.name)
     const indexed = await options.index.refreshSession(key, project)
@@ -348,6 +350,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const scheduledTurn = async (job: ScheduledJob) => {
     const project = (await projectStore.read()).find((item) => item.id === job.projectId)
     if (project === undefined) return { status: "failed" as const, message: "Project is missing" }
+    await projectStore.ensureOpen(project.id)
     const sessionId = job.target.type === "new-session" ? randomUUID() : job.target.sessionId
     const key = { projectId: project.id, sessionId }
     const saved = job.target.type === "new-session" ? undefined : await findSession(key)
@@ -398,6 +401,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const unsubscribeDelegations = options.delegationEvents?.subscribe((event) => {
     void (async () => {
       await delegationStore.put(event.record)
+      if (event.type === "started") await projectStore.ensureOpen(event.record.projectId)
       const project = (await projectStore.read()).find((item) => item.id === event.record.projectId)
       if (project === undefined) return
       const indexed = await options.index.indexSession({
@@ -725,6 +729,16 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         })
         return
       }
+      const projectStateRoute = /^\/v2\/projects\/([^/]+)\/(close|open)$/u.exec(url.pathname)
+      if (request.method === "POST" && projectStateRoute !== null) {
+        assertJsonMutation(request)
+        await requireEmptyJsonObject(request)
+        const projectId = decodeURIComponent(projectStateRoute[1]!)
+        if (!isProtocolId(projectId)) throw new HttpError(404, "Not found")
+        const projects = await projectStore.setClosed(projectId, projectStateRoute[2] === "close")
+        sendJson(response, 200, { version: PROTOCOL_VERSION, projects, bookmarks: await projectBookmarks.list(projects) })
+        return
+      }
       const projectRoute = /^\/v2\/projects\/([^/]+)$/u.exec(url.pathname)
       if (request.method === "PUT" && projectRoute !== null) {
         assertJsonMutation(request)
@@ -906,6 +920,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const value = await readJsonBody(request)
         if (!isSessionCreateRequest(value)) throw new HttpError(400, "Session request is invalid")
         const project = await resolveNewSessionProject(projectStore, { projectId, sessionId: "new" }, value.cwd)
+        await projectStore.ensureOpen(project.id)
         const sessionId = randomUUID()
         const manager = SessionManager.create(project.root, undefined, { id: sessionId })
         initializeEmptySession(manager, value.name)
@@ -933,6 +948,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const project = isNew
           ? await resolveNewSessionProject(projectStore, route.key, (value as typeof value & { readonly cwd?: string }).cwd)
           : await resolveProject(route.key, saved)
+        await projectStore.ensureOpen(project.id)
         if (isNew) await metadata.set(route.key, "open")
 
         const imageIds = value.imageIds ?? []
@@ -1151,6 +1167,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const value = await readJsonBody(request)
         if (!isSessionStateRequest(value)) throw new HttpError(400, "Session state is invalid")
         if (value.state === "closed" && turns.isWorking(route.key)) throw new HttpError(409, "Working Session cannot be closed")
+        if (value.state === "open") await projectStore.ensureOpen(route.key.projectId)
         await metadata.set(route.key, value.state)
         const changed = { ...saved, state: value.state }
         await publishSession(changed)
@@ -1182,6 +1199,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (request.method === "GET" && route.action === undefined) {
         const eventCursor = journal.cursor()
         const project = await resolveProject(route.key, saved)
+        await projectStore.ensureOpen(project.id)
         const indexed = await options.index.refreshSession(route.key, project) ?? saved
         const refreshed = (await decorateSessions(await metadata.decorate([indexed])))[0]
         if (refreshed === undefined) throw new HttpError(404, "Session not found")

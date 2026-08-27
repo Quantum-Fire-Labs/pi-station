@@ -61,6 +61,7 @@ describe("new agent in Project host bridge", () => {
     roots.push(dataDir, projectRoot)
     const [project] = await new ProjectStore(dataDir).configure([projectRoot])
     if (project === undefined) throw new Error("Project was not configured")
+    await new ProjectStore(dataDir).setClosed(project.id, true)
     const bridge = new NewAgentInProjectBridge()
     const { run, runner } = runtime()
     const { sessionIndex, refreshSession } = index()
@@ -71,6 +72,7 @@ describe("new agent in Project host bridge", () => {
 
     expect(result.status).toBe("started")
     expect(result.projectId).toBe(project.id)
+    expect((await new ProjectStore(dataDir).read())[0]?.closed).toBeUndefined()
     expect(typeof result.sessionId).toBe("string")
     expect(run).toHaveBeenCalledOnce()
     expect(run.mock.calls[0]?.[0]).toMatchObject({

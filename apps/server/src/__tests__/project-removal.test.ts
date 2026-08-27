@@ -9,10 +9,65 @@ import { createPiStationServer } from "../server.js"
 
 const directories: string[] = []
 afterEach(async () => {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })))
+  await Promise.all(directories.splice(0).map(async (directory) => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try { await rm(directory, { recursive: true, force: true }); return }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOTEMPTY" || attempt === 2) throw error
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+    }
+  }))
 })
 
 describe("Pi Station Project removal", () => {
+  it("closes and opens a Project without changing associated data", async () => {
+    const test = await setup("open")
+    try {
+      await writeFile(join(test.dataDir, "project-bookmarks.json"), JSON.stringify([test.projectId]))
+      await writeFile(join(test.dataDir, "session-bookmarks.json"), JSON.stringify([{ projectId: test.projectId, sessionId: "session-1" }]))
+      await writeFile(join(test.dataDir, "scheduled-jobs.json"), JSON.stringify({ version: 1, jobs: [] }))
+      const preserved = ["sessions.json", "project-bookmarks.json", "session-bookmarks.json", "scheduled-jobs.json"]
+      expect((await (await fetch(`${test.base}/v2/sessions`)).json() as { sessions: unknown[] }).sessions).toHaveLength(1)
+      const before = await Promise.all(preserved.map((file) => readFile(join(test.dataDir, file), "utf8")))
+
+      const closed = await fetch(`${test.base}/v2/projects/${test.projectId}/close`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+      expect(closed.status).toBe(200)
+      expect(await closed.json()).toMatchObject({ projects: [{ id: test.projectId, closed: true }], bookmarks: [{ projectId: test.projectId, position: 0 }] })
+      expect((await (await fetch(`${test.base}/v2/sessions`)).json() as { sessions: unknown[] }).sessions).toHaveLength(1)
+      expect(await Promise.all(preserved.map((file) => readFile(join(test.dataDir, file), "utf8")))).toEqual(before)
+      expect(test.runner.dispose.mock.calls).toHaveLength(0)
+
+      const opened = await fetch(`${test.base}/v2/projects/${test.projectId}/open`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+      expect(opened.status).toBe(200)
+      expect(await opened.json()).toMatchObject({ projects: [{ id: test.projectId }] })
+      expect((JSON.parse(await readFile(join(test.dataDir, "projects.json"), "utf8")) as Array<{ closed?: boolean }>)[0]?.closed).toBeUndefined()
+    } finally {
+      await test.close()
+    }
+  })
+
+  it("automatically opens a closed Project when its Session is navigated to or reopened", async () => {
+    const test = await setup("closed")
+    try {
+      await closeProject(test)
+      expect((await fetch(`${test.base}/v2/projects/${test.projectId}/sessions/session-1`)).status).toBe(200)
+      expect(await projectClosed(test)).toBeUndefined()
+
+      await closeProject(test)
+      const reopened = await fetch(`${test.base}/v2/projects/${test.projectId}/sessions/session-1/state`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: "open" }) })
+      expect(reopened.status).toBe(200)
+      expect(await projectClosed(test)).toBeUndefined()
+
+      await closeProject(test)
+      const created = await fetch(`${test.base}/v2/projects/${test.projectId}/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) })
+      expect(created.status).toBe(201)
+      expect(await projectClosed(test)).toBeUndefined()
+    } finally {
+      await test.close()
+    }
+  })
+
   it("removes only Pi Station registration and metadata for a Project with closed Sessions", async () => {
     const test = await setup("closed")
     try {
@@ -111,7 +166,7 @@ async function setup(state: "open" | "closed") {
   const session = { id: "session-1", projectId, path: join(projectRoot, "session-1.jsonl"), modifiedAt: "2026-01-01T00:00:00.000Z" }
   const index: SessionIndex = {
     list: (projects) => Promise.resolve(projects.some((project) => project.id === projectId) ? [{ ...session, projectId }] : []),
-    get: () => Promise.resolve(undefined),
+    get: (key) => Promise.resolve(key.projectId === projectId && key.sessionId === "session-1" ? { ...session, projectId } : undefined),
     indexSession: (value) => Promise.resolve(value),
     refreshSession: (key) => Promise.resolve(key.projectId === projectId ? { ...session, projectId } : undefined),
     timeline: () => Promise.resolve([]),
@@ -119,7 +174,8 @@ async function setup(state: "open" | "closed") {
     timelineImage: () => Promise.resolve(undefined),
     rename: (value, name) => Promise.resolve({ ...value, name }),
   }
-  const runner = { run: vi.fn(), control: vi.fn(), interruptOwned: vi.fn(), dispose: vi.fn() } as unknown as SessionRuntime & { dispose: ReturnType<typeof vi.fn> }
+  const control = vi.fn<SessionRuntime["control"]>(({ command }) => Promise.resolve({ type: "response", command: command.type, success: true, data: command.type === "get_available_models" ? { models: [] } : command.type === "get_available_thinking_levels" ? { levels: ["off"] } : {} }))
+  const runner = { run: vi.fn(), control, interruptOwned: vi.fn(), dispose: vi.fn() } as unknown as SessionRuntime & { dispose: ReturnType<typeof vi.fn> }
   const delegationEvents = new DelegationEvents()
   const delegationStore = new DelegationStore(dataDir)
   const server = createPiStationServer({ dataDir, index, runner, delegationEvents, delegationStore })
@@ -144,4 +200,14 @@ async function setup(state: "open" | "closed") {
     delegationStore,
     close: () => new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error))),
   }
+}
+
+async function closeProject(test: { base: string; projectId: string }): Promise<void> {
+  const response = await fetch(`${test.base}/v2/projects/${test.projectId}/close`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+  expect(response.status).toBe(200)
+}
+
+async function projectClosed(test: { base: string; projectId: string }): Promise<boolean | undefined> {
+  const body = await (await fetch(`${test.base}/v2/projects`)).json() as { projects: Array<{ id: string; closed?: boolean }> }
+  return body.projects.find((project) => project.id === test.projectId)?.closed
 }

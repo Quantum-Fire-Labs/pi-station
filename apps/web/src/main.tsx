@@ -253,6 +253,7 @@ function Root() {
       onListDirectory={listDirectory}
       onCreateProject={createProject}
       onRemoveProject={removeProject}
+      onSetProjectClosed={(projectId, closed) => client?.setProjectClosed(projectId, closed) ?? Promise.reject(new Error("Project state changes are unavailable"))}
       onSetProjectBookmark={setProjectBookmark}
       onReorderProjectBookmark={reorderProjectBookmark}
       onSetSessionBookmark={setSessionBookmark}

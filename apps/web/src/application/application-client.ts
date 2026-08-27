@@ -364,6 +364,12 @@ export class ApplicationClient extends ApplicationClientBase {
     this.updateRpcState({ projects: response.projects.map(projectSummary) });
   }
 
+  override async setProjectClosed(projectId: ProjectId, closed: boolean): Promise<void> {
+    if (this.rpcState.connection !== "ready") throw new Error("Pi Station is not connected");
+    const response = await mutate(`/v2/projects/${encodeURIComponent(projectId)}/${closed ? "close" : "open"}`, "POST", {}) as ProjectsResponse;
+    this.updateRpcState({ projects: response.projects.map(projectSummary), projectBookmarks: response.bookmarks });
+  }
+
   override removeProject(projectId: ProjectId): string | undefined {
     if (this.rpcState.connection !== "ready") return undefined;
     const requestId = crypto.randomUUID();
@@ -846,6 +852,7 @@ export class ApplicationClient extends ApplicationClientBase {
         queue: { state: "empty", knownItems: [] },
         timeline: mapTimeline(view.timeline, key, "saved"),
       },
+      projects: this.rpcState.projects.map((project) => project.projectId === key.hostId ? { ...project, closed: false } : project),
       sessions: upsertSessionSummary(this.rpcState.sessions, view.session).map((session) => session.sessionKey.hostId === key.hostId
         && session.sessionKey.piSessionId === key.piSessionId
         ? { ...session, projection }
@@ -1109,6 +1116,7 @@ function projectSummary(project: Project): ProjectSummary {
     name: project.name ?? project.root.split("/").at(-1) ?? project.root,
     displayPath: project.root,
     available: true,
+    closed: (project as Project & { readonly closed?: boolean }).closed === true,
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
   };
