@@ -1545,9 +1545,7 @@ export function Workspace({
   useEffect(() => {
     if (newSessionRequest?.status !== "succeeded") return;
     if (newSessionRequest.result?.status === "succeeded") {
-      focusComposerForSession.current = isDesktopViewport()
-        ? newSessionRequest.result.sessionKey
-        : undefined;
+      openSession(newSessionRequest.result.sessionKey);
     }
     setNewSessionProject(undefined);
     setNewSessionRequestId(undefined);
@@ -2917,7 +2915,11 @@ export function Workspace({
         }}
         onNewSession={() => setRoute("new-session")}
         onOpenQuickSession={() => onOpenQuickSession?.()}
-        onNewProjectSession={(project) => setNewSessionProject(project)}
+        onNewProjectSession={(project) => {
+          setNewSessionName("");
+          setNewSessionRequestId(undefined);
+          setNewSessionProject(project);
+        }}
         onAddProject={() => setRoute("add-project")}
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
