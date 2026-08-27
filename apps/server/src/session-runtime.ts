@@ -738,14 +738,23 @@ async function sendInboundAgentMessage(
   message: RuntimeAgentMessage,
   deliverAs?: "steer",
 ): Promise<void> {
+  const sender = message.fromName === undefined
+    ? `Session ${message.fromSessionId}`
+    : `${message.fromName} (Session ${message.fromSessionId})`
   await session.sendCustomMessage({
     customType: "pi-station-agent-message",
-    content: message.message,
+    content: [
+      `Agent message from ${sender}:`,
+      message.message,
+      "",
+      `When responding to this agent, use send_agent_message with sessionId "${message.fromSessionId}". Do not leave the response only in this Session's output.`,
+    ].join("\n"),
     display: true,
     details: {
       kind: "agent-message",
       fromSessionId: message.fromSessionId,
       ...(message.fromName === undefined ? {} : { fromName: message.fromName }),
+      message: message.message,
     },
   }, {
     triggerTurn: true,

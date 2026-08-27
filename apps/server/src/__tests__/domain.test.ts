@@ -214,8 +214,8 @@ describe("saved active-path projector", () => {
   it("keeps agent messages distinct from user messages", () => {
     const entries = [{
       type: "custom_message", id: "agent-message", parentId: null, timestamp: "2026-01-01T00:00:00Z",
-      customType: "pi-station-agent-message", content: "Please review this.", display: true,
-      details: { kind: "agent-message", fromSessionId: "session-source", fromName: "Themes" },
+      customType: "pi-station-agent-message", content: "Agent message envelope with reply instructions", display: true,
+      details: { kind: "agent-message", fromSessionId: "session-source", fromName: "Themes", message: "Please review this." },
     }] as unknown as SessionEntry[]
 
     expect(projectActiveTimeline(entries)).toEqual([
