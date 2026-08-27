@@ -743,12 +743,7 @@ async function sendInboundAgentMessage(
     : `${message.fromName} (Session ${message.fromSessionId})`
   await session.sendCustomMessage({
     customType: "pi-station-agent-message",
-    content: [
-      `Agent message from ${sender}:`,
-      message.message,
-      "",
-      `When responding to this agent, use send_agent_message with sessionId "${message.fromSessionId}". Do not leave the response only in this Session's output.`,
-    ].join("\n"),
+    content: `Agent message from ${sender}:\n${message.message}`,
     display: true,
     details: {
       kind: "agent-message",
