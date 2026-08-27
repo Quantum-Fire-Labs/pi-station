@@ -168,6 +168,18 @@ export function isThinkingPlaceholder(text: string): boolean {
   return /^thinking(?:\.{3}|…)?$/iu.test(text.trim());
 }
 
+function toolActivityDetails(item: Extract<TimelineItem, { category: "tool-activity" }>): string {
+  if (item.content.name === "send_agent_message" && item.content.inputText !== undefined) {
+    try {
+      const input = JSON.parse(item.content.inputText) as { message?: unknown };
+      if (typeof input.message === "string") return input.message;
+    } catch {
+      // Fall back to the regular tool output/input below.
+    }
+  }
+  return item.content.outputText ?? item.content.inputText ?? "No output";
+}
+
 function ToolActivity({
   item,
   sessionWorking,
@@ -203,9 +215,21 @@ function ToolActivity({
           </span>
           <small>{item.content.summary}</small>
         </summary>
-        <pre>
-          {item.content.outputText ?? item.content.inputText ?? "No output"}
-        </pre>
+        <pre>{toolActivityDetails(item)}</pre>
+      </details>
+    </article>
+  );
+}
+
+function AgentMessageActivity({ item }: { item: Extract<TimelineItem, { category: "agent-message" }> }) {
+  return (
+    <article className="message tool">
+      <details>
+        <summary>
+          <span>Received agent message</span>
+          <small>{item.content.from ?? "Agent"}</small>
+        </summary>
+        <pre>{item.content.text}</pre>
       </details>
     </article>
   );
@@ -313,18 +337,7 @@ export function FeedItem({
         </article>
       );
     case "agent-message":
-      return <ToolActivity item={{
-        ...item,
-        category: "tool-activity",
-        content: {
-          toolCallId: item.timelineItemId,
-          name: "agent_message",
-          summary: `From ${item.content.from ?? "Agent"}`,
-          inputText: item.content.text,
-          state: "succeeded",
-          truncated: false,
-        },
-      }} sessionWorking={sessionWorking} />;
+      return <AgentMessageActivity item={item} />;
     case "extension-message":
       return (
         <article className="message custom">

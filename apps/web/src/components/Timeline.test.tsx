@@ -115,7 +115,23 @@ describe("tool activity", () => {
     expect(container).toHaveTextContent("Done");
   });
 
-  it("renders inbound agent messages as tool activity", () => {
+  it("shows the sent message when agent messaging tool activity is expanded", () => {
+    const { container } = render(<FeedItem item={{
+      ...toolItem("saved"),
+      content: {
+        ...toolItem("saved").content,
+        name: "send_agent_message",
+        inputText: JSON.stringify({ sessionId: "session-target", message: "Please review the updated layout." }),
+        outputText: "Message started a turn for Session session-target",
+      },
+    } as TimelineItem} />);
+
+    fireEvent.click(screen.getByText("Used send_agent_message"));
+    expect(container).toHaveTextContent("Please review the updated layout.");
+    expect(container).not.toHaveTextContent("Message started a turn for Session session-target");
+  });
+
+  it("renders inbound agent messages as received tool activity with the sender name", () => {
     const { container } = render(<FeedItem item={{
       ...assistantItem("unused"),
       timelineItemId: "agent-message",
@@ -124,9 +140,10 @@ describe("tool activity", () => {
     }} />);
 
     expect(container.querySelector("article.message.tool")).toBeInTheDocument();
-    expect(container).toHaveTextContent("Used agent_message");
-    expect(container).toHaveTextContent("From Themes");
-    fireEvent.click(screen.getByText("Used agent_message"));
+    expect(container).toHaveTextContent("Received agent message");
+    expect(container).toHaveTextContent("Themes");
+    expect(container).not.toHaveTextContent("Used agent_message");
+    fireEvent.click(screen.getByText("Received agent message"));
     expect(container).toHaveTextContent("Please review this.");
   });
 
