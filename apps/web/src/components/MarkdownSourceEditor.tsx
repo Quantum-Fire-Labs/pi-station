@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { syntaxHighlighting } from "@codemirror/language";
+import { syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
-import { EditorView, highlightActiveLine, keymap } from "@codemirror/view";
+import { Decoration, EditorView, highlightActiveLine, keymap, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { tags, type Highlighter, type Tag } from "@lezer/highlight";
 import { Vim, vim } from "@replit/codemirror-vim";
 
@@ -46,6 +46,40 @@ function wrapSelection(marker: "*" | "**") {
     return true;
   };
 }
+
+const hiddenMarkdownMarks = new Set(["HeaderMark", "EmphasisMark", "LinkMark", "StrikethroughMark"]);
+
+function livePreviewDecorations(view: EditorView): DecorationSet {
+  const activeLines = new Set<number>();
+  for (const range of view.state.selection.ranges) {
+    activeLines.add(view.state.doc.lineAt(range.head).number);
+  }
+  const decorations: Array<{ from: number; to: number; value: Decoration }> = [];
+  syntaxTree(view.state).iterate({
+    enter(node) {
+      const hideInlineCodeMark = node.name === "CodeMark" && node.node.parent?.name === "InlineCode";
+      const hideLinkUrl = node.name === "URL" && node.node.parent?.name === "Link";
+      if ((!hiddenMarkdownMarks.has(node.name) && !hideInlineCodeMark && !hideLinkUrl)
+        || activeLines.has(view.state.doc.lineAt(node.from).number)) return;
+      decorations.push({ from: node.from, to: node.to, value: Decoration.replace({}) });
+    },
+  });
+  return Decoration.set(decorations, true);
+}
+
+const markdownLivePreview = ViewPlugin.fromClass(class {
+  decorations: DecorationSet;
+
+  constructor(view: EditorView) {
+    this.decorations = livePreviewDecorations(view);
+  }
+
+  update(update: ViewUpdate): void {
+    if (update.docChanged || update.selectionSet || update.viewportChanged) {
+      this.decorations = livePreviewDecorations(update.view);
+    }
+  }
+}, { decorations: (plugin) => plugin.decorations });
 
 const hasTag = (values: readonly Tag[], tag: Tag): boolean => values.includes(tag);
 const markdownHighlight: Highlighter = {
@@ -97,6 +131,7 @@ export function MarkdownSourceEditor({ value, disabled, label, vimMode, onChange
       history(),
       highlightActiveLine(),
       syntaxHighlighting(markdownHighlight),
+      markdownLivePreview,
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ "aria-label": label }),
       EditorState.readOnly.of(disabled),
