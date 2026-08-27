@@ -491,6 +491,10 @@ body.sidebar-resizing {
   padding: 0;
   transition: color 140ms ease, opacity 140ms ease;
 }
+.project header .project-collapse-toggle {
+  width: 14px;
+  margin-right: 4px;
+}
 .project header .project-actions button[aria-pressed="true"] {
   color: var(--muted);
   opacity: 0.58;
