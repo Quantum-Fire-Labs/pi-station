@@ -87,6 +87,25 @@ it("folds a heading through its descendants but not the next peer heading", () =
   expect(markdownSectionFold(state, state.doc.line(2).from, state.doc.line(2).to)).toBeNull();
 });
 
+it("places section toggles inside heading lines and updates their accessible state", () => {
+  const { container } = render(<MarkdownSourceEditor
+    value={"# Section\ncontent\n# Next\nmore"}
+    disabled={false}
+    label="Fold sections"
+    vimMode={false}
+    onChange={vi.fn()}
+    onSave={vi.fn()}
+    onClose={vi.fn()}
+    onSaveAndClose={vi.fn()}
+  />);
+
+  const collapse = screen.getAllByRole("button", { name: "Collapse section" })[0]!;
+  expect(collapse.closest(".cm-line")).not.toBeNull();
+  fireEvent.click(collapse);
+  expect(screen.getByRole("button", { name: "Expand section" })).toBeInTheDocument();
+  expect(container.querySelector(".cm-foldPlaceholder")).not.toBeNull();
+});
+
 it("uses literal tabs for Tab indentation and keeps focus in the editor", () => {
   const onChange = vi.fn();
   render(<MarkdownSourceEditor

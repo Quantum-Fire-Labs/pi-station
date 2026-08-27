@@ -3603,8 +3603,10 @@ body.sidebar-resizing {
 .markdown-source-editor .md-task-checkbox:disabled { cursor: default; opacity: 0.65; }
 .markdown-source-editor .md-list-bullet { display: inline-block; min-width: 1ch; color: var(--accent); font-weight: 800; }
 .markdown-source-editor .md-rendered-link { color: var(--accent2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-.markdown-source-editor .cm-gutters { border: 0; background: var(--page); color: var(--faint); }
-.markdown-source-editor .cm-foldGutter .cm-gutterElement { width: 18px; padding: 0; color: var(--accent); font-size: 16px; text-align: center; cursor: pointer; }
+.markdown-source-editor .md-fold-toggle { width: 18px; height: 22px; margin: 0 2px 0 -20px; border: 0; background: transparent; color: var(--accent); padding: 0; font: inherit; line-height: 1; opacity: 0; cursor: pointer; vertical-align: 1px; }
+.markdown-source-editor .cm-line:hover .md-fold-toggle,
+.markdown-source-editor .md-fold-toggle:focus-visible { opacity: 1; }
+.markdown-source-editor .cm-foldPlaceholder { border: 0; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); }
 .markdown-source-editor .md-list-depth-1 { padding-left: 18px; }
 .markdown-source-editor .md-list-depth-2 { padding-left: 36px; }
 .markdown-source-editor .md-list-depth-3 { padding-left: 54px; }

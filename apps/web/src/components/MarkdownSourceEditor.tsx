@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { foldGutter, foldKeymap, foldService, indentUnit, syntaxHighlighting, syntaxTree } from "@codemirror/language";
+import { codeFolding, foldEffect, foldedRanges, foldKeymap, foldService, indentUnit, syntaxHighlighting, syntaxTree, unfoldEffect } from "@codemirror/language";
 import { EditorSelection, EditorState, Prec, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, highlightActiveLine, keymap, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { tags, type Highlighter, type Tag } from "@lezer/highlight";
@@ -49,6 +49,33 @@ function wrapSelection(marker: "*" | "**") {
 }
 
 const hiddenMarkdownMarks = new Set(["HeaderMark", "EmphasisMark", "LinkMark", "StrikethroughMark"]);
+
+class HeadingFoldWidget extends WidgetType {
+  constructor(readonly from: number, readonly to: number, readonly folded: boolean) {
+    super();
+  }
+
+  override eq(other: HeadingFoldWidget): boolean {
+    return this.from === other.from && this.to === other.to && this.folded === other.folded;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "md-fold-toggle";
+    toggle.textContent = this.folded ? "›" : "⌄";
+    toggle.setAttribute("aria-label", this.folded ? "Expand section" : "Collapse section");
+    toggle.addEventListener("click", () => {
+      view.dispatch({ effects: (this.folded ? unfoldEffect : foldEffect).of({ from: this.from, to: this.to }) });
+      view.focus();
+    });
+    return toggle;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
 
 class BulletWidget extends WidgetType {
   toDOM(): HTMLElement {
@@ -148,6 +175,21 @@ function livePreviewDecorations(view: EditorView): DecorationSet {
   const decorations: Array<{ from: number; to: number; value: Decoration }> = [];
   syntaxTree(view.state).iterate({
     enter(node) {
+      if (/^ATXHeading[1-6]$/u.test(node.name)) {
+        const line = view.state.doc.lineAt(node.from);
+        const range = markdownSectionFold(view.state, line.from, line.to);
+        if (range !== null) {
+          let folded = false;
+          foldedRanges(view.state).between(range.from, range.to, (from, to) => {
+            if (from === range.from && to === range.to) folded = true;
+          });
+          decorations.push({
+            from: node.from,
+            to: node.from,
+            value: Decoration.widget({ widget: new HeadingFoldWidget(range.from, range.to, folded), side: -1 }),
+          });
+        }
+      }
       if (node.name === "ListMark" && node.node.parent?.parent?.name === "BulletList") {
         const task = node.node.parent.getChild("Task") !== null;
         decorations.push({
@@ -197,9 +239,7 @@ const markdownLivePreview = ViewPlugin.fromClass(class {
   }
 
   update(update: ViewUpdate): void {
-    if (update.docChanged || update.selectionSet || update.viewportChanged) {
-      this.decorations = livePreviewDecorations(update.view);
-    }
+    this.decorations = livePreviewDecorations(update.view);
   }
 }, { decorations: (plugin) => plugin.decorations });
 
@@ -255,7 +295,7 @@ export function MarkdownSourceEditor({ value, disabled, label, vimMode, onChange
       history(),
       highlightActiveLine(),
       foldService.of(markdownSectionFold),
-      foldGutter({ openText: "⌄", closedText: "›" }),
+      codeFolding(),
       syntaxHighlighting(markdownHighlight),
       markdownLivePreview,
       EditorView.lineWrapping,
