@@ -629,17 +629,20 @@ describe("Workspace", () => {
     expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("opens the new Session dialog from a Dashboard Project action", async () => {
+  it("opens a Dashboard Project Session after creating it", async () => {
     const user = userEvent.setup();
-    const activeProjectId = fixtureState.sessions.find(
-      (session) => session.projectId !== undefined,
-    )?.projectId;
-    const project = fixtureState.projects.find(
-      (candidate) => candidate.projectId === activeProjectId,
+    const project = fixtureState.projects[0];
+    if (project === undefined) throw new Error("Project fixture is missing");
+    const onSelect = vi.fn();
+    const onCreateManagedSession = vi.fn(() => "dashboard-create");
+    const { rerender } = render(
+      <Workspace
+        state={{ ...fixtureState, hostCapabilities: ["managed-session.create"] }}
+        onSelect={onSelect}
+        onCreateManagedSession={onCreateManagedSession}
+      />,
     );
-    if (project === undefined) throw new Error("Active Project fixture is missing");
 
-    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Dashboard" }));
     const dashboard = screen.getByRole("heading", { name: "Dashboard", level: 1 })
       .closest("main");
@@ -647,9 +650,48 @@ describe("Workspace", () => {
     await user.click(within(dashboard).getByRole("button", {
       name: `New Session in ${project.name}`,
     }));
+    await user.click(screen.getByRole("button", { name: "Start Pi" }));
+    rerender(
+      <Workspace
+        state={{
+          ...fixtureState,
+          hostCapabilities: ["managed-session.create"],
+          managedSessionCreates: {
+            "dashboard-create": {
+              requestId: "dashboard-create",
+              status: "succeeded",
+              result: { status: "succeeded", sessionKey: fixtureState.selectedSessionKey! },
+            },
+          },
+        }}
+        onSelect={onSelect}
+        onCreateManagedSession={onCreateManagedSession}
+      />,
+    );
 
-    expect(screen.getByRole("dialog", { name: `New Session in ${project.name}` }))
-      .toBeVisible();
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(fixtureState.selectedSessionKey));
+    expect(screen.getByLabelText("Message Pi")).toBeVisible();
+  });
+
+  it("clears the previous name when reopening a Dashboard Project Session dialog", async () => {
+    const user = userEvent.setup();
+    const project = fixtureState.projects[0];
+    if (project === undefined) throw new Error("Project fixture is missing");
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Dashboard" }));
+    const dashboard = screen.getByRole("heading", { name: "Dashboard", level: 1 })
+      .closest("main");
+    if (dashboard === null) throw new Error("Dashboard is missing");
+    const newSessionButton = within(dashboard).getByRole("button", {
+      name: `New Session in ${project.name}`,
+    });
+    await user.click(newSessionButton);
+    await user.type(screen.getByPlaceholderText("e.g. Release planning"), "Previous name");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(newSessionButton);
+
+    expect(screen.getByPlaceholderText("e.g. Release planning")).toHaveValue("");
   });
 
   it("restores the saved Dashboard Projects view", async () => {
