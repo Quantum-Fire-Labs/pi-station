@@ -66,10 +66,13 @@ describe("ProjectsPage", () => {
     const closed = screen.getByRole("heading", { name: "Closed Projects" }).closest("section");
     if (closed === null) throw new Error("Closed Projects section is missing");
     expect(within(closed).getByRole("heading", { name: project.name })).toBeVisible();
-    expect(within(closed).queryByRole("button", { name: `Open ${project.name}` })).not.toBeInTheDocument();
+    const viewAction = within(closed).getByRole("button", { name: `View ${project.name}` });
+    await user.click(viewAction);
+    expect(onOpen).toHaveBeenCalledWith(project.projectId);
+    expect(onSetProjectClosed).not.toHaveBeenCalled();
+
     await user.click(within(closed).getByRole("button", { name: "Open Project" }));
     expect(onSetProjectClosed).toHaveBeenCalledWith(project.projectId, false);
-    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("opens a Project from its card area without a visible Open Project button", async () => {

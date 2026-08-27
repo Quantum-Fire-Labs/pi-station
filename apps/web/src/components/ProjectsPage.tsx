@@ -183,18 +183,16 @@ function ProjectGroup({
             role="listitem"
           >
             <CardHeader
-              className={`projects-page-card-header${closed ? "" : " projects-page-card-open"}`}
-              {...(closed ? {} : {
-                role: "button",
-                tabIndex: 0,
-                "aria-label": `Open ${project.name}`,
-                onClick: () => onOpen(project.projectId),
-                onKeyDown: (event: KeyboardEvent) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  onOpen(project.projectId);
-                },
-              })}
+              className="projects-page-card-header projects-page-card-open"
+              role="button"
+              tabIndex={0}
+              aria-label={`${closed ? "View" : "Open"} ${project.name}`}
+              onClick={() => onOpen(project.projectId)}
+              onKeyDown={(event: KeyboardEvent) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onOpen(project.projectId);
+              }}
             >
               <span className="projects-page-card-icon">
                 <Folder aria-hidden="true" size={19} />
