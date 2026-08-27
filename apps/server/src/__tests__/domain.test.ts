@@ -37,6 +37,18 @@ describe("saved active-path projector", () => {
     expect(projectActiveTimeline(entries).map(({ kind }) => kind)).toEqual(["user", "thinking", "assistant"])
   })
 
+  it("preserves compaction and branch summaries as distinct context entries", () => {
+    const entries = [
+      { type: "compaction", id: "compact", parentId: null, timestamp: "2026-01-01T00:00:00Z", summary: "## Goal\nKeep context" },
+      { type: "branch_summary", id: "branch", parentId: "compact", timestamp: "2026-01-01T00:00:01Z", summary: "Alternate path" },
+    ] as unknown as SessionEntry[]
+
+    expect(projectActiveTimeline(entries)).toEqual([
+      expect.objectContaining({ id: "compact", kind: "context-summary", summaryType: "compaction", text: "## Goal\nKeep context" }),
+      expect.objectContaining({ id: "branch", kind: "context-summary", summaryType: "branch", text: "Alternate path" }),
+    ])
+  })
+
   it("removes generated attachment paths from user Timeline text but keeps them in the agent prompt", () => {
     const files = [{ id: "file-id", name: "notes.txt", mediaType: "text/plain", size: 5, path: "/private/session/notes" }]
     const prompt = attachmentPrompt("Review this", files)
@@ -202,8 +214,8 @@ describe("saved active-path projector", () => {
   it("keeps agent messages distinct from user messages", () => {
     const entries = [{
       type: "custom_message", id: "agent-message", parentId: null, timestamp: "2026-01-01T00:00:00Z",
-      customType: "pi-station-agent-message", content: "Please review this.", display: true,
-      details: { kind: "agent-message", fromSessionId: "session-source", fromName: "Themes" },
+      customType: "pi-station-agent-message", content: "Agent message envelope with reply instructions", display: true,
+      details: { kind: "agent-message", fromSessionId: "session-source", fromName: "Themes", message: "Please review this." },
     }] as unknown as SessionEntry[]
 
     expect(projectActiveTimeline(entries)).toEqual([

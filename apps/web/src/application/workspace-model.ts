@@ -38,6 +38,7 @@ export type TimelineItem =
   | (TimelineBase & { readonly category: "assistant-response"; readonly content: { readonly text: string; readonly state: "streaming" | "complete" | "interrupted" | "error" } })
   | (TimelineBase & { readonly category: "thinking"; readonly content: { readonly text: string; readonly state: "streaming" | "complete" | "interrupted" } })
   | (TimelineBase & { readonly category: "tool-activity"; readonly content: { readonly toolCallId: string; readonly name: string; readonly summary: string; readonly inputText?: string; readonly outputText?: string; readonly state: "pending" | "running" | "succeeded" | "failed" | "interrupted" | "aborted"; readonly truncated: boolean } })
+  | (TimelineBase & { readonly category: "context-summary"; readonly content: { readonly summaryType: "compaction" | "branch"; readonly text: string } })
   | (TimelineBase & { readonly category: "agent-message"; readonly content: { readonly from?: string; readonly to?: string; readonly text: string } })
   | (TimelineBase & { readonly category: "extension-message"; readonly content: { readonly sourceName: string; readonly text: string } })
   | (TimelineBase & { readonly category: "scheduled-job"; readonly content: { readonly jobId: string; readonly title: string; readonly prompt: string } })

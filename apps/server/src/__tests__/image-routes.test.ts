@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -54,15 +54,16 @@ async function setup() {
   return { base, historyImageId, projectId, server, started: () => started }
 }
 
-async function upload(base: string, body: Uint8Array, contentType: string): Promise<Response> {
-  return fetch(`${base}/v2/images`, { method: "POST", headers: { "content-type": contentType }, body: new Blob([Uint8Array.from(body)]) })
+async function upload(base: string, body: Uint8Array, contentType: string, name?: string): Promise<Response> {
+  const query = name === undefined ? "" : `?name=${encodeURIComponent(name)}`
+  return fetch(`${base}/v2/images${query}`, { method: "POST", headers: { "content-type": contentType }, body: new Blob([Uint8Array.from(body)]) })
 }
 
 describe("Pi Station image attachments", () => {
   it("uploads raw image bytes and delivers base64 data to the SDK runtime turn", async () => {
     const test = await setup()
     try {
-      const response = await upload(test.base, png, "image/png")
+      const response = await upload(test.base, png, "image/png", "screen capture.png")
       expect(response.status).toBe(201)
       const uploaded = await response.json() as { version: number; id: string; mediaType: string; size: number }
       expect(uploaded.id).toMatch(/^[A-Za-z0-9_-]+$/u)
@@ -75,9 +76,15 @@ describe("Pi Station image attachments", () => {
       })
       expect(turn.status).toBe(202)
       expect(test.started()).toMatchObject({
-        prompt: "Inspect this",
         images: [{ mediaType: "image/png", data: png.toString("base64") }],
+        attachmentMarker: { kind: "attachments", attachments: [{ name: "screen capture.png", mediaType: "image/png", size: png.length }] },
       })
+      const started = test.started()
+      expect(started?.prompt).toContain("Inspect this")
+      expect(started?.prompt).toContain("screen capture.png:")
+      const path = started?.prompt.match(/screen capture\.png: (.+)$/mu)?.[1]
+      expect(path).toBeDefined()
+      expect(await readFile(path!)).toEqual(png)
     } finally {
       await new Promise<void>((resolve) => test.server.close(() => resolve()))
     }

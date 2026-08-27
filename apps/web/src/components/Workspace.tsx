@@ -696,9 +696,6 @@ function Sidebar({
   shortcutsVisible: boolean;
   onCollapse: () => void;
 }) {
-  const [showingClosed, setShowingClosed] = useState<ReadonlySet<string>>(
-    new Set(),
-  );
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
     readCollapsedProjects,
   );
@@ -750,14 +747,6 @@ function Sidebar({
       if (next.has(projectId)) next.delete(projectId);
       else next.add(projectId);
       writeCollapsedProjects(next);
-      return next;
-    });
-  };
-  const toggleClosed = (projectId: string): void => {
-    setShowingClosed((current) => {
-      const next = new Set(current);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
       return next;
     });
   };
@@ -886,33 +875,32 @@ function Sidebar({
             (session) => session.projectId === project.projectId,
           );
           const runningCount = projectSessions.filter(sessionIsOpen).length;
-          const closedCount = projectSessions.length - runningCount;
-          const isShowingClosed = showingClosed.has(project.projectId);
-          const closedNoun = closedCount === 1 ? "Session" : "Sessions";
-          const closedLabel = `${isShowingClosed ? "Hide" : "Show"} ${closedCount} closed bookmarked ${closedNoun} in ${project.name}`;
           return <section
             key={project.projectId}
             className={`project${project.available ? "" : " unavailable"}`}
           >
             <header>
-              <button
-                className={`project-name-link${activeRoute === "project" && activeProjectId === project.projectId ? " selected" : ""}`}
-                type="button"
-                aria-current={activeRoute === "project" && activeProjectId === project.projectId ? "page" : undefined}
-                onClick={() => onOpenProject(project.projectId)}
-              >
-                {project.name}
-              </button>
-              <span>
-                {closedCount > 0 && (
-                  <button
-                    aria-label={closedLabel}
-                    aria-pressed={isShowingClosed}
-                    onClick={() => toggleClosed(project.projectId)}
-                  >
-                    <Clock3 aria-hidden="true" size={14} strokeWidth={1.7} />
-                  </button>
-                )}
+              <span className="project-title">
+                <button
+                  className="project-collapse-toggle"
+                  aria-expanded={!collapsed.has(project.projectId)}
+                  aria-label={`${collapsed.has(project.projectId) ? "Expand" : "Collapse"} ${project.name}`}
+                  onClick={() => toggleProject(project.projectId)}
+                >
+                  {collapsed.has(project.projectId)
+                    ? <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
+                    : <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} />}
+                </button>
+                <button
+                  className={`project-name-link${activeRoute === "project" && activeProjectId === project.projectId ? " selected" : ""}`}
+                  type="button"
+                  aria-current={activeRoute === "project" && activeProjectId === project.projectId ? "page" : undefined}
+                  onClick={() => onOpenProject(project.projectId)}
+                >
+                  {project.name}
+                </button>
+              </span>
+              <span className="project-actions">
                 <button
                   aria-label={`New Session in ${project.name}`}
                   disabled={!project.available}
@@ -920,26 +908,13 @@ function Sidebar({
                 >
                   <Plus aria-hidden="true" size={14} strokeWidth={1.5} />
                 </button>
-              <button
-                aria-expanded={!collapsed.has(project.projectId)}
-                aria-label={`${collapsed.has(project.projectId) ? "Expand" : "Collapse"} ${project.name}`}
-                onClick={() => toggleProject(project.projectId)}
-              >
-                {collapsed.has(project.projectId)
-                  ? <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
-                  : <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} />}
-              </button>
               </span>
             </header>
-            {!collapsed.has(project.projectId) && runningCount === 0
-              && !isShowingClosed && (
+            {!collapsed.has(project.projectId) && runningCount === 0 && (
                 <p className="project-session-empty">No open Sessions</p>
               )}
             {!collapsed.has(project.projectId) && nestedSessions(
-              projectSessions.filter((session) => (
-                sessionIsOpen(session)
-                || showingClosed.has(project.projectId)
-              )),
+              projectSessions.filter(sessionIsOpen),
             ).map(({ session, depth }) => {
                 const selected = activeRoute === "workspace"
                   && state.selectedSessionKey !== undefined
@@ -1548,9 +1523,7 @@ export function Workspace({
   useEffect(() => {
     if (newSessionRequest?.status !== "succeeded") return;
     if (newSessionRequest.result?.status === "succeeded") {
-      focusComposerForSession.current = isDesktopViewport()
-        ? newSessionRequest.result.sessionKey
-        : undefined;
+      openSession(newSessionRequest.result.sessionKey);
     }
     setNewSessionProject(undefined);
     setNewSessionRequestId(undefined);
@@ -2797,6 +2770,71 @@ export function Workspace({
     event.preventDefault();
     setSidebarWidth(Math.min(500, Math.max(280, next)));
   };
+  const newSessionModal = (
+<Modal
+        open={newSessionProject !== undefined}
+        title={`New Session in ${newSessionProject?.name ?? "Project"}`}
+        initialFocus={newSessionNameInput}
+        busy={newSessionPending}
+        onClose={() => setNewSessionProject(undefined)}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (newSessionProject === undefined || newSessionPending) return;
+          const trimmedName = newSessionName.trim();
+          const requestId = onCreateManagedSession?.(
+            newSessionProject.displayPath,
+            trimmedName === "" ? undefined : trimmedName,
+          );
+          if (requestId !== undefined) setNewSessionRequestId(requestId);
+        }}
+        actions={(
+          <>
+            <button
+              type="button"
+              className="modal-button secondary"
+              onClick={() => setNewSessionProject(undefined)}
+              disabled={newSessionPending}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="modal-button primary"
+              disabled={
+                newSessionPending
+                || !state.hostCapabilities.some(
+                  (capability) => capability === "managed-session.create",
+                )
+              }
+              title={state.hostCapabilities.some(
+                (capability) => capability === "managed-session.create",
+              )
+                ? undefined
+                : "Managed Session creation is not available"}
+            >
+              {newSessionPending ? "Starting…" : "Start Pi"}
+            </button>
+          </>
+        )}
+      >
+        <label className="modal-field">
+          <span>
+            Session name <small>(optional)</small>
+          </span>
+          <input
+            ref={newSessionNameInput}
+            value={newSessionName}
+            onChange={(event) => setNewSessionName(event.target.value)}
+            maxLength={120}
+            autoComplete="off"
+            placeholder="e.g. Release planning"
+          />
+        </label>
+        {newSessionError && (
+          <p className="modal-error" role="alert">{newSessionError}</p>
+        )}
+      </Modal>
+  );
   const renderPage = (page: ReactNode): ReactNode => (
     <>
       <main
@@ -2840,6 +2878,7 @@ export function Workspace({
         </div>
       </main>
       {contextMenu}
+      {newSessionModal}
     </>
   );
 
@@ -2854,7 +2893,11 @@ export function Workspace({
         }}
         onNewSession={() => setRoute("new-session")}
         onOpenQuickSession={() => onOpenQuickSession?.()}
-        onNewProjectSession={(project) => setNewSessionProject(project)}
+        onNewProjectSession={(project) => {
+          setNewSessionName("");
+          setNewSessionRequestId(undefined);
+          setNewSessionProject(project);
+        }}
         onAddProject={() => setRoute("add-project")}
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
@@ -3202,10 +3245,15 @@ export function Workspace({
                 onUndoUserMessage={item.category === "user-message" && item.source === "saved" && !working && synchronized && capabilities.includes("session.undo")
                   ? () => { onCommand?.({ kind: "session.undo", entryId: item.timelineItemId }); }
                   : undefined}
-                onOpenSharedMarkdown={(url) => openSharedMarkdown({
-                  url,
-                  name: decodeURIComponent(new URL(url, window.location.origin).pathname.split("/").pop() ?? "Shared file"),
-                })}
+                onOpenSharedMarkdown={(url) => {
+                  const parsed = new URL(url, window.location.origin);
+                  const projectPath = parsed.searchParams.get("path") ?? undefined;
+                  openSharedMarkdown({
+                    url,
+                    name: projectPath?.split("/").pop() ?? decodeURIComponent(parsed.pathname.split("/").pop() ?? "Shared file"),
+                    ...(projectPath === undefined ? {} : { projectPath }),
+                  });
+                }}
               />
               {item.category === "assistant-response" && (
                 <button
@@ -3292,13 +3340,20 @@ export function Workspace({
           {voiceMode ? (
             <section className="voice-mode" aria-label="Voice mode">
               {composerFeedback !== undefined && <p className="composer-feedback" role="alert" title={composerFeedback}>{composerFeedback}</p>}
-              <header><Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" aria-label="Switch to typing mode" title="Switch to typing mode" onClick={() => { setVoiceMode(false); localStorage.setItem("pi-station:composer-mode", "text"); }}><Keyboard aria-hidden="true" size={18} /></Button></header>
-              <Button className="voice-mode-record" variant="ghost" type="button" disabled={!commandAvailable || commandPending || voiceState === "transcribing"} data-state={voiceState} aria-label={voiceState === "recording" ? "Stop and send recording" : voiceState === "transcribing" ? "Transcribing and sending recording" : voiceState === "playing" ? "Stop response" : "Start recording"} onClick={() => { if (voiceState === "recording") stopVoiceRecording(true); else if (voiceState === "playing") stopSpeech(); else void startVoiceRecording(true); }}>
-                <span className="voice-mode-record-icon" aria-hidden="true">{voiceState === "transcribing" ? <LoaderCircle className="composer-spinner" size={38} /> : voiceState === "recording" || voiceState === "playing" ? <Square size={33} /> : <Mic size={38} />}</span>
-              </Button>
+              <header>
+                <span className="voice-mode-status">
+                  <Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" role="switch" aria-checked={voiceAutoplay} aria-label={`Auto-play ${voiceAutoplay ? "on" : "off"}`} title={`Auto-play ${voiceAutoplay ? "on" : "off"}`} onClick={() => setVoiceAutoplay((value) => !value)}>{voiceAutoplay ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}</Button>
+                  <span>{voiceState === "recording" ? "Listening…" : voiceState === "transcribing" ? "Transcribing and sending…" : voiceState === "playing" ? "Playing response…" : "Ready to record"}</span>
+                </span>
+                <span className="voice-mode-primary-slot"><Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" aria-label="Switch to typing mode" title="Switch to typing mode" onClick={() => { setVoiceMode(false); localStorage.setItem("pi-station:composer-mode", "text"); }}><Keyboard aria-hidden="true" size={18} /></Button></span>
+              </header>
               <footer>
                 <ComposerControls details={state.selected.details} delivery={workingDelivery} working={working} disabled={commandPending || voiceState !== "idle"} canChangeModel={capabilities.includes("session.model.set")} canChangeThinking={capabilities.includes("session.thinking.set")} onSetModel={(provider, modelId) => { const id = onCommand?.({ kind: "session.model.set", provider, modelId }); if (id !== undefined) setSessionSettingRequestId(id); }} onSetThinking={(level) => { const id = onCommand?.({ kind: "session.thinking.set", level }); if (id !== undefined) setSessionSettingRequestId(id); }} onSetDelivery={setWorkingDelivery} />
-                <Button className="voice-mode-icon-action" variant="ghost" size="icon" type="button" role="switch" aria-checked={voiceAutoplay} aria-label={`Auto-play ${voiceAutoplay ? "on" : "off"}`} title={`Auto-play ${voiceAutoplay ? "on" : "off"}`} onClick={() => setVoiceAutoplay((value) => !value)}>{voiceAutoplay ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}</Button>
+                <span className="voice-mode-primary-slot">
+                  <Button className="voice-mode-record" variant="ghost" type="button" disabled={!commandAvailable || commandPending || voiceState === "transcribing"} data-state={voiceState} aria-label={voiceState === "recording" ? "Stop and send recording" : voiceState === "transcribing" ? "Transcribing and sending recording" : voiceState === "playing" ? "Stop response" : "Start recording"} onClick={() => { if (voiceState === "recording") stopVoiceRecording(true); else if (voiceState === "playing") stopSpeech(); else void startVoiceRecording(true); }}>
+                    <span className="voice-mode-record-icon" aria-hidden="true">{voiceState === "transcribing" ? <LoaderCircle className="composer-spinner" size={26} /> : voiceState === "recording" || voiceState === "playing" ? <Square size={22} /> : <Mic size={26} />}</span>
+                  </Button>
+                </span>
               </footer>
             </section>
           ) : <form
@@ -3691,69 +3746,9 @@ export function Workspace({
         )}
       </Modal>
 
-      <Modal
-        open={newSessionProject !== undefined}
-        title={`New Session in ${newSessionProject?.name ?? "Project"}`}
-        initialFocus={newSessionNameInput}
-        busy={newSessionPending}
-        onClose={() => setNewSessionProject(undefined)}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (newSessionProject === undefined || newSessionPending) return;
-          const trimmedName = newSessionName.trim();
-          const requestId = onCreateManagedSession?.(
-            newSessionProject.displayPath,
-            trimmedName === "" ? undefined : trimmedName,
-          );
-          if (requestId !== undefined) setNewSessionRequestId(requestId);
-        }}
-        actions={(
-          <>
-            <button
-              type="button"
-              className="modal-button secondary"
-              onClick={() => setNewSessionProject(undefined)}
-              disabled={newSessionPending}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="modal-button primary"
-              disabled={
-                newSessionPending
-                || !state.hostCapabilities.some(
-                  (capability) => capability === "managed-session.create",
-                )
-              }
-              title={state.hostCapabilities.some(
-                (capability) => capability === "managed-session.create",
-              )
-                ? undefined
-                : "Managed Session creation is not available"}
-            >
-              {newSessionPending ? "Starting…" : "Start Pi"}
-            </button>
-          </>
-        )}
-      >
-        <label className="modal-field">
-          <span>
-            Session name <small>(optional)</small>
-          </span>
-          <input
-            ref={newSessionNameInput}
-            value={newSessionName}
-            onChange={(event) => setNewSessionName(event.target.value)}
-            maxLength={120}
-            autoComplete="off"
-            placeholder="e.g. Release planning"
-          />
-        </label>
-        {newSessionError && (
-          <p className="modal-error" role="alert">{newSessionError}</p>
-        )}
-      </Modal>
+
+
+      {newSessionModal}
 
       {paletteOpen && (
         <CommandPalette
@@ -3776,6 +3771,16 @@ export function Workspace({
           thinkingLevels={state.selected.details?.supportedThinkingLevels}
           currentModel={state.selected.details?.model}
           currentThinking={state.selected.details?.thinkingLevel}
+          sessions={state.sessions.flatMap((session) => {
+            const name = session.name?.trim();
+            if (!name) return [];
+            return [{
+              id: session.sessionKey.piSessionId,
+              name,
+              projectName: state.projects.find((project) => project.projectId === session.projectId)?.name,
+              closed: session.projection.availability === "closed",
+            }];
+          })}
           pending={sessionSettingPending || closeSessionPending}
           error={sessionSettingError ?? closeSessionError}
           onDashboard={() => setRoute("dashboard")}
@@ -3803,6 +3808,10 @@ export function Workspace({
           onSetThinking={(level) => {
             const requestId = onCommand?.({ kind: "session.thinking.set", level });
             if (requestId !== undefined) setSessionSettingRequestId(requestId);
+          }}
+          onOpenSession={(id) => {
+            const session = state.sessions.find((candidate) => candidate.sessionKey.piSessionId === id);
+            if (session) openSession(session.sessionKey);
           }}
           onSetBookmark={selectedProject === undefined || selectedSummary === undefined
             ? undefined

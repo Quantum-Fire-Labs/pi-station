@@ -609,7 +609,7 @@ async function createSdkSession(input: {
     agentDir: getAgentDir(),
     appendSystemPromptOverride: (base) => [
       ...base,
-      sharedFileInstructions(sharedFiles.directory, sharedFiles.origins, input.sessionId),
+      sharedFileInstructions(sharedFiles.directory, sharedFiles.origins, input.sessionId, input.projectId),
     ],
   })
   await resourceLoader?.reload()
@@ -738,14 +738,18 @@ async function sendInboundAgentMessage(
   message: RuntimeAgentMessage,
   deliverAs?: "steer",
 ): Promise<void> {
+  const sender = message.fromName === undefined
+    ? `Session ${message.fromSessionId}`
+    : `${message.fromName} (Session ${message.fromSessionId})`
   await session.sendCustomMessage({
     customType: "pi-station-agent-message",
-    content: message.message,
+    content: `Agent message from ${sender}:\n${message.message}`,
     display: true,
     details: {
       kind: "agent-message",
       fromSessionId: message.fromSessionId,
       ...(message.fromName === undefined ? {} : { fromName: message.fromName }),
+      message: message.message,
     },
   }, {
     triggerTurn: true,

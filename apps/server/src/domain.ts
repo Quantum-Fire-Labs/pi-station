@@ -45,13 +45,14 @@ function scheduledJobDetails(value: unknown): { readonly jobId: string; readonly
     : undefined
 }
 
-function agentMessageDetails(value: unknown): { readonly fromSessionId: string; readonly fromName?: string } | undefined {
+function agentMessageDetails(value: unknown): { readonly fromSessionId: string; readonly fromName?: string; readonly message?: string } | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined
   const details = value as Record<string, unknown>
   if (details.kind !== "agent-message" || typeof details.fromSessionId !== "string" || details.fromSessionId === "") return undefined
   return {
     fromSessionId: details.fromSessionId,
     ...(typeof details.fromName === "string" && details.fromName !== "" ? { fromName: details.fromName } : {}),
+    ...(typeof details.message === "string" ? { message: details.message } : {}),
   }
 }
 
@@ -62,7 +63,13 @@ function normalizedActiveTimeline(entries: readonly SessionEntry[]): readonly Ti
   for (let entryIndex = 0; entryIndex < entries.length; entryIndex += 1) {
     const entry = entries[entryIndex]!
     if (entry.type === "compaction" || entry.type === "branch_summary") {
-      timeline.push({ id: entry.id, kind: "system", text: entry.summary, timestamp: entry.timestamp })
+      timeline.push({
+        id: entry.id,
+        kind: "context-summary",
+        summaryType: entry.type === "compaction" ? "compaction" : "branch",
+        text: entry.summary,
+        timestamp: entry.timestamp,
+      })
       continue
     }
     if (entry.type === "custom_message" && entry.customType === ATTACHMENT_CUSTOM_TYPE) {
@@ -78,7 +85,8 @@ function normalizedActiveTimeline(entries: readonly SessionEntry[]): readonly Ti
     if (entry.type === "custom_message" && entry.display) {
       const agentMessage = entry.customType === "pi-station-agent-message" ? agentMessageDetails(entry.details) : undefined
       if (agentMessage !== undefined) {
-        timeline.push({ id: entry.id, kind: "agent", ...agentMessage, text: text(entry.content), timestamp: entry.timestamp })
+        const { message, ...sender } = agentMessage
+        timeline.push({ id: entry.id, kind: "agent", ...sender, text: message ?? text(entry.content), timestamp: entry.timestamp })
         continue
       }
       const nextEntry = entries[entryIndex + 1]

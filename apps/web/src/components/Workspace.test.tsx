@@ -646,6 +646,71 @@ describe("Workspace", () => {
     expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("opens a Dashboard Project Session after creating it", async () => {
+    const user = userEvent.setup();
+    const project = fixtureState.projects[0];
+    if (project === undefined) throw new Error("Project fixture is missing");
+    const onSelect = vi.fn();
+    const onCreateManagedSession = vi.fn(() => "dashboard-create");
+    const { rerender } = render(
+      <Workspace
+        state={{ ...fixtureState, hostCapabilities: ["managed-session.create"] }}
+        onSelect={onSelect}
+        onCreateManagedSession={onCreateManagedSession}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Dashboard" }));
+    const dashboard = screen.getByRole("heading", { name: "Dashboard", level: 1 })
+      .closest("main");
+    if (dashboard === null) throw new Error("Dashboard is missing");
+    await user.click(within(dashboard).getByRole("button", {
+      name: `New Session in ${project.name}`,
+    }));
+    await user.click(screen.getByRole("button", { name: "Start Pi" }));
+    rerender(
+      <Workspace
+        state={{
+          ...fixtureState,
+          hostCapabilities: ["managed-session.create"],
+          managedSessionCreates: {
+            "dashboard-create": {
+              requestId: "dashboard-create",
+              status: "succeeded",
+              result: { status: "succeeded", sessionKey: fixtureState.selectedSessionKey! },
+            },
+          },
+        }}
+        onSelect={onSelect}
+        onCreateManagedSession={onCreateManagedSession}
+      />,
+    );
+
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(fixtureState.selectedSessionKey));
+    expect(screen.getByLabelText("Message Pi")).toBeVisible();
+  });
+
+  it("clears the previous name when reopening a Dashboard Project Session dialog", async () => {
+    const user = userEvent.setup();
+    const project = fixtureState.projects[0];
+    if (project === undefined) throw new Error("Project fixture is missing");
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Dashboard" }));
+    const dashboard = screen.getByRole("heading", { name: "Dashboard", level: 1 })
+      .closest("main");
+    if (dashboard === null) throw new Error("Dashboard is missing");
+    const newSessionButton = within(dashboard).getByRole("button", {
+      name: `New Session in ${project.name}`,
+    });
+    await user.click(newSessionButton);
+    await user.type(screen.getByPlaceholderText("e.g. Release planning"), "Previous name");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(newSessionButton);
+
+    expect(screen.getByPlaceholderText("e.g. Release planning")).toHaveValue("");
+  });
+
   it("restores the saved Dashboard Projects view", async () => {
     sessionStorage.setItem("pi-station:dashboard:view", "projects");
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
@@ -1975,6 +2040,53 @@ describe("Workspace", () => {
     expect(screen.getByText("No actions match that search.")).toBeVisible();
     await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
     expect(screen.getByRole("dialog")).toBeVisible();
+  });
+
+  it("searches named open and closed Sessions with open Sessions first", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const state = {
+      ...fixtureState,
+      sessions: [
+        ...fixtureState.sessions,
+        {
+          ...fixtureState.sessions[0]!,
+          sessionKey: { ...fixtureState.sessions[0]!.sessionKey, piSessionId: "closed-alpha" },
+          name: "Alpha closed",
+          projection: { ...fixtureState.sessions[0]!.projection, availability: "closed" as const },
+        },
+        {
+          ...fixtureState.sessions[0]!,
+          sessionKey: { ...fixtureState.sessions[0]!.sessionKey, piSessionId: "open-zulu" },
+          name: "Zulu open",
+        },
+        {
+          ...fixtureState.sessions[0]!,
+          sessionKey: { ...fixtureState.sessions[0]!.sessionKey, piSessionId: "unnamed" },
+          name: "   ",
+        },
+      ],
+    };
+    render(<Workspace state={state} onSelect={onSelect} />);
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
+    await user.click(screen.getByRole("option", { name: "Sessions" }));
+    expect(screen.getByPlaceholderText("Search Sessions…")).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.getByPlaceholderText("Choose an action…")).toBeVisible();
+    await user.click(screen.getByRole("option", { name: "Sessions" }));
+    const sessionSearch = screen.getByPlaceholderText("Search Sessions…");
+    const options = screen.getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Application clientPi Station",
+      "Release notesField Notes",
+      "Workspace shellPi Station",
+      "Zulu openPi Station",
+      "Alpha closedPi Station · Closed",
+    ]);
+    expect(screen.queryByText("unnamed")).not.toBeInTheDocument();
+    await user.type(sessionSearch, "zulu");
+    await user.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ piSessionId: "open-zulu" }));
   });
 
   it("runs palette setting subflows with authoritative choices", async () => {

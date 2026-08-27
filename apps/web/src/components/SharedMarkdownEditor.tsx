@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Circle, ExternalLink, LoaderCircle, TriangleAlert, X } from "lucide-react";
-import { readMarkdownVimMode } from "../editor-preferences";
+import { readMarkdownAutosave, readMarkdownVimMode, writeMarkdownAutosave } from "../editor-preferences";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 
 export interface SharedMarkdownFile {
   readonly name: string;
   readonly url: string;
+  readonly projectPath?: string;
 }
 
 interface RemoteVersion {
@@ -27,6 +28,7 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
   const [externalVersion, setExternalVersion] = useState<RemoteVersion>();
   const [status, setStatus] = useState<"loading" | "idle" | "saving" | "saved" | "updated" | "error">("loading");
   const vimMode = readMarkdownVimMode();
+  const [autosave, setAutosave] = useState(readMarkdownAutosave);
   const load = useRef(0);
   const contentRef = useRef(content);
   const savedContentRef = useRef(savedContent);
@@ -142,6 +144,12 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
     } catch { setStatus("error"); return false; }
   };
 
+  useEffect(() => {
+    if (!autosave || !dirty || externalVersion !== undefined || (status !== "idle" && status !== "saved" && status !== "updated")) return;
+    const timer = window.setTimeout(() => { void save(); }, 750);
+    return () => window.clearTimeout(timer);
+  }, [autosave, content, dirty, externalVersion, status]);
+
   const loadAgentVersion = (): void => {
     if (externalVersion === undefined) return;
     setContent(externalVersion.content);
@@ -162,7 +170,7 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
     <aside className={`shared-markdown-editor${externalVersion === undefined ? "" : " has-external-change"}`} aria-label={`Edit ${file.name}`}>
       <header>
         <div>
-          <strong>{file.name}</strong>
+          <strong>{file.projectPath ?? file.name}{file.projectPath === undefined ? "" : " · Project file"}</strong>
           <span className={`shared-markdown-status ${displayStatus}`} role="status">
             {(displayStatus === "saved" || displayStatus === "updated") && <Check aria-hidden="true" size={13} />}
             {(displayStatus === "unsaved" || displayStatus === "conflict") && <Circle aria-hidden="true" size={10} fill="currentColor" />}
@@ -172,6 +180,7 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
           </span>
         </div>
         <nav aria-label="Editor actions">
+          <label className="shared-markdown-autosave"><span>Autosave</span><input type="checkbox" role="switch" checked={autosave} onChange={(event) => { setAutosave(event.target.checked); writeMarkdownAutosave(event.target.checked); }} /></label>
           <button className={dirty ? "primary" : undefined} type="button" onClick={() => void save()} disabled={status === "loading" || status === "saving" || !dirty || externalVersion !== undefined}>{status === "saving" ? "Saving…" : "Save"}</button>
           <a href={`/shared-editor?file=${encodeURIComponent(file.url)}`} target="_blank" rel="noopener noreferrer" aria-label="Open in new tab" title="Open in new tab"><ExternalLink aria-hidden="true" size={16} /></a>
           <button type="button" onClick={onClose} aria-label="Close editor"><X aria-hidden="true" size={17} /></button>

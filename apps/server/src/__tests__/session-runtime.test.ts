@@ -335,9 +335,9 @@ describe("SDK Session runtime", () => {
     expect(session.prompt).not.toHaveBeenCalled()
     expect(session.sendCustomMessage).toHaveBeenCalledWith({
       customType: "pi-station-agent-message",
-      content: "Please review this.",
+      content: "Agent message from Themes (Session source):\nPlease review this.",
       display: true,
-      details: { kind: "agent-message", fromSessionId: "source", fromName: "Themes" },
+      details: { kind: "agent-message", fromSessionId: "source", fromName: "Themes", message: "Please review this." },
     }, { triggerTurn: true })
   })
 
@@ -354,9 +354,9 @@ describe("SDK Session runtime", () => {
     })).resolves.toBe(true)
     expect(session.sendCustomMessage).toHaveBeenCalledWith({
       customType: "pi-station-agent-message",
-      content: "Change direction.",
+      content: "Agent message from Session parent:\nChange direction.",
       display: true,
-      details: { kind: "agent-message", fromSessionId: "parent" },
+      details: { kind: "agent-message", fromSessionId: "parent", message: "Change direction." },
     }, { triggerTurn: true, deliverAs: "steer" })
     await expect(runtime.deliver?.({ sessionId: "child", cwd: "/project", delivery: "followUp", message: "Then summarize." })).resolves.toBe(true)
     expect(session.followUp).toHaveBeenCalledWith("Then summarize.")

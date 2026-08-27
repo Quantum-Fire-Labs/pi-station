@@ -479,7 +479,7 @@ describe("Pi Station incremental Session summaries", () => {
     const file = new File(["png"], "screen.png", { type: "image/png" });
 
     await expect(client.uploadImage(file)).resolves.toBe("upload-1");
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "/v2/images", expect.objectContaining({
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/v2/images?name=screen.png", expect.objectContaining({
       method: "POST",
       body: file,
     }));

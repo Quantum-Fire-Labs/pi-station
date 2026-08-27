@@ -69,6 +69,28 @@ describe("Scheduled Job history", () => {
   });
 });
 
+describe("context summaries", () => {
+  it("renders compaction context as a distinct collapsed, expandable card", () => {
+    const { container } = render(<FeedItem item={{
+      ...assistantItem("unused"),
+      timelineItemId: "compaction",
+      category: "context-summary",
+      content: { summaryType: "compaction", text: "## Goal\nPreserve **important context**" },
+    }} />);
+
+    const entry = container.querySelector("article.message.context-summary");
+    expect(entry).toBeInTheDocument();
+    expect(entry?.querySelector("details")).not.toHaveAttribute("open");
+    expect(within(entry as HTMLElement).getByText("Compaction summary")).toBeVisible();
+    expect(within(entry as HTMLElement).getByText("Context preserved by Pi")).toBeVisible();
+
+    fireEvent.click(within(entry as HTMLElement).getByText("Compaction summary"));
+    expect(entry?.querySelector("details")).toHaveAttribute("open");
+    expect(within(entry as HTMLElement).getByRole("heading", { name: "Goal" })).toBeVisible();
+    expect(within(entry as HTMLElement).getByText("important context").tagName).toBe("STRONG");
+  });
+});
+
 describe("tool activity", () => {
   it("opens live tools while Pi works and collapses them when Pi settles", () => {
     const { container, rerender } = render(
@@ -93,7 +115,23 @@ describe("tool activity", () => {
     expect(container).toHaveTextContent("Done");
   });
 
-  it("renders inbound agent messages as tool activity", () => {
+  it("shows the sent message when agent messaging tool activity is expanded", () => {
+    const { container } = render(<FeedItem item={{
+      ...toolItem("saved"),
+      content: {
+        ...toolItem("saved").content,
+        name: "send_agent_message",
+        inputText: JSON.stringify({ sessionId: "session-target", message: "Please review the updated layout." }),
+        outputText: "Message started a turn for Session session-target",
+      },
+    } as TimelineItem} />);
+
+    fireEvent.click(screen.getByText("Used send_agent_message"));
+    expect(container).toHaveTextContent("Please review the updated layout.");
+    expect(container).not.toHaveTextContent("Message started a turn for Session session-target");
+  });
+
+  it("renders inbound agent messages as received tool activity with the sender name", () => {
     const { container } = render(<FeedItem item={{
       ...assistantItem("unused"),
       timelineItemId: "agent-message",
@@ -102,9 +140,10 @@ describe("tool activity", () => {
     }} />);
 
     expect(container.querySelector("article.message.tool")).toBeInTheDocument();
-    expect(container).toHaveTextContent("Used agent_message");
-    expect(container).toHaveTextContent("From Themes");
-    fireEvent.click(screen.getByText("Used agent_message"));
+    expect(container).toHaveTextContent("Received agent message");
+    expect(container).toHaveTextContent("Themes");
+    expect(container).not.toHaveTextContent("Used agent_message");
+    fireEvent.click(screen.getByText("Received agent message"));
     expect(container).toHaveTextContent("Please review this.");
   });
 
@@ -250,6 +289,16 @@ describe("agent Markdown", () => {
     render(<FeedItem item={assistantItem(`[draft](${url})`)} onOpenSharedMarkdown={onOpenSharedMarkdown} />);
 
     fireEvent.click(screen.getByRole("link", { name: "draft" }));
+
+    expect(onOpenSharedMarkdown).toHaveBeenCalledWith(url);
+  });
+
+  it("opens a Project Markdown collaboration link in the editor pane", () => {
+    const onOpenSharedMarkdown = vi.fn();
+    const url = "/project-files/project/session?path=docs%2Fplan.md";
+    render(<FeedItem item={assistantItem(`[plan](${url})`)} onOpenSharedMarkdown={onOpenSharedMarkdown} />);
+
+    fireEvent.click(screen.getByRole("link", { name: "plan" }));
 
     expect(onOpenSharedMarkdown).toHaveBeenCalledWith(url);
   });

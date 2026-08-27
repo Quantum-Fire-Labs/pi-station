@@ -49,7 +49,7 @@ import { ProjectStore } from "./project-store.js"
 import { SessionBookmarkStore } from "./session-bookmarks.js"
 import { isSessionDefaults, normalizeSessionDefaults, SessionDefaultsStore } from "./session-defaults.js"
 import { SessionMetadataStore } from "./session-metadata.js"
-import { SharedFileError, type SharedFileService } from "./shared-files.js"
+import { serveProjectMarkdown, SharedFileError, type SharedFileService } from "./shared-files.js"
 import { SessionUpdates } from "./session-updates.js"
 import { TurnService } from "./turn-service.js"
 import { maintenanceIsActive } from "./maintenance.js"
@@ -273,7 +273,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   }
 
   options.newAgentInProject?.bind(async (input) => {
-    const project = (await projectStore.read()).find((item) => item.id === input.projectId)
+    let project = (await projectStore.read()).find((item) => item.id === input.projectId)
     if (project === undefined) throw new Error(`Project not found: ${input.projectId}`)
     if (!isProjectName(input.name)) throw new Error("Session name is invalid")
     let root: Awaited<ReturnType<typeof stat>>
@@ -287,19 +287,26 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
     const sessionId = randomUUID()
     const key = { projectId: project.id, sessionId }
     await projectStore.ensureOpen(project.id)
+    project = (await projectStore.read()).find((item) => item.id === input.projectId) ?? project
+    const manager = SessionManager.create(project.root, undefined, { id: sessionId })
+    initializeEmptySession(manager, input.name)
+    const indexed = await options.index.refreshSession(key, project)
+    if (indexed === undefined) throw new Error("Created Session was not indexed")
     await metadata.set(key, "open")
+    await publishSession({ ...indexed, state: "open" })
     try {
       const started = turns.startTracked({
         ...key,
         cwd: project.root,
         prompt: input.prompt,
-        name: input.name,
-        mode: "new",
+        mode: "existing",
+        sessionPath: indexed.path,
         settledTimeline: settledTimeline(key, project),
       })
       if (!started.accepted) throw new Error("New Session did not accept the prompt")
     } catch (error) {
       await metadata.set(key, "closed").catch(() => undefined)
+      await publishSession({ ...indexed, state: "closed" }).catch(() => undefined)
       throw error
     }
     return { status: "started", sessionId, projectId: project.id }
@@ -472,6 +479,27 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (url.pathname.startsWith("/shared/") && options.sharedFiles !== undefined) {
         try {
           await options.sharedFiles.serve(url.pathname.slice("/shared/".length), request, response)
+        } catch (error) {
+          sendSharedFileError(response, error)
+        }
+        return
+      }
+      const projectFileRoute = /^\/project-files\/([^/]+)\/([^/]+)$/u.exec(url.pathname)
+      if (projectFileRoute !== null) {
+        try {
+          const key = { projectId: decodeURIComponent(projectFileRoute[1]!), sessionId: decodeURIComponent(projectFileRoute[2]!) }
+          const saved = await findSession(key)
+          if (saved === undefined || saved.projectId !== key.projectId) throw new SharedFileError(404)
+          const project = await resolveProject(key, saved)
+          const path = url.searchParams.get("path")
+          if (path === null) throw new SharedFileError(400)
+          if ((request.method === "GET" || request.method === "HEAD") && !url.searchParams.has("raw") && !url.searchParams.has("watch")) {
+            const editorUrl = `/shared-editor?file=${encodeURIComponent(`${url.pathname}?path=${encodeURIComponent(path)}`)}`
+            response.writeHead(302, { location: editorUrl, "cache-control": "no-store" })
+            response.end()
+          } else {
+            await serveProjectMarkdown(project.root, path, request, response)
+          }
         } catch (error) {
           sendSharedFileError(response, error)
         }
@@ -841,7 +869,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (request.method === "POST" && url.pathname === "/v2/images") {
         const mediaType = imageMediaType(request)
         const data = await readImageBody(request, mediaType)
-        sendJson(response, 201, { version: PROTOCOL_VERSION, id: imageUploads.add(mediaType, data), mediaType, size: data.length })
+        sendJson(response, 201, { version: PROTOCOL_VERSION, id: imageUploads.add(url.searchParams.get("name") ?? "", mediaType, data), mediaType, size: data.length })
         return
       }
       const imageRoute = /^\/v2\/images\/([A-Za-z0-9_-]{1,64})$/u.exec(url.pathname)
@@ -929,12 +957,14 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const promptImages = images.map((image) => ({ mediaType: image.mediaType, data: image.data.toString("base64") }))
         const promptAttachments = await attachments.resolve(route.key, (value as typeof value & { attachmentIds?: readonly string[] }).attachmentIds ?? [])
         if (promptAttachments === undefined) throw new HttpError(400, "An attached file is missing")
+        const persistedImages = await Promise.all(images.map((image) => attachments.save(route.key, image.data, image.name, image.mediaType)))
+        const allAttachments = [...promptAttachments, ...persistedImages]
         const accepted = turns.start({
           ...route.key,
           cwd: project.root,
-          prompt: attachmentPrompt(value.prompt, promptAttachments),
+          prompt: attachmentPrompt(value.prompt, allAttachments),
           ...(promptImages.length === 0 ? {} : { images: promptImages }),
-          ...(promptAttachments.length === 0 ? {} : { attachmentMarker: attachmentMarker(promptAttachments) }),
+          ...(allAttachments.length === 0 ? {} : { attachmentMarker: attachmentMarker(allAttachments) }),
           ...(value.agentMentions === undefined ? {} : { agentMentions: value.agentMentions }),
           mode: isNew ? "new" : "existing",
           ...(saved === undefined ? {} : { sessionPath: saved.path }),
@@ -958,8 +988,10 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const promptImages = images.map((image) => ({ mediaType: image.mediaType, data: image.data.toString("base64") }))
         const promptAttachments = await attachments.resolve(route.key, (value as typeof value & { attachmentIds?: readonly string[] }).attachmentIds ?? [])
         if (promptAttachments === undefined) throw new HttpError(400, "An attached file is missing")
-        const injectedPrompt = attachmentPrompt(value.prompt, promptAttachments)
-        const marker = promptAttachments.length === 0 ? undefined : attachmentMarker(promptAttachments)
+        const persistedImages = await Promise.all(images.map((image) => attachments.save(route.key, image.data, image.name, image.mediaType)))
+        const allAttachments = [...promptAttachments, ...persistedImages]
+        const injectedPrompt = attachmentPrompt(value.prompt, allAttachments)
+        const marker = allAttachments.length === 0 ? undefined : attachmentMarker(allAttachments)
         let accepted = route.action === "steer"
           ? await turns.steer(route.key, injectedPrompt, promptImages.length === 0 ? undefined : promptImages, marker, value.agentMentions)
           : await turns.followUp(route.key, injectedPrompt, promptImages.length === 0 ? undefined : promptImages, marker, value.agentMentions)
