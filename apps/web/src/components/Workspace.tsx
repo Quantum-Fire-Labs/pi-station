@@ -695,9 +695,6 @@ function Sidebar({
   shortcutsVisible: boolean;
   onCollapse: () => void;
 }) {
-  const [showingClosed, setShowingClosed] = useState<ReadonlySet<string>>(
-    new Set(),
-  );
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
     readCollapsedProjects,
   );
@@ -748,14 +745,6 @@ function Sidebar({
       if (next.has(projectId)) next.delete(projectId);
       else next.add(projectId);
       writeCollapsedProjects(next);
-      return next;
-    });
-  };
-  const toggleClosed = (projectId: string): void => {
-    setShowingClosed((current) => {
-      const next = new Set(current);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
       return next;
     });
   };
@@ -884,33 +873,32 @@ function Sidebar({
             (session) => session.projectId === project.projectId,
           );
           const runningCount = projectSessions.filter(sessionIsOpen).length;
-          const closedCount = projectSessions.length - runningCount;
-          const isShowingClosed = showingClosed.has(project.projectId);
-          const closedNoun = closedCount === 1 ? "Session" : "Sessions";
-          const closedLabel = `${isShowingClosed ? "Hide" : "Show"} ${closedCount} closed bookmarked ${closedNoun} in ${project.name}`;
           return <section
             key={project.projectId}
             className={`project${project.available ? "" : " unavailable"}`}
           >
             <header>
-              <button
-                className={`project-name-link${activeRoute === "project" && activeProjectId === project.projectId ? " selected" : ""}`}
-                type="button"
-                aria-current={activeRoute === "project" && activeProjectId === project.projectId ? "page" : undefined}
-                onClick={() => onOpenProject(project.projectId)}
-              >
-                {project.name}
-              </button>
-              <span>
-                {closedCount > 0 && (
-                  <button
-                    aria-label={closedLabel}
-                    aria-pressed={isShowingClosed}
-                    onClick={() => toggleClosed(project.projectId)}
-                  >
-                    <Clock3 aria-hidden="true" size={14} strokeWidth={1.7} />
-                  </button>
-                )}
+              <span className="project-title">
+                <button
+                  className="project-collapse-toggle"
+                  aria-expanded={!collapsed.has(project.projectId)}
+                  aria-label={`${collapsed.has(project.projectId) ? "Expand" : "Collapse"} ${project.name}`}
+                  onClick={() => toggleProject(project.projectId)}
+                >
+                  {collapsed.has(project.projectId)
+                    ? <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
+                    : <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} />}
+                </button>
+                <button
+                  className={`project-name-link${activeRoute === "project" && activeProjectId === project.projectId ? " selected" : ""}`}
+                  type="button"
+                  aria-current={activeRoute === "project" && activeProjectId === project.projectId ? "page" : undefined}
+                  onClick={() => onOpenProject(project.projectId)}
+                >
+                  {project.name}
+                </button>
+              </span>
+              <span className="project-actions">
                 <button
                   aria-label={`New Session in ${project.name}`}
                   disabled={!project.available}
@@ -918,26 +906,13 @@ function Sidebar({
                 >
                   <Plus aria-hidden="true" size={14} strokeWidth={1.5} />
                 </button>
-              <button
-                aria-expanded={!collapsed.has(project.projectId)}
-                aria-label={`${collapsed.has(project.projectId) ? "Expand" : "Collapse"} ${project.name}`}
-                onClick={() => toggleProject(project.projectId)}
-              >
-                {collapsed.has(project.projectId)
-                  ? <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
-                  : <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} />}
-              </button>
               </span>
             </header>
-            {!collapsed.has(project.projectId) && runningCount === 0
-              && !isShowingClosed && (
+            {!collapsed.has(project.projectId) && runningCount === 0 && (
                 <p className="project-session-empty">No open Sessions</p>
               )}
             {!collapsed.has(project.projectId) && nestedSessions(
-              projectSessions.filter((session) => (
-                sessionIsOpen(session)
-                || showingClosed.has(project.projectId)
-              )),
+              projectSessions.filter(sessionIsOpen),
             ).map(({ session, depth }) => {
                 const selected = activeRoute === "workspace"
                   && state.selectedSessionKey !== undefined
