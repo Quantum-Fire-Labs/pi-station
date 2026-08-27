@@ -11,7 +11,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/v2": stationApi,
-      "/shared": stationApi,
+      "/shared/": stationApi,
       "/project-files": stationApi,
     },
   },

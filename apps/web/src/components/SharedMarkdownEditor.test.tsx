@@ -54,6 +54,11 @@ it("uses the saved Vim preference without showing an editor toggle", async () =>
   const editor = await screen.findByRole("textbox", { name: "Markdown content for draft.md" });
   expect(editor).toHaveAttribute("data-vim-mode", "true");
   expect(screen.queryByRole("button", { name: "Vim" })).not.toBeInTheDocument();
+  const autosave = screen.getByRole("switch", { name: "Autosave" });
+  expect(autosave).not.toBeChecked();
+  await userEvent.click(autosave);
+  expect(autosave).toBeChecked();
+  expect(storageValues.get("pi-station:markdown-autosave")).toBe("true");
 });
 
 it("saves and closes after the Vim write-and-quit command succeeds", async () => {
@@ -93,6 +98,24 @@ it("loads, edits, and manually saves shared Markdown", async () => {
   expect(fetch).toHaveBeenLastCalledWith("/shared/session/draft.md", expect.objectContaining({ method: "PUT", body: "Revised draft" }));
   expect(onDirtyChange).toHaveBeenCalledWith(true);
   expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+});
+
+it("automatically saves after editing when autosave is enabled", async () => {
+  storageValues.set("pi-station:markdown-autosave", "true");
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(new Response("Original"))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetch);
+  render(<SharedMarkdownEditor file={{ name: "draft.md", url: "/shared/session/draft.md" }} draftKey="autosave-draft" onClose={vi.fn()} onDirtyChange={vi.fn()} />);
+
+  const editor = await screen.findByRole("textbox", { name: "Markdown content for draft.md" });
+  expect(screen.getByRole("switch", { name: "Autosave" })).toBeChecked();
+  fireEvent.change(editor, { target: { value: "Autosaved revision" } });
+
+  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2), { timeout: 2_000 });
+  expect(fetch).toHaveBeenLastCalledWith("/shared/session/draft.md", expect.objectContaining({ method: "PUT", body: "Autosaved revision" }));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved"));
 });
 
 it("shows an external-change choice when a stale Markdown save loses a revision race", async () => {
