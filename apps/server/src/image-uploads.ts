@@ -7,7 +7,7 @@ const MAX_IMAGE_MEMORY_BYTES = 40 * 1024 * 1024
 const IMAGE_TTL_MS = 30 * 60 * 1000
 
 export type ImageMediaType = "image/png" | "image/jpeg" | "image/webp"
-export interface UploadedImage { readonly mediaType: ImageMediaType; readonly data: Buffer }
+export interface UploadedImage { readonly name: string; readonly mediaType: ImageMediaType; readonly data: Buffer }
 interface StoredImage extends UploadedImage { readonly expiresAt: number }
 
 const IMAGE_TYPES = new Set<ImageMediaType>(["image/png", "image/jpeg", "image/webp"])
@@ -45,7 +45,7 @@ export class ImageUploadStore {
   readonly #images = new Map<string, StoredImage>()
   #bytes = 0
 
-  add(mediaType: ImageMediaType, data: Buffer): string {
+  add(name: string, mediaType: ImageMediaType, data: Buffer): string {
     this.#purgeExpired()
     while (this.#bytes + data.length > MAX_IMAGE_MEMORY_BYTES) {
       const oldest = this.#images.keys().next().value
@@ -54,7 +54,7 @@ export class ImageUploadStore {
     }
     let id: string
     do id = randomBytes(24).toString("base64url"); while (this.#images.has(id))
-    this.#images.set(id, { mediaType, data, expiresAt: Date.now() + IMAGE_TTL_MS })
+    this.#images.set(id, { name: imageName(name, mediaType), mediaType, data, expiresAt: Date.now() + IMAGE_TTL_MS })
     this.#bytes += data.length
     return id
   }
@@ -77,6 +77,15 @@ export class ImageUploadStore {
     const now = Date.now()
     for (const [id, image] of this.#images) if (image.expiresAt <= now) this.delete(id)
   }
+}
+
+function imageName(value: string, mediaType: ImageMediaType): string {
+  const fallback = mediaType === "image/jpeg" ? "image.jpg" : mediaType === "image/webp" ? "image.webp" : "image.png"
+  const sanitized = [...value].map((character) => {
+    const code = character.codePointAt(0) ?? 0
+    return code <= 0x1f || code === 0x7f || character === "/" || character === "\\" ? "_" : character
+  }).join("").slice(0, 200)
+  return sanitized || fallback
 }
 
 export function matchesImageSignature(data: Buffer, mediaType: ImageMediaType): boolean {
