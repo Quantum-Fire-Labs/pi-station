@@ -2,11 +2,12 @@ import { useEffect, useRef } from "react";
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { codeFolding, foldEffect, foldedRanges, foldKeymap, foldService, indentUnit, syntaxHighlighting, syntaxTree, unfoldEffect } from "@codemirror/language";
-import { EditorSelection, EditorState, Prec, type Extension } from "@codemirror/state";
+import { EditorSelection, EditorState, Prec, StateEffect, StateField, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, highlightActiveLine, keymap, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { tags, type Highlighter, type Tag } from "@lezer/highlight";
 import { Vim, vim } from "@replit/codemirror-vim";
 import { GFM } from "@lezer/markdown";
+import { isMap, isScalar, isSeq, parseDocument, stringify } from "yaml";
 
 interface VimFileCommands {
   readonly save: () => void;
@@ -76,6 +77,166 @@ class HeadingFoldWidget extends WidgetType {
     return true;
   }
 }
+
+interface FrontmatterProperty {
+  readonly key: string;
+  readonly from: number;
+  readonly to: number;
+  readonly value: unknown;
+  readonly source: string;
+  readonly kind: "boolean" | "date" | "number" | "string" | "list" | "unsupported";
+}
+
+interface FrontmatterBlock {
+  readonly from: number;
+  readonly to: number;
+  readonly properties: readonly FrontmatterProperty[];
+}
+
+const showFrontmatterSourceEffect = StateEffect.define<boolean>();
+
+function frontmatterBlock(state: EditorState): FrontmatterBlock | undefined {
+  const source = state.doc.toString();
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?=\r?\n|$)/u.exec(source);
+  if (match === null) return undefined;
+  const body = match[1]!;
+  const bodyFrom = match[0].indexOf(body);
+  const document = parseDocument(body, { keepSourceTokens: true });
+  if (document.errors.length > 0 || !isMap(document.contents)) return undefined;
+  const properties: FrontmatterProperty[] = [];
+  for (const pair of document.contents.items) {
+    if (!isScalar(pair.key) || typeof pair.key.value !== "string" || pair.value === null || pair.value.range === undefined) continue;
+    const from = bodyFrom + pair.value.range[0];
+    const to = bodyFrom + pair.value.range[1];
+    const propertySource = source.slice(from, to);
+    let kind: FrontmatterProperty["kind"] = "unsupported";
+    let value: unknown = pair.value.toJSON();
+    if (isScalar(pair.value)) {
+      value = pair.value.value;
+      if (typeof value === "boolean") kind = "boolean";
+      else if (typeof value === "number") kind = "number";
+      else if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(value)) kind = "date";
+      else if (typeof value === "string") kind = "string";
+    } else if (isSeq(pair.value) && pair.value.items.every((item) => isScalar(item))) {
+      kind = "list";
+      value = pair.value.items.map((item) => isScalar(item) ? item.value : "");
+    }
+    properties.push({ key: pair.key.value, from, to, value, source: propertySource, kind });
+  }
+  return { from: 0, to: match[0].length, properties };
+}
+
+function yamlScalar(value: string, quoted: boolean): string {
+  return quoted ? JSON.stringify(value) : stringify(value).trimEnd();
+}
+
+class FrontmatterWidget extends WidgetType {
+  constructor(readonly block: FrontmatterBlock) {
+    super();
+  }
+
+  override eq(other: FrontmatterWidget): boolean {
+    return JSON.stringify(this.block) === JSON.stringify(other.block);
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const panel = document.createElement("details");
+    panel.className = "md-properties";
+    panel.open = true;
+    const summary = document.createElement("summary");
+    summary.textContent = "Properties";
+    panel.append(summary);
+    const rows = document.createElement("div");
+    rows.className = "md-properties-rows";
+    const replace = (property: FrontmatterProperty, value: string): void => {
+      if (value === property.source) return;
+      view.dispatch({ changes: { from: property.from, to: property.to, insert: value } });
+    };
+    for (const property of this.block.properties) {
+      const row = document.createElement("label");
+      row.className = "md-property-row";
+      const name = document.createElement("span");
+      name.textContent = property.key;
+      row.append(name);
+      if (property.kind === "boolean") {
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = property.value === true;
+        input.disabled = view.state.readOnly;
+        input.addEventListener("change", () => replace(property, input.checked ? "true" : "false"));
+        row.append(input);
+      } else if (property.kind === "unsupported") {
+        const value = document.createElement("code");
+        value.textContent = property.source;
+        row.append(value);
+      } else {
+        const input = document.createElement("input");
+        input.type = property.kind === "date" ? "date" : property.kind === "number" ? "number" : "text";
+        input.disabled = view.state.readOnly;
+        input.value = property.kind === "list"
+          ? (property.value as unknown[]).join(", ")
+          : typeof property.value === "string" || typeof property.value === "number"
+            ? String(property.value)
+            : "";
+        const commit = (): void => {
+          if (property.kind === "list") {
+            const values = input.value.split(",").map((value) => value.trim()).filter(Boolean);
+            replace(property, `[${values.map((value) => yamlScalar(value, false)).join(", ")}]`);
+          } else if (property.kind === "number") replace(property, input.value);
+          else replace(property, yamlScalar(input.value, /^["']/u.test(property.source)));
+        };
+        input.addEventListener("change", commit);
+        input.addEventListener("blur", commit);
+        input.addEventListener("keydown", (event) => { if (event.key === "Enter") input.blur(); });
+        row.append(input);
+      }
+      rows.append(row);
+    }
+    panel.append(rows);
+    const source = document.createElement("button");
+    source.type = "button";
+    source.className = "md-properties-source";
+    source.textContent = "Edit source";
+    source.addEventListener("click", () => {
+      view.dispatch({
+        selection: { anchor: 1 },
+        effects: showFrontmatterSourceEffect.of(true),
+        scrollIntoView: true,
+      });
+      view.focus();
+    });
+    panel.append(source);
+    return panel;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+function frontmatterDecorations(state: EditorState, showSource: boolean): DecorationSet {
+  const block = frontmatterBlock(state);
+  if (block === undefined || showSource) return Decoration.none;
+  return Decoration.set([
+    Decoration.replace({ widget: new FrontmatterWidget(block), block: true }).range(block.from, block.to),
+  ]);
+}
+
+const frontmatterField = StateField.define<{ readonly decorations: DecorationSet; readonly showSource: boolean }>({
+  create(state) {
+    return { decorations: frontmatterDecorations(state, false), showSource: false };
+  },
+  update(value, transaction) {
+    let showSource = value.showSource;
+    for (const effect of transaction.effects) {
+      if (effect.is(showFrontmatterSourceEffect)) showSource = effect.value;
+    }
+    const block = frontmatterBlock(transaction.state);
+    if (showSource && (block === undefined || transaction.state.selection.main.head >= block.to)) showSource = false;
+    return { decorations: frontmatterDecorations(transaction.state, showSource), showSource };
+  },
+  provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
+});
 
 class BulletWidget extends WidgetType {
   toDOM(): HTMLElement {
@@ -168,6 +329,8 @@ export function markdownSectionFold(state: EditorState, lineStart: number, lineE
 }
 
 function livePreviewDecorations(view: EditorView): DecorationSet {
+  const frontmatter = frontmatterBlock(view.state);
+  const showFrontmatterSource = view.state.field(frontmatterField).showSource;
   const activeLines = new Set<number>();
   for (const range of view.state.selection.ranges) {
     activeLines.add(view.state.doc.lineAt(range.head).number);
@@ -175,6 +338,7 @@ function livePreviewDecorations(view: EditorView): DecorationSet {
   const decorations: Array<{ from: number; to: number; value: Decoration }> = [];
   syntaxTree(view.state).iterate({
     enter(node) {
+      if (frontmatter !== undefined && !showFrontmatterSource && node.name !== "Document" && node.from < frontmatter.to) return false;
       if (/^ATXHeading[1-6]$/u.test(node.name)) {
         const line = view.state.doc.lineAt(node.from);
         const range = markdownSectionFold(view.state, line.from, line.to);
@@ -231,7 +395,7 @@ function livePreviewDecorations(view: EditorView): DecorationSet {
   return Decoration.set(decorations, true);
 }
 
-const markdownLivePreview = ViewPlugin.fromClass(class {
+class MarkdownLivePreviewPlugin {
   decorations: DecorationSet;
 
   constructor(view: EditorView) {
@@ -241,7 +405,11 @@ const markdownLivePreview = ViewPlugin.fromClass(class {
   update(update: ViewUpdate): void {
     this.decorations = livePreviewDecorations(update.view);
   }
-}, { decorations: (plugin) => plugin.decorations });
+}
+
+const markdownLivePreview = ViewPlugin.fromClass(MarkdownLivePreviewPlugin, {
+  decorations: (plugin) => plugin.decorations,
+});
 
 const hasTag = (values: readonly Tag[], tag: Tag): boolean => values.includes(tag);
 const markdownHighlight: Highlighter = {
@@ -297,6 +465,7 @@ export function MarkdownSourceEditor({ value, disabled, label, vimMode, onChange
       foldService.of(markdownSectionFold),
       codeFolding(),
       syntaxHighlighting(markdownHighlight),
+      frontmatterField,
       markdownLivePreview,
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ "aria-label": label }),

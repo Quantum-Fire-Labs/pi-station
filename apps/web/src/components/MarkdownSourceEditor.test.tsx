@@ -106,6 +106,69 @@ it("places section toggles inside heading lines and updates their accessible sta
   expect(container.querySelector(".cm-foldPlaceholder")).not.toBeNull();
 });
 
+it("renders typed YAML front matter properties and preserves source edits", () => {
+  const onChange = vi.fn();
+  const value = `---
+title: "Example post"
+date: 2026-08-27
+draft: true
+tags: [one, two]
+complex:
+  nested: value
+---
+
+Body`;
+  const { container } = render(<MarkdownSourceEditor
+    value={value}
+    disabled={false}
+    label="Properties document"
+    vimMode={false}
+    onChange={onChange}
+    onSave={vi.fn()}
+    onClose={vi.fn()}
+    onSaveAndClose={vi.fn()}
+  />);
+
+  expect(screen.getByText("Properties")).toBeInTheDocument();
+  expect(container.querySelector(".cm-content")).not.toHaveTextContent("title:");
+  expect(screen.getByLabelText("title")).toHaveValue("Example post");
+  expect(screen.getByLabelText("date")).toHaveValue("2026-08-27");
+  expect(screen.getByLabelText("draft")).toBeChecked();
+  expect(screen.getByLabelText("tags")).toHaveValue("one, two");
+  expect(screen.getByText("nested: value")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("title"), { target: { value: "Revised post" } });
+  expect(onChange).toHaveBeenLastCalledWith(value.replace('"Example post"', '"Revised post"'));
+});
+
+it("reveals front matter source on request and leaves invalid YAML raw", () => {
+  const { container, rerender } = render(<MarkdownSourceEditor
+    value={"---\ntitle: Example\n---\nBody"}
+    disabled={false}
+    label="Source properties"
+    vimMode={false}
+    onChange={vi.fn()}
+    onSave={vi.fn()}
+    onClose={vi.fn()}
+    onSaveAndClose={vi.fn()}
+  />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit source" }));
+  expect(container.querySelector(".cm-content")).toHaveTextContent("title: Example");
+
+  rerender(<MarkdownSourceEditor
+    value={"---\ninvalid: [unterminated\n---\nBody"}
+    disabled={false}
+    label="Source properties"
+    vimMode={false}
+    onChange={vi.fn()}
+    onSave={vi.fn()}
+    onClose={vi.fn()}
+    onSaveAndClose={vi.fn()}
+  />);
+  expect(container.querySelector(".cm-content")).toHaveTextContent("invalid: [unterminated");
+});
+
 it("uses literal tabs for Tab indentation and keeps focus in the editor", () => {
   const onChange = vi.fn();
   render(<MarkdownSourceEditor
