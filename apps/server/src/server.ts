@@ -286,19 +286,25 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
 
     const sessionId = randomUUID()
     const key = { projectId: project.id, sessionId }
+    const manager = SessionManager.create(project.root, undefined, { id: sessionId })
+    initializeEmptySession(manager, input.name)
+    const indexed = await options.index.refreshSession(key, project)
+    if (indexed === undefined) throw new Error("Created Session was not indexed")
     await metadata.set(key, "open")
+    await publishSession({ ...indexed, state: "open" })
     try {
       const started = turns.startTracked({
         ...key,
         cwd: project.root,
         prompt: input.prompt,
-        name: input.name,
-        mode: "new",
+        mode: "existing",
+        sessionPath: indexed.path,
         settledTimeline: settledTimeline(key, project),
       })
       if (!started.accepted) throw new Error("New Session did not accept the prompt")
     } catch (error) {
       await metadata.set(key, "closed").catch(() => undefined)
+      await publishSession({ ...indexed, state: "closed" }).catch(() => undefined)
       throw error
     }
     return { status: "started", sessionId, projectId: project.id }
