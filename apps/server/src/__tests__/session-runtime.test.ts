@@ -335,7 +335,7 @@ describe("SDK Session runtime", () => {
     expect(session.prompt).not.toHaveBeenCalled()
     expect(session.sendCustomMessage).toHaveBeenCalledWith({
       customType: "pi-station-agent-message",
-      content: "Agent message from Themes (Session source):\nPlease review this.\n\nWhen responding to this agent, use send_agent_message with sessionId \"source\". Do not leave the response only in this Session's output.",
+      content: "Agent message from Themes (Session source):\nPlease review this.",
       display: true,
       details: { kind: "agent-message", fromSessionId: "source", fromName: "Themes", message: "Please review this." },
     }, { triggerTurn: true })
@@ -354,7 +354,7 @@ describe("SDK Session runtime", () => {
     })).resolves.toBe(true)
     expect(session.sendCustomMessage).toHaveBeenCalledWith({
       customType: "pi-station-agent-message",
-      content: "Agent message from Session parent:\nChange direction.\n\nWhen responding to this agent, use send_agent_message with sessionId \"parent\". Do not leave the response only in this Session's output.",
+      content: "Agent message from Session parent:\nChange direction.",
       display: true,
       details: { kind: "agent-message", fromSessionId: "parent", message: "Change direction." },
     }, { triggerTurn: true, deliverAs: "steer" })
