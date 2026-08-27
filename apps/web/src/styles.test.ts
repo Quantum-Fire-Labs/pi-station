@@ -64,6 +64,12 @@ describe("composer width", () => {
   });
 });
 
+describe("Session header", () => {
+  it("clamps the Session name to one line", () => {
+    expect(styles).toMatch(/\.session-title-text\s*\{[^}]*-webkit-line-clamp: 1;/s);
+  });
+});
+
 describe("Quick Session modal", () => {
   it("places Quick Session with the top navigation actions and keeps Settings in the footer", () => {
     expect(styles).toMatch(/\.sidebar-primary-actions\s*\{[^}]*grid-template-columns: 1fr;[^}]*gap: 2px;/s);
