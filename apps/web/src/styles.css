@@ -437,7 +437,7 @@ body.sidebar-resizing {
   height: 30px;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px;
+  padding: 0 6px 0 2px;
   color: var(--muted);
   font-size: 12px;
 }
