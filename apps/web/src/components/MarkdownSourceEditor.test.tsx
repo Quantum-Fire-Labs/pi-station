@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, expect, it, vi } from "vitest";
-import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
+import { MarkdownSourceEditor, markdownSectionFold } from "./MarkdownSourceEditor";
 
 afterEach(cleanup);
 
@@ -33,7 +34,7 @@ it("shows Markdown syntax only on the active line", () => {
   expect(container.querySelector(".cm-content")).toHaveTextContent("https://example.com");
 });
 
-it("renders task checkboxes outside the active line and reveals the active marker", () => {
+it("renders task checkboxes without list dashes on every line", () => {
   const onChange = vi.fn();
   const { container } = render(<MarkdownSourceEditor
     value={"- [ ] Open task\n  - [X] Nested completed task"}
@@ -46,20 +47,44 @@ it("renders task checkboxes outside the active line and reveals the active marke
     onSaveAndClose={vi.fn()}
   />);
 
-  expect(container.querySelector(".cm-activeLine")).toHaveTextContent("[ ] Open task");
-  const completed = screen.getByRole("checkbox", { name: "Mark task incomplete" });
-  expect(completed).toBeChecked();
-  fireEvent.click(completed);
-  expect(onChange).toHaveBeenLastCalledWith("- [ ] Open task\n  - [ ] Nested completed task");
-
-  const editor = screen.getByRole("textbox", { name: "Task list" });
-  EditorView.findFromDOM(editor)!.dispatch({ selection: { anchor: 20 } });
-
-  expect(container.querySelector(".cm-activeLine")).toHaveTextContent("[ ] Nested completed task");
   const open = screen.getByRole("checkbox", { name: "Mark task complete" });
+  const completed = screen.getByRole("checkbox", { name: "Mark task incomplete" });
   expect(open).not.toBeChecked();
+  expect(completed).toBeChecked();
+  expect(container.querySelector(".cm-content")).not.toHaveTextContent("- [");
+
   fireEvent.click(open);
-  expect(onChange).toHaveBeenLastCalledWith("- [x] Open task\n  - [ ] Nested completed task");
+  expect(onChange).toHaveBeenLastCalledWith("- [x] Open task\n  - [X] Nested completed task");
+});
+
+it("renders unordered markers as bullets and inactive safe links as anchors", () => {
+  const { container } = render(<MarkdownSourceEditor
+    value={"Plain line\n- First\n* Second\n+ [Pi Station](https://example.com/docs)\n- [unsafe](javascript:alert(1))\n1. Ordered"}
+    disabled={false}
+    label="Rendered structures"
+    vimMode={false}
+    onChange={vi.fn()}
+    onSave={vi.fn()}
+    onClose={vi.fn()}
+    onSaveAndClose={vi.fn()}
+  />);
+
+  expect(container.querySelectorAll(".md-list-bullet")).toHaveLength(4);
+  expect(container.querySelector(".cm-content")).toHaveTextContent("• First");
+  expect(container.querySelector(".cm-content")).toHaveTextContent("1. Ordered");
+  const link = screen.getByRole("link", { name: "Pi Station" });
+  expect(link).toHaveAttribute("href", "https://example.com/docs");
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(screen.queryByRole("link", { name: "unsafe" })).not.toBeInTheDocument();
+});
+
+it("folds a heading through its descendants but not the next peer heading", () => {
+  const state = EditorState.create({ doc: "# First\nintro\n## Child\ndetail\n# Second\nend" });
+  const first = state.doc.line(1);
+  const child = state.doc.line(3);
+  expect(markdownSectionFold(state, first.from, first.to)).toEqual({ from: first.to, to: state.doc.line(5).from - 1 });
+  expect(markdownSectionFold(state, child.from, child.to)).toEqual({ from: child.to, to: state.doc.line(5).from - 1 });
+  expect(markdownSectionFold(state, state.doc.line(2).from, state.doc.line(2).to)).toBeNull();
 });
 
 it("uses literal tabs for Tab indentation and keeps focus in the editor", () => {

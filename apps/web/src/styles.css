@@ -3588,6 +3588,10 @@ body.sidebar-resizing {
 .markdown-source-editor .md-heading-1 { font-size: 1.75em; font-weight: 700; line-height: 1.35; }
 .markdown-source-editor .md-heading-2 { font-size: 1.45em; font-weight: 700; line-height: 1.4; }
 .markdown-source-editor .md-heading-3 { font-size: 1.22em; font-weight: 700; }
+.markdown-source-editor .md-heading-1,
+.markdown-source-editor .md-heading-2,
+.markdown-source-editor .md-heading-3,
+.markdown-source-editor .md-heading { color: var(--accent); }
 .markdown-source-editor .md-heading,
 .markdown-source-editor .md-strong { font-weight: 700; }
 .markdown-source-editor .md-emphasis { font-style: italic; }
@@ -3597,6 +3601,10 @@ body.sidebar-resizing {
 .markdown-source-editor .md-syntax { color: var(--faint); }
 .markdown-source-editor .md-task-checkbox { width: 16px; height: 16px; margin: 0 6px 0 0; vertical-align: -2px; accent-color: var(--accent); cursor: pointer; }
 .markdown-source-editor .md-task-checkbox:disabled { cursor: default; opacity: 0.65; }
+.markdown-source-editor .md-list-bullet { display: inline-block; min-width: 1ch; color: var(--accent); font-weight: 800; }
+.markdown-source-editor .md-rendered-link { color: var(--accent2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.markdown-source-editor .cm-gutters { border: 0; background: var(--page); color: var(--faint); }
+.markdown-source-editor .cm-foldGutter .cm-gutterElement { width: 18px; padding: 0; color: var(--accent); font-size: 16px; text-align: center; cursor: pointer; }
 .markdown-source-editor .md-list-depth-1 { padding-left: 18px; }
 .markdown-source-editor .md-list-depth-2 { padding-left: 36px; }
 .markdown-source-editor .md-list-depth-3 { padding-left: 54px; }

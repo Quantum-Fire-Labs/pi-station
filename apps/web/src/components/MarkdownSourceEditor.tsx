@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { indentUnit, syntaxHighlighting, syntaxTree } from "@codemirror/language";
+import { foldGutter, foldKeymap, foldService, indentUnit, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState, Prec, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, highlightActiveLine, keymap, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { tags, type Highlighter, type Tag } from "@lezer/highlight";
@@ -50,6 +50,40 @@ function wrapSelection(marker: "*" | "**") {
 
 const hiddenMarkdownMarks = new Set(["HeaderMark", "EmphasisMark", "LinkMark", "StrikethroughMark"]);
 
+class BulletWidget extends WidgetType {
+  toDOM(): HTMLElement {
+    const bullet = document.createElement("span");
+    bullet.className = "md-list-bullet";
+    bullet.textContent = "•";
+    bullet.setAttribute("aria-hidden", "true");
+    return bullet;
+  }
+}
+
+class MarkdownLinkWidget extends WidgetType {
+  constructor(readonly label: string, readonly href: string) {
+    super();
+  }
+
+  override eq(other: MarkdownLinkWidget): boolean {
+    return this.label === other.label && this.href === other.href;
+  }
+
+  toDOM(): HTMLElement {
+    const link = document.createElement("a");
+    link.className = "md-rendered-link";
+    link.textContent = this.label;
+    link.href = this.href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    return link;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
 class TaskCheckboxWidget extends WidgetType {
   constructor(readonly from: number, readonly to: number, readonly checked: boolean) {
     super();
@@ -80,6 +114,32 @@ class TaskCheckboxWidget extends WidgetType {
   }
 }
 
+function safeMarkdownLink(value: string): string | undefined {
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function markdownSectionFold(state: EditorState, lineStart: number, lineEnd: number): { from: number; to: number } | null {
+  const line = state.doc.lineAt(lineStart);
+  const heading = /^(#{1,6})\s+/u.exec(line.text);
+  if (heading === null) return null;
+  const level = heading[1]!.length;
+  let boundary = state.doc.length;
+  for (let number = line.number + 1; number <= state.doc.lines; number += 1) {
+    const candidate = state.doc.line(number);
+    const nextHeading = /^(#{1,6})\s+/u.exec(candidate.text);
+    if (nextHeading !== null && nextHeading[1]!.length <= level) {
+      boundary = candidate.from - 1;
+      break;
+    }
+  }
+  return boundary > lineEnd ? { from: lineEnd, to: boundary } : null;
+}
+
 function livePreviewDecorations(view: EditorView): DecorationSet {
   const activeLines = new Set<number>();
   for (const range of view.state.selection.ranges) {
@@ -88,15 +148,36 @@ function livePreviewDecorations(view: EditorView): DecorationSet {
   const decorations: Array<{ from: number; to: number; value: Decoration }> = [];
   syntaxTree(view.state).iterate({
     enter(node) {
+      if (node.name === "ListMark" && node.node.parent?.parent?.name === "BulletList") {
+        const task = node.node.parent.getChild("Task") !== null;
+        decorations.push({
+          from: node.from,
+          to: node.to,
+          value: task ? Decoration.replace({}) : Decoration.replace({ widget: new BulletWidget() }),
+        });
+        return false;
+      }
       if (node.name === "TaskMarker") {
-        if (activeLines.has(view.state.doc.lineAt(node.from).number)) return;
         const checked = /^\[[xX]\]$/u.test(view.state.sliceDoc(node.from, node.to));
         decorations.push({
           from: node.from,
           to: node.to,
           value: Decoration.replace({ widget: new TaskCheckboxWidget(node.from, node.to, checked) }),
         });
-        return;
+        return false;
+      }
+      if (node.name === "Link" && !activeLines.has(view.state.doc.lineAt(node.from).number)) {
+        const source = view.state.sliceDoc(node.from, node.to);
+        const match = /^\[([^\]]+)\]\(([^\s)]+)(?:\s+["'][^"']*["'])?\)$/u.exec(source);
+        const href = match === null ? undefined : safeMarkdownLink(match[2]!);
+        if (match !== null && href !== undefined) {
+          decorations.push({
+            from: node.from,
+            to: node.to,
+            value: Decoration.replace({ widget: new MarkdownLinkWidget(match[1]!, href) }),
+          });
+          return false;
+        }
       }
       const hideInlineCodeMark = node.name === "CodeMark" && node.node.parent?.name === "InlineCode";
       const hideLinkUrl = node.name === "URL" && node.node.parent?.name === "Link";
@@ -173,6 +254,8 @@ export function MarkdownSourceEditor({ value, disabled, label, vimMode, onChange
       EditorState.tabSize.of(8),
       history(),
       highlightActiveLine(),
+      foldService.of(markdownSectionFold),
+      foldGutter({ openText: "⌄", closedText: "›" }),
       syntaxHighlighting(markdownHighlight),
       markdownLivePreview,
       EditorView.lineWrapping,
@@ -189,6 +272,7 @@ export function MarkdownSourceEditor({ value, disabled, label, vimMode, onChange
         { key: "Mod-s", preventDefault: true, run: () => { onSaveRef.current(); return true; } },
         ...defaultKeymap,
         ...historyKeymap,
+        ...foldKeymap,
       ]),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChangeRef.current(update.state.doc.toString());
