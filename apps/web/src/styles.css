@@ -3597,6 +3597,12 @@ body.sidebar-resizing {
 .markdown-source-editor .md-syntax { color: var(--faint); }
 .markdown-source-editor .md-task-checkbox { width: 16px; height: 16px; margin: 0 6px 0 0; vertical-align: -2px; accent-color: var(--accent); cursor: pointer; }
 .markdown-source-editor .md-task-checkbox:disabled { cursor: default; opacity: 0.65; }
+.markdown-source-editor .md-list-depth-1 { padding-left: 18px; }
+.markdown-source-editor .md-list-depth-2 { padding-left: 36px; }
+.markdown-source-editor .md-list-depth-3 { padding-left: 54px; }
+.markdown-source-editor .md-list-depth-4 { padding-left: 72px; }
+.markdown-source-editor .md-list-depth-5 { padding-left: 90px; }
+.markdown-source-editor .md-list-depth-6 { padding-left: 108px; }
 .shared-markdown-editor > p { margin: 24px; color: var(--danger); }
 .standalone-shared-editor {
   --editor-pane-width: 100vw;

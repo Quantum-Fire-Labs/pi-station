@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { syntaxHighlighting, syntaxTree } from "@codemirror/language";
-import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
+import { indentUnit, syntaxHighlighting, syntaxTree } from "@codemirror/language";
+import { EditorSelection, EditorState, Prec, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, highlightActiveLine, keymap, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { tags, type Highlighter, type Tag } from "@lezer/highlight";
 import { Vim, vim } from "@replit/codemirror-vim";
@@ -89,6 +89,7 @@ function livePreviewDecorations(view: EditorView): DecorationSet {
   syntaxTree(view.state).iterate({
     enter(node) {
       if (node.name === "TaskMarker") {
+        if (activeLines.has(view.state.doc.lineAt(node.from).number)) return;
         const checked = /^\[[xX]\]$/u.test(view.state.sliceDoc(node.from, node.to));
         decorations.push({
           from: node.from,
@@ -168,6 +169,8 @@ export function MarkdownSourceEditor({ value, disabled, label, vimMode, onChange
     const extensions: Extension[] = [
       ...(vimMode ? [vim()] : []),
       markdown({ extensions: [GFM] }),
+      indentUnit.of("\t"),
+      EditorState.tabSize.of(8),
       history(),
       highlightActiveLine(),
       syntaxHighlighting(markdownHighlight),
@@ -176,6 +179,10 @@ export function MarkdownSourceEditor({ value, disabled, label, vimMode, onChange
       EditorView.contentAttributes.of({ "aria-label": label }),
       EditorState.readOnly.of(disabled),
       EditorView.editable.of(!disabled),
+      Prec.highest(keymap.of([
+        { key: "Tab", run: indentMore },
+        { key: "Shift-Tab", run: indentLess },
+      ])),
       keymap.of([
         { key: "Mod-b", run: wrapSelection("**") },
         { key: "Mod-i", run: wrapSelection("*") },
