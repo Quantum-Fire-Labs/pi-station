@@ -493,7 +493,7 @@ body.sidebar-resizing {
 }
 .project header .project-collapse-toggle {
   width: 14px;
-  margin-right: 4px;
+  margin-right: 9px;
   color: var(--accent-strong);
   opacity: 1;
 }
