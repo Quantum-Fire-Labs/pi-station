@@ -893,15 +893,27 @@ function Sidebar({
             className={`project${project.available ? "" : " unavailable"}`}
           >
             <header>
-              <button
-                className={`project-name-link${activeRoute === "project" && activeProjectId === project.projectId ? " selected" : ""}`}
-                type="button"
-                aria-current={activeRoute === "project" && activeProjectId === project.projectId ? "page" : undefined}
-                onClick={() => onOpenProject(project.projectId)}
-              >
-                {project.name}
-              </button>
-              <span>
+              <span className="project-title">
+                <button
+                  className="project-collapse-toggle"
+                  aria-expanded={!collapsed.has(project.projectId)}
+                  aria-label={`${collapsed.has(project.projectId) ? "Expand" : "Collapse"} ${project.name}`}
+                  onClick={() => toggleProject(project.projectId)}
+                >
+                  {collapsed.has(project.projectId)
+                    ? <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
+                    : <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} />}
+                </button>
+                <button
+                  className={`project-name-link${activeRoute === "project" && activeProjectId === project.projectId ? " selected" : ""}`}
+                  type="button"
+                  aria-current={activeRoute === "project" && activeProjectId === project.projectId ? "page" : undefined}
+                  onClick={() => onOpenProject(project.projectId)}
+                >
+                  {project.name}
+                </button>
+              </span>
+              <span className="project-actions">
                 {closedCount > 0 && (
                   <button
                     aria-label={closedLabel}
@@ -918,15 +930,6 @@ function Sidebar({
                 >
                   <Plus aria-hidden="true" size={14} strokeWidth={1.5} />
                 </button>
-              <button
-                aria-expanded={!collapsed.has(project.projectId)}
-                aria-label={`${collapsed.has(project.projectId) ? "Expand" : "Collapse"} ${project.name}`}
-                onClick={() => toggleProject(project.projectId)}
-              >
-                {collapsed.has(project.projectId)
-                  ? <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
-                  : <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} />}
-              </button>
               </span>
             </header>
             {!collapsed.has(project.projectId) && runningCount === 0
