@@ -3254,7 +3254,14 @@ export function Workspace({
                 item={item}
                 sessionWorking={state.selected.projection?.run === "working"}
                 onUndoUserMessage={item.category === "user-message" && item.source === "saved" && !working && synchronized && capabilities.includes("session.undo")
-                  ? () => { onCommand?.({ kind: "session.undo", entryId: item.timelineItemId }); }
+                  ? () => {
+                      setDraft(item.content.text);
+                      writeComposerDraft(selectedSessionIdentity, item.content.text);
+                      setVoiceMode(false);
+                      localStorage.setItem("pi-station:composer-mode", "text");
+                      onCommand?.({ kind: "session.undo", entryId: item.timelineItemId });
+                      requestAnimationFrame(() => composerInput.current?.focus());
+                    }
                   : undefined}
                 onOpenSharedMarkdown={(url) => {
                   const parsed = new URL(url, window.location.origin);
