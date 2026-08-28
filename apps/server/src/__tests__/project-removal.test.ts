@@ -178,7 +178,7 @@ async function setup(state: "open" | "closed") {
   const runner = { run: vi.fn(), control, interruptOwned: vi.fn(), dispose: vi.fn() } as unknown as SessionRuntime & { dispose: ReturnType<typeof vi.fn> }
   const delegationEvents = new DelegationEvents()
   const delegationStore = new DelegationStore(dataDir)
-  const server = createPiStationServer({ dataDir, index, runner, delegationEvents, delegationStore })
+  const server = createPiStationServer({ dataDir, index, runner, delegationEvents, delegationStore, initializeSession: vi.fn() })
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
   const address = server.address()
   if (address === null || typeof address === "string") throw new Error("No server address")

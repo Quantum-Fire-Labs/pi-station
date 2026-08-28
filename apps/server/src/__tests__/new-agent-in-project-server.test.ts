@@ -65,7 +65,8 @@ describe("new agent in Project host bridge", () => {
     const bridge = new NewAgentInProjectBridge()
     const { run, runner } = runtime()
     const { sessionIndex, refreshSession } = index()
-    const server = createPiStationServer({ dataDir, index: sessionIndex, runner, newAgentInProject: bridge })
+    const initializeSession = vi.fn()
+    const server = createPiStationServer({ dataDir, index: sessionIndex, runner, newAgentInProject: bridge, initializeSession })
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
 
     const result = await bridge.invoke({ projectId: project.id, name: "Same Project Agent", prompt: "Start now" })
@@ -74,6 +75,7 @@ describe("new agent in Project host bridge", () => {
     expect(result.projectId).toBe(project.id)
     expect((await new ProjectStore(dataDir).read())[0]?.closed).toBeUndefined()
     expect(typeof result.sessionId).toBe("string")
+    expect(initializeSession).toHaveBeenCalledWith(project.root, result.sessionId, "Same Project Agent")
     expect(run).toHaveBeenCalledOnce()
     expect(run.mock.calls[0]?.[0]).toMatchObject({
       projectId: project.id,
@@ -111,7 +113,7 @@ describe("new agent in Project host bridge", () => {
     if (project === undefined) throw new Error("Project was not configured")
     const bridge = new NewAgentInProjectBridge()
     const { run, runner } = runtime()
-    const server = createPiStationServer({ dataDir, index: index().sessionIndex, runner, newAgentInProject: bridge })
+    const server = createPiStationServer({ dataDir, index: index().sessionIndex, runner, newAgentInProject: bridge, initializeSession: vi.fn() })
 
     await expect(bridge.invoke({ projectId: "Project Name", name: "Agent", prompt: "Go" })).rejects.toThrow("Project not found")
     await rm(projectRoot, { recursive: true, force: true })
