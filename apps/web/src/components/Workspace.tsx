@@ -1820,6 +1820,21 @@ export function Workspace({
     addFiles(allowed.filter((file) => !imageTypes.has(file.type)));
   };
 
+  const addPastedAttachments = (clipboard: DataTransfer): boolean => {
+    const files = [...clipboard.files];
+    if (files.length > 0) {
+      addSelectedAttachments(files);
+      return true;
+    }
+    const itemFiles = [...clipboard.items]
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+    if (itemFiles.length === 0) return false;
+    addSelectedAttachments(itemFiles);
+    return true;
+  };
+
   const openSession = (sessionKey: SessionKey): void => {
     const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, sessionKey));
     const project = target === undefined
@@ -3377,8 +3392,7 @@ export function Workspace({
           ) : <form
             className="composer"
             onPaste={(event) => {
-              const pasted = [...event.clipboardData.files];
-              if (pasted.length > 0) { event.preventDefault(); addSelectedAttachments(pasted); }
+              if (addPastedAttachments(event.clipboardData)) event.preventDefault();
             }}
             onSubmit={(event) => {
               event.preventDefault();

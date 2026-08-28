@@ -1907,6 +1907,29 @@ describe("Workspace", () => {
     });
   });
 
+  it("uploads an image exposed as a clipboard item when clipboard files are empty", async () => {
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:preview") });
+    const image = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "pasted.png", { type: "image/png" });
+    const onUploadImage = vi.fn(() => Promise.resolve("upload-pasted-image"));
+    const { container } = render(
+      <Workspace
+        state={fixtureState}
+        onSelect={vi.fn()}
+        onUploadImage={onUploadImage}
+      />,
+    );
+    const composer = container.querySelector("form.composer");
+    if (composer === null) throw new Error("Composer is missing");
+    fireEvent.paste(composer, {
+      clipboardData: {
+        files: [],
+        items: [{ kind: "file", getAsFile: () => image }],
+      },
+    });
+    await waitFor(() => expect(onUploadImage).toHaveBeenCalledWith(image, expect.any(AbortSignal)));
+    expect(screen.getByText("Ready")).toBeVisible();
+  });
+
   it("shows the useful error returned by the image upload adapter", async () => {
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:preview") });
     const { container } = render(
