@@ -13,6 +13,8 @@ import { notificationPresence } from "./notifications";
 import {
   findDeepLinkedSession,
   sessionDeepLinkTarget,
+  sessionNavigationTarget,
+  type SessionDeepLinkTarget,
   urlAfterConsumingSessionDeepLink,
 } from "./session-deep-links";
 import "./styles.css";
@@ -53,6 +55,7 @@ function Root() {
   });
   const [updating, setUpdating] = useState(false);
   const [quickSessionOpen, setQuickSessionOpen] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<SessionDeepLinkTarget>();
   const [providerConfigured, setProviderConfigured] = useState<boolean>();
   const quickSessionTrigger = useRef<HTMLElement | null>(null);
   const changeQuickSessionOpen = (open: boolean): void => {
@@ -128,6 +131,27 @@ function Root() {
       document.removeEventListener("visibilitychange", report);
     };
   }, [client, state.selectedSessionKey]);
+
+  useEffect(() => {
+    if (client === undefined || typeof EventSource !== "function") return;
+    const source = new EventSource("/v2/navigation/events");
+    source.addEventListener("navigation", (message) => {
+      if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+      try {
+        const target = sessionNavigationTarget(JSON.parse((message as MessageEvent<string>).data));
+        if (target !== undefined) setPendingNavigation(target);
+      } catch { /* Ignore malformed navigation events. */ }
+    });
+    return () => source.close();
+  }, [client]);
+
+  useEffect(() => {
+    if (client === undefined || pendingNavigation === undefined) return;
+    const target = findDeepLinkedSession(state.sessions, pendingNavigation);
+    if (target === undefined) return;
+    client.select(target.sessionKey);
+    setPendingNavigation(undefined);
+  }, [client, pendingNavigation, state.sessions]);
 
   useEffect(() => {
     if (client === undefined || state.connection !== "ready") return;
