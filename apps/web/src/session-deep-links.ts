@@ -5,14 +5,6 @@ export interface SessionDeepLinkTarget {
   readonly sessionId: string;
 }
 
-export function shouldAcceptSessionNavigation(options: {
-  readonly visible: boolean;
-  readonly focused: boolean;
-  readonly standalone: boolean;
-}): boolean {
-  return options.standalone || (options.visible && options.focused);
-}
-
 export function sessionNavigationTarget(value: unknown): SessionDeepLinkTarget | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const input = value as Record<string, unknown>;

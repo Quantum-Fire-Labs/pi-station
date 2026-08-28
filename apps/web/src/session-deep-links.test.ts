@@ -4,7 +4,6 @@ import {
   findDeepLinkedSession,
   sessionDeepLinkTarget,
   sessionNavigationTarget,
-  shouldAcceptSessionNavigation,
   urlAfterConsumingSessionDeepLink,
 } from "./session-deep-links";
 
@@ -23,14 +22,6 @@ const session = (projectId: string, sessionId: string, hostId = projectId): Sess
 });
 
 describe("session deep links", () => {
-  it("accepts navigation in the focused page or an application-mode window", () => {
-    expect(shouldAcceptSessionNavigation({ visible: true, focused: true, standalone: false })).toBe(true);
-    expect(shouldAcceptSessionNavigation({ visible: true, focused: false, standalone: true })).toBe(true);
-    expect(shouldAcceptSessionNavigation({ visible: false, focused: false, standalone: true })).toBe(true);
-    expect(shouldAcceptSessionNavigation({ visible: true, focused: false, standalone: false })).toBe(false);
-    expect(shouldAcceptSessionNavigation({ visible: false, focused: true, standalone: false })).toBe(false);
-  });
-
   it("validates navigation IPC payloads", () => {
     expect(sessionNavigationTarget({ project: "quick-session", session: "session-id" })).toEqual({
       projectId: "quick-session",

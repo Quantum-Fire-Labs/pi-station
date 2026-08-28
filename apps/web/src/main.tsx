@@ -14,7 +14,6 @@ import {
   findDeepLinkedSession,
   sessionDeepLinkTarget,
   sessionNavigationTarget,
-  shouldAcceptSessionNavigation,
   type SessionDeepLinkTarget,
   urlAfterConsumingSessionDeepLink,
 } from "./session-deep-links";
@@ -137,13 +136,7 @@ function Root() {
     if (client === undefined || typeof EventSource !== "function") return;
     const source = new EventSource("/v2/navigation/events");
     source.addEventListener("navigation", (message) => {
-      const standalone = typeof matchMedia === "function"
-        && matchMedia("(display-mode: standalone)").matches;
-      if (!shouldAcceptSessionNavigation({
-        visible: document.visibilityState === "visible",
-        focused: document.hasFocus(),
-        standalone,
-      })) return;
+      if (document.visibilityState !== "visible" || !document.hasFocus()) return;
       try {
         const target = sessionNavigationTarget(JSON.parse((message as MessageEvent<string>).data));
         if (target !== undefined) setPendingNavigation(target);
