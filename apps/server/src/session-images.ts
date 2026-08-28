@@ -5,7 +5,6 @@ import { MAX_IMAGE_BYTES, matchesImageSignature, type ImageMediaType } from "./i
 
 const MAX_CONTENT_PART_INDEX = 1_000
 const MAX_BASE64_BYTES = Math.ceil(MAX_IMAGE_BYTES / 3) * 4
-const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
 
 export interface SavedTimelineImage {
   readonly mediaType: ImageMediaType
@@ -77,8 +76,20 @@ function imageLocator(id: string): { readonly entryId: string; readonly partInde
 
 function isBoundedBase64(value: string): boolean {
   if (value.length === 0 || value.length > MAX_BASE64_BYTES || value.length % 4 !== 0) return false
-  if (!BASE64.test(value)) return false
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0
+  const contentLength = value.length - padding
+  for (let index = 0; index < contentLength; index += 1) {
+    const code = value.charCodeAt(index)
+    const base64Character = (code >= 65 && code <= 90)
+      || (code >= 97 && code <= 122)
+      || (code >= 48 && code <= 57)
+      || code === 43
+      || code === 47
+    if (!base64Character) return false
+  }
+  for (let index = contentLength; index < value.length; index += 1) {
+    if (value.charCodeAt(index) !== 61) return false
+  }
   return (value.length / 4) * 3 - padding <= MAX_IMAGE_BYTES
 }
 
