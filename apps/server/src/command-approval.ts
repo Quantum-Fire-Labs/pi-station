@@ -62,6 +62,12 @@ export class CommandApprovalService {
     })
   }
 
+  current(key: SessionKey): CommandApproval | undefined {
+    return [...this.#pending.values()]
+      .find(({ approval }) => approval.projectId === key.projectId && approval.sessionId === key.sessionId)
+      ?.approval
+  }
+
   resolve(key: SessionKey, id: string, allowed: boolean): boolean {
     const pending = this.#pending.get(id)
     if (pending === undefined || pending.approval.projectId !== key.projectId || pending.approval.sessionId !== key.sessionId) return false

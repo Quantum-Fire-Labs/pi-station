@@ -843,6 +843,7 @@ export class ApplicationClient extends ApplicationClientBase {
         historyRevision: view.historyRevision ?? view.session.modifiedAt,
         ...(view.historyBefore === undefined ? {} : { historyCursor: view.historyBefore }),
         hasEarlierHistory: view.hasEarlierHistory ?? false,
+        ...(view.commandApproval === undefined ? {} : { commandApproval: view.commandApproval }),
         projection,
         details: {
           name: view.session.name,

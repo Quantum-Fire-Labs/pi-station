@@ -1242,6 +1242,10 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
           hasEarlierHistory: history.hasEarlier,
           settings: await readSessionSettings(turns, route.key, indexed.path, project.root),
           sharedFiles: await options.sharedFiles?.list(route.key.sessionId) ?? [],
+          ...(() => {
+            const approval = options.commandApprovals?.current(route.key)
+            return approval === undefined ? {} : { commandApproval: { id: approval.id, command: approval.command } }
+          })(),
         })
         return
       }
