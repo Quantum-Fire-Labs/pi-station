@@ -19,6 +19,7 @@ import { DEFAULT_SESSION_DEFAULTS, type SessionDefaults } from "./session-defaul
 import { DELEGATION_REPORT_CUSTOM_TYPE, type DelegationReportStatus } from "./delegation-report.js"
 import { sharedFileInstructions, type SharedFileOrigins } from "./shared-files.js"
 import type { ScheduledJobAgentBridge } from "./scheduled-jobs.js"
+import type { CommandApprovalService } from "./command-approval.js"
 import { isolateToolProcess } from "./tool-process-execution.js"
 
 export const DELEGATION_TOOL_NAME = "delegate_to_agent"
@@ -169,6 +170,7 @@ export interface SdkSessionRuntimeOptions {
   readonly listProjects?: () => Promise<readonly Project[]>
   readonly sessionMoves?: SessionMoveAgentBridge
   readonly newAgentInProject?: NewAgentInProjectBridge
+  readonly commandApprovals?: CommandApprovalService
 }
 
 export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options: SdkSessionRuntimeOptions = {}): SessionRuntime {
@@ -604,21 +606,27 @@ async function createSdkSession(input: {
     ? []
     : newAgentInProjectTools(options.newAgentInProject, input.delegated === true)
   const sharedFiles = options.sharedFiles
-  const resourceLoader = sharedFiles === undefined ? undefined : new DefaultResourceLoader({
+  const commandApprovalExtension = input.projectId === undefined || options.commandApprovals === undefined
+    ? []
+    : [options.commandApprovals.extension({ projectId: input.projectId, sessionId: input.sessionId })]
+  const resourceLoader = new DefaultResourceLoader({
     cwd: input.cwd,
     agentDir: getAgentDir(),
-    appendSystemPromptOverride: (base) => [
-      ...base,
-      sharedFileInstructions(sharedFiles.directory, sharedFiles.origins, input.sessionId, input.projectId),
-    ],
+    extensionFactories: commandApprovalExtension,
+    ...(sharedFiles === undefined ? {} : {
+      appendSystemPromptOverride: (base) => [
+        ...base,
+        sharedFileInstructions(sharedFiles.directory, sharedFiles.origins, input.sessionId, input.projectId),
+      ],
+    }),
   })
-  await resourceLoader?.reload()
+  await resourceLoader.reload()
   const bashTool = createBashTool(input.cwd, { spawnHook: isolateToolProcess })
   const { session } = await createAgentSession({
     cwd: input.cwd,
     sessionManager,
     customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...sessionMoveTools, ...scheduledJobTools, ...projectListingTools, ...newAgentTools],
-    ...(resourceLoader === undefined ? {} : { resourceLoader }),
+    resourceLoader,
     ...(options.modelRuntime === undefined ? {} : { modelRuntime: options.modelRuntime }),
     excludeTools: input.delegated === true
       ? [...DELEGATED_SESSION_EXCLUDED_TOOLS]
