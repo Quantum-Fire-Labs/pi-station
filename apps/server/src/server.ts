@@ -145,6 +145,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const disassociatedProjects = new Map<string, Project>()
   const pendingSessionMoves = new Map<string, { readonly projectId: string; readonly projectName: string }>()
   const eventStreams = new Set<ServerResponse>()
+  const navigationStreams = new Set<ServerResponse>()
   let acceptingWork = true
   let shutdownStarted = false
   let disposed = false
@@ -626,6 +627,20 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       }
       if (request.method === "GET" && url.pathname === "/v2/appearance/system-theme/events") {
         openSystemThemeStream(request, response, systemTheme, eventStreams)
+        return
+      }
+      if (request.method === "GET" && url.pathname === "/v2/navigation/events") {
+        openNavigationStream(request, response, navigationStreams, eventStreams)
+        return
+      }
+      if (request.method === "POST" && url.pathname === "/v2/navigation") {
+        assertJsonMutation(request)
+        const value = await readJsonBody(request)
+        if (!isNavigationRequest(value)) throw new HttpError(400, "Navigation target is invalid")
+        if (await findSession({ projectId: value.project, sessionId: value.session }) === undefined) throw new HttpError(404, "Session not found")
+        const data = `event: navigation\ndata: ${JSON.stringify(value)}\n\n`
+        for (const stream of navigationStreams) stream.write(data)
+        sendJson(response, 202, { version: PROTOCOL_VERSION, accepted: true })
         return
       }
       if (options.updater !== undefined && request.method === "GET" && url.pathname === "/v2/update") {
@@ -1302,6 +1317,14 @@ function isNotificationSubscriptionMutation(value: unknown): value is Notificati
   return record.action === "unsubscribe" && Object.keys(record).length === 3 && "endpoint" in record
 }
 
+function isNavigationRequest(value: unknown): value is { readonly project: string; readonly session: string } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)
+    || Object.keys(value).sort().join(",") !== "project,session") return false
+  const input = value as Record<string, unknown>
+  return typeof input.project === "string" && isProtocolId(input.project)
+    && typeof input.session === "string" && isProtocolId(input.session)
+}
+
 function isMarkReadRequest(value: unknown): value is { readonly attentionId: string } {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     && Object.keys(value).length === 1
@@ -1548,6 +1571,28 @@ function sendHistoryImage(
     vary: "Origin",
   })
   response.end(image.data)
+}
+
+function openNavigationStream(
+  request: IncomingMessage,
+  response: ServerResponse,
+  navigationStreams: Set<ServerResponse>,
+  streams: Set<ServerResponse>,
+): void {
+  response.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache, no-store",
+    connection: "keep-alive",
+    "access-control-allow-origin": WEB_ORIGIN,
+    vary: "Origin",
+  })
+  navigationStreams.add(response)
+  streams.add(response)
+  response.write(": connected\n\n")
+  request.once("close", () => {
+    navigationStreams.delete(response)
+    streams.delete(response)
+  })
 }
 
 function openSystemThemeStream(
