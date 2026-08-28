@@ -102,12 +102,17 @@ export interface PiStationServerOptions {
   readonly providerAuth?: ProviderAuthService
   readonly updater?: PiStationUpdater
   readonly webRoot?: string
+  /** Test seam that prevents server tests from writing into Pi's global Session directory. */
+  readonly initializeSession?: (cwd: string, sessionId: string, name?: string) => void
   /** Test seam for the opaque process epoch. Production uses a random UUID. */
   readonly phaseEpoch?: string
 }
 
 export function createPiStationServer(options: PiStationServerOptions): Server {
   const phaseEpoch = options.phaseEpoch ?? randomUUID()
+  const initializeSession = options.initializeSession ?? ((cwd: string, sessionId: string, name?: string) => {
+    initializeEmptySession(SessionManager.create(cwd, undefined, { id: sessionId }), name)
+  })
   const projectStore = new ProjectStore(options.dataDir)
   const projectBookmarks = new ProjectBookmarkStore(options.dataDir)
   const metadata = new SessionMetadataStore(options.dataDir)
@@ -288,8 +293,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
     const key = { projectId: project.id, sessionId }
     await projectStore.ensureOpen(project.id)
     project = (await projectStore.read()).find((item) => item.id === input.projectId) ?? project
-    const manager = SessionManager.create(project.root, undefined, { id: sessionId })
-    initializeEmptySession(manager, input.name)
+    initializeSession(project.root, sessionId, input.name)
     const indexed = await options.index.refreshSession(key, project)
     if (indexed === undefined) throw new Error("Created Session was not indexed")
     await metadata.set(key, "open")
@@ -922,8 +926,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const project = await resolveNewSessionProject(projectStore, { projectId, sessionId: "new" }, value.cwd)
         await projectStore.ensureOpen(project.id)
         const sessionId = randomUUID()
-        const manager = SessionManager.create(project.root, undefined, { id: sessionId })
-        initializeEmptySession(manager, value.name)
+        initializeSession(project.root, sessionId, value.name)
         const indexed = await options.index.refreshSession({ projectId, sessionId }, project)
         if (indexed === undefined) throw new Error("Created Session was not indexed")
         await metadata.set({ projectId, sessionId }, "open")
