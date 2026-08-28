@@ -59,6 +59,8 @@ describe("Pi Station updater", () => {
     expect(arguments_).toContain("pi-station-update-")
     expect(arguments_).toContain("run-update.sh")
     expect(arguments_).toContain("stable")
+    const script = await readFile(join(root, "updater", "run-update.sh"), "utf8")
+    expect(script).toContain('export PATH="$(dirname "$node_bin"):$PATH"')
   })
 
   it.runIf(process.platform === "linux")("delegates Linux updates to a separate systemd user service", async () => {

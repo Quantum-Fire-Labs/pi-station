@@ -137,6 +137,7 @@ export class ApplicationClientBase {
   stop(): void {}
   reportWorkspacePaint(_timelineItems: number): void {}
   select(_sessionKey: SessionKey): void {}
+  respondToCommandApproval(_id: string, _allowed: boolean): Promise<void> { return Promise.reject(new Error("Command approvals are unavailable")); }
   setProjectBookmark(_projectId: ProjectId, _bookmarked: boolean): string | undefined { return undefined; }
   reorderProjectBookmark(_projectId: ProjectId, _direction: "up" | "down"): string | undefined { return undefined; }
   setSessionBookmark(_projectId: ProjectId, _sessionKey: SessionKey, _bookmarked: boolean): string | undefined { return undefined; }

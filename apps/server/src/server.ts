@@ -72,6 +72,7 @@ import { rewriteSessionCwd, type SessionMoveAgentBridge } from "./session-moves.
 import { QuickSessionStore, QUICK_SESSION_PROJECT_ID } from "./quick-session.js"
 import { ProviderAuthError, type ProviderAuthService } from "./provider-auth.js"
 import type { PiStationUpdater } from "./updater.js"
+import type { CommandApprovalService } from "./command-approval.js"
 
 const HOST = "127.0.0.1"
 const shutdownContexts = new WeakMap<Server, { shutdown: (timeoutMs: number) => Promise<void> }>()
@@ -101,6 +102,7 @@ export interface PiStationServerOptions {
   readonly newAgentInProject?: NewAgentInProjectBridge
   readonly providerAuth?: ProviderAuthService
   readonly updater?: PiStationUpdater
+  readonly commandApprovals?: CommandApprovalService
   readonly webRoot?: string
   /** Test seam for the opaque process epoch. Production uses a random UUID. */
   readonly phaseEpoch?: string
@@ -200,6 +202,15 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
     sessionUpdates.publish(decorated)
     return decorated
   }
+
+  const unsubscribeCommandApprovals = options.commandApprovals?.subscribe((event) => {
+    const key = { projectId: event.approval.projectId, sessionId: event.approval.sessionId }
+    journal.publish(key, {
+      version: 2,
+      type: "command.approval",
+      approval: event.type === "requested" ? { id: event.approval.id, command: event.approval.command } : null,
+    })
+  })
 
   const turns = new TurnService(
     options.runner,
@@ -1013,6 +1024,20 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         return
       }
 
+      if (request.method === "POST" && route.action === "approval") {
+        assertJsonMutation(request)
+        const value = await readJsonBody(request)
+        if (typeof value !== "object" || value === null || Object.keys(value).length !== 2
+          || typeof (value as { id?: unknown }).id !== "string" || typeof (value as { allowed?: unknown }).allowed !== "boolean") {
+          throw new HttpError(400, "Invalid command approval response")
+        }
+        if (options.commandApprovals?.resolve(route.key, (value as { id: string }).id, (value as { allowed: boolean }).allowed) !== true) {
+          throw new HttpError(404, "Command approval not found")
+        }
+        sendJson(response, 200, { version: PROTOCOL_VERSION })
+        return
+      }
+
       if (request.method === "POST" && route.action === "abort") {
         assertJsonMutation(request)
         if (saved?.state === "closed") throw new HttpError(409, "Closed Session is read-only")
@@ -1217,6 +1242,10 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
           hasEarlierHistory: history.hasEarlier,
           settings: await readSessionSettings(turns, route.key, indexed.path, project.root),
           sharedFiles: await options.sharedFiles?.list(route.key.sessionId) ?? [],
+          ...(() => {
+            const approval = options.commandApprovals?.current(route.key)
+            return approval === undefined ? {} : { commandApproval: { id: approval.id, command: approval.command } }
+          })(),
         })
         return
       }
@@ -1232,6 +1261,8 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
     scheduler.stop()
     unsubscribeDelegatedTurns?.()
     unsubscribeDelegations?.()
+    unsubscribeCommandApprovals?.()
+    options.commandApprovals?.close()
     sessionFiles.dispose()
     systemTheme.dispose()
     turns.dispose()
@@ -1352,14 +1383,17 @@ function isProjectRename(value: unknown): value is { readonly name: string } {
     && isProjectName((value as Record<string, unknown>).name)
 }
 
-async function listDirectories(requested: string | null, showHidden: boolean): Promise<unknown> {
+export async function listDirectories(requested: string | null, showHidden: boolean): Promise<unknown> {
   const path = await realpath(requested ?? homedir())
   if (!(await stat(path)).isDirectory()) throw new HttpError(400, "Path is not a directory")
-  const entries = await readdir(path, { withFileTypes: true })
-  const directories = entries
-    .filter((entry) => entry.isDirectory() && (showHidden || !entry.name.startsWith(".")))
-    .slice(0, 500)
-    .map((entry) => directoryEntry(resolve(path, entry.name)))
+  const entries = (await readdir(path, { withFileTypes: true }))
+    .filter((entry) => showHidden || !entry.name.startsWith("."))
+  const directories = (await Promise.all(entries.map(async (entry) => {
+    const entryPath = resolve(path, entry.name)
+    if (entry.isDirectory()) return directoryEntry(entryPath)
+    if (!entry.isSymbolicLink()) return undefined
+    return (await stat(entryPath).catch(() => undefined))?.isDirectory() === true ? directoryEntry(entryPath) : undefined
+  }))).filter((entry) => entry !== undefined).slice(0, 500)
   const parentPath = dirname(path)
   return {
     current: directoryEntry(path),
@@ -1374,7 +1408,7 @@ function directoryEntry(path: string): { readonly name: string; readonly path: s
 
 interface SessionRoute {
   readonly key: SessionKey
-  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "abort" | "undo" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
+  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "abort" | "approval" | "undo" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
 }
 
 function isUndoRequest(value: unknown): value is { readonly entryId: string } {
@@ -1416,7 +1450,7 @@ function decodeRouteId(value: string): string | undefined {
 }
 
 function parseSessionRoute(pathname: string): SessionRoute | undefined {
-  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|abort|undo|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
+  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|abort|approval|undo|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
   if (match === null) return undefined
   const projectId = decodeURIComponent(match[1]!)
   const sessionId = decodeURIComponent(match[2]!)
