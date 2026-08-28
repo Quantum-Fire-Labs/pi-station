@@ -133,6 +133,7 @@ marker="$data_dir/maintenance.json"
 cleanup() { rm -f -- "$marker"; }
 trap cleanup EXIT
 "$node_bin" -e 'const fs=require("node:fs"); fs.mkdirSync(process.argv[1],{recursive:true,mode:0o700}); fs.writeFileSync(process.argv[2],JSON.stringify({startedAt:new Date().toISOString(),pid:Number(process.argv[3])}),{mode:0o600})' "$data_dir" "$marker" "$$"
+export PATH="$(dirname "$node_bin"):$PATH"
 curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location "$bootstrap_url" | PI_STATION_CHANNEL="$channel" /bin/bash
 `
 }
