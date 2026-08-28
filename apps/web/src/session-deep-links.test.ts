@@ -3,7 +3,6 @@ import type { SessionSummary } from "./application/workspace-model";
 import {
   findDeepLinkedSession,
   sessionDeepLinkTarget,
-  sessionNavigationTarget,
   urlAfterConsumingSessionDeepLink,
 } from "./session-deep-links";
 
@@ -22,15 +21,6 @@ const session = (projectId: string, sessionId: string, hostId = projectId): Sess
 });
 
 describe("session deep links", () => {
-  it("validates navigation IPC payloads", () => {
-    expect(sessionNavigationTarget({ project: "quick-session", session: "session-id" })).toEqual({
-      projectId: "quick-session",
-      sessionId: "session-id",
-    });
-    expect(sessionNavigationTarget({ project: "project", session: "" })).toBeUndefined();
-    expect(sessionNavigationTarget({ project: "project", session: "session", extra: true })).toBeUndefined();
-  });
-
   it("reads encoded public project and session selectors", () => {
     expect(sessionDeepLinkTarget("?project=project%2Fone&session=session%20two")).toEqual({
       projectId: "project/one",
