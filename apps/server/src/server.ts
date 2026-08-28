@@ -1352,14 +1352,17 @@ function isProjectRename(value: unknown): value is { readonly name: string } {
     && isProjectName((value as Record<string, unknown>).name)
 }
 
-async function listDirectories(requested: string | null, showHidden: boolean): Promise<unknown> {
+export async function listDirectories(requested: string | null, showHidden: boolean): Promise<unknown> {
   const path = await realpath(requested ?? homedir())
   if (!(await stat(path)).isDirectory()) throw new HttpError(400, "Path is not a directory")
-  const entries = await readdir(path, { withFileTypes: true })
-  const directories = entries
-    .filter((entry) => entry.isDirectory() && (showHidden || !entry.name.startsWith(".")))
-    .slice(0, 500)
-    .map((entry) => directoryEntry(resolve(path, entry.name)))
+  const entries = (await readdir(path, { withFileTypes: true }))
+    .filter((entry) => showHidden || !entry.name.startsWith("."))
+  const directories = (await Promise.all(entries.map(async (entry) => {
+    const entryPath = resolve(path, entry.name)
+    if (entry.isDirectory()) return directoryEntry(entryPath)
+    if (!entry.isSymbolicLink()) return undefined
+    return (await stat(entryPath).catch(() => undefined))?.isDirectory() === true ? directoryEntry(entryPath) : undefined
+  }))).filter((entry) => entry !== undefined).slice(0, 500)
   const parentPath = dirname(path)
   return {
     current: directoryEntry(path),
