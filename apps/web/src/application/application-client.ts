@@ -158,6 +158,12 @@ export class ApplicationClient extends ApplicationClientBase {
     return "/v2/images";
   }
 
+  override respondToCommandApproval(id: string, allowed: boolean): Promise<void> {
+    const key = this.rpcState.selectedSessionKey;
+    if (key === undefined) return Promise.reject(new Error("No Session is selected"));
+    return mutate(`${sessionPath(targetFromKey(key))}/approval`, "POST", { id, allowed }).then(() => undefined);
+  }
+
   override select(key: SessionKey): void {
     const target = targetFromKey(key);
     const generation = ++this.selectionGeneration;
@@ -902,7 +908,7 @@ export class ApplicationClient extends ApplicationClientBase {
       const event = JSON.parse(message.data) as StreamEvent;
       this.applyEvent(event);
     };
-    for (const type of ["phase", "assistant.delta", "thinking.delta", "tool", "timeline", "error"]) {
+    for (const type of ["phase", "assistant.delta", "thinking.delta", "tool", "timeline", "command.approval", "error"]) {
       source.addEventListener(type, receive as EventListener);
     }
   }
@@ -925,6 +931,16 @@ export class ApplicationClient extends ApplicationClientBase {
           ...this.rpcState.selected,
           timeline: mapTimeline(event.timeline, key, "saved"),
         },
+      };
+      this.emitRpcState();
+      return;
+    }
+    if (event.type === "command.approval") {
+      this.rpcState = {
+        ...this.rpcState,
+        selected: event.approval === null
+          ? (() => { const selected = { ...this.rpcState.selected }; delete selected.commandApproval; return selected; })()
+          : { ...this.rpcState.selected, commandApproval: event.approval },
       };
       this.emitRpcState();
       return;

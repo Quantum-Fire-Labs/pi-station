@@ -6,6 +6,7 @@ export type StreamEvent =
   | { readonly version: 2; readonly type: "assistant.delta" | "thinking.delta"; readonly text: string }
   | { readonly version: 2; readonly type: "tool"; readonly toolCallId: string; readonly title: string; readonly inputText?: string; readonly outputText?: string; readonly state: "running" | "succeeded" | "failed" }
   | { readonly version: 2; readonly type: "timeline"; readonly timeline: readonly TimelineItem[] }
+  | { readonly version: 2; readonly type: "command.approval"; readonly approval: { readonly id: string; readonly command: string } | null }
   | { readonly version: 2; readonly type: "error"; readonly message: string }
 
 export interface JournalEvent {

@@ -3287,6 +3287,17 @@ body.sidebar-resizing {
   font-size: 12px;
   line-height: 1.45;
 }
+.command-approval-command {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.5 var(--mono);
+}
 .modal-actions {
   display: flex;
   justify-content: flex-end;

@@ -17,6 +17,7 @@ export interface SelectedSessionState {
   readonly queue?: ApplicationQueueSnapshot
   readonly hasEarlierHistory: boolean
   readonly historyCursor?: string
+  readonly commandApproval?: { readonly id: string; readonly command: string }
 }
 
 export const initialSelectedSessionState = (): SelectedSessionState => ({

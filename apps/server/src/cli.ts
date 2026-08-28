@@ -15,6 +15,7 @@ import { resolveDataDirectory } from "./data-directory.js"
 import { ScheduledJobAgentBridge, ScheduledJobStore, SettingsStore } from "./scheduled-jobs.js"
 import { SessionMoveAgentBridge } from "./session-moves.js"
 import { ProviderAuthService } from "./provider-auth.js"
+import { CommandApprovalService } from "./command-approval.js"
 import { GitHubReleaseVersions, PiStationUpdater, readInstalledVersion, ServiceManagerUpdateLauncher, UpdateSettingsStore } from "./updater.js"
 
 const dataDirectory = resolveDataDirectory()
@@ -43,6 +44,7 @@ const updater = new PiStationUpdater(
 const scheduledJobAgentBridge = new ScheduledJobAgentBridge()
 const sessionMoves = new SessionMoveAgentBridge()
 const modelRuntime = await ModelRuntime.create()
+const commandApprovals = new CommandApprovalService()
 const sharedFiles = new SharedFileService(sharedRoot)
 const sharedOrigins = {
   publicOrigin: normalizeSharedFileOrigin(WEB_ORIGIN),
@@ -80,6 +82,7 @@ const server = createPiStationServer({
     listProjects: () => projectStore.read(),
     sessionMoves,
     newAgentInProject,
+    commandApprovals,
   }),
   delegationStore,
   delegationEvents,
@@ -93,6 +96,7 @@ const server = createPiStationServer({
   sessionMoves,
   newAgentInProject,
   providerAuth: new ProviderAuthService(modelRuntime),
+  commandApprovals,
   sessionDefaultModels: () => modelRuntime.getAvailableSnapshot().map((model) => ({
     provider: model.provider,
     modelId: model.id,
