@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Circle, ExternalLink, LoaderCircle, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, Check, Circle, Ellipsis, ExternalLink, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { readMarkdownAutosave, readMarkdownVimMode, writeMarkdownAutosave } from "../editor-preferences";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 
@@ -180,10 +180,18 @@ export function SharedMarkdownEditor({ file, draftKey, onClose, onDirtyChange }:
           </span>
         </div>
         <nav aria-label="Editor actions">
+          <button className="shared-markdown-back" type="button" onClick={onClose} aria-label="Back to conversation"><ArrowLeft aria-hidden="true" size={20} /></button>
           <label className="shared-markdown-autosave"><span>Autosave</span><input type="checkbox" role="switch" checked={autosave} onChange={(event) => { setAutosave(event.target.checked); writeMarkdownAutosave(event.target.checked); }} /></label>
           <button className={dirty ? "primary" : undefined} type="button" onClick={() => void save()} disabled={status === "loading" || status === "saving" || !dirty || externalVersion !== undefined}>{status === "saving" ? "Saving…" : "Save"}</button>
-          <a href={`/shared-editor?file=${encodeURIComponent(file.url)}`} target="_blank" rel="noopener noreferrer" aria-label="Open in new tab" title="Open in new tab"><ExternalLink aria-hidden="true" size={16} /></a>
-          <button type="button" onClick={onClose} aria-label="Close editor"><X aria-hidden="true" size={17} /></button>
+          <a className="shared-markdown-open-desktop" href={`/shared-editor?file=${encodeURIComponent(file.url)}`} target="_blank" rel="noopener noreferrer" aria-label="Open in new tab" title="Open in new tab"><ExternalLink aria-hidden="true" size={16} /></a>
+          <details className="shared-markdown-mobile-menu">
+            <summary role="button" aria-label="More editor actions"><Ellipsis aria-hidden="true" size={20} /></summary>
+            <div role="menu">
+              <button type="button" role="menuitemcheckbox" aria-checked={autosave} onClick={() => { setAutosave(!autosave); writeMarkdownAutosave(!autosave); }}>Autosave<span>{autosave ? "On" : "Off"}</span></button>
+              <a href={`/shared-editor?file=${encodeURIComponent(file.url)}`} target="_blank" rel="noopener noreferrer" role="menuitem">Open in new tab<ExternalLink aria-hidden="true" size={15} /></a>
+            </div>
+          </details>
+          <button className="shared-markdown-close" type="button" onClick={onClose} aria-label="Close editor"><X aria-hidden="true" size={17} /></button>
         </nav>
       </header>
       {externalVersion !== undefined && (

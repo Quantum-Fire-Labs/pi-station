@@ -77,6 +77,19 @@ it("saves and closes after the Vim write-and-quit command succeeds", async () =>
   expect(fetch).toHaveBeenLastCalledWith("/shared/session/draft.md", expect.objectContaining({ method: "PUT", body: "Revised" }));
 });
 
+it("provides mobile full-screen navigation and overflow actions", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Draft")));
+  const onClose = vi.fn();
+  render(<SharedMarkdownEditor file={{ name: "draft.md", url: "/shared/session/draft.md" }} draftKey="mobile-draft" onClose={onClose} onDirtyChange={vi.fn()} />);
+
+  await screen.findByRole("textbox", { name: "Markdown content for draft.md" });
+  await userEvent.click(screen.getByRole("button", { name: "Back to conversation" }));
+  expect(onClose).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: "More editor actions" })).toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "Open in new tab" })).toHaveAttribute("href", "/shared-editor?file=%2Fshared%2Fsession%2Fdraft.md");
+  expect(screen.getByRole("menuitemcheckbox", { name: /Autosave/ })).toHaveAttribute("aria-checked", "false");
+});
+
 it("loads, edits, and manually saves shared Markdown", async () => {
   const fetch = vi.fn()
     .mockResolvedValueOnce(new Response("Original draft"))

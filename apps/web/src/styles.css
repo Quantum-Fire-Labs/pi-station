@@ -3594,6 +3594,8 @@ body.sidebar-resizing {
 .shared-markdown-status .spin { animation: shared-markdown-spin 850ms linear infinite; }
 @keyframes shared-markdown-spin { to { transform: rotate(360deg); } }
 .shared-markdown-editor nav { display: flex; align-items: center; gap: 7px; }
+.shared-markdown-editor .shared-markdown-back,
+.shared-markdown-editor .shared-markdown-mobile-menu { display: none; }
 .shared-markdown-autosave { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 650; cursor: pointer; }
 .shared-markdown-autosave input { position: relative; width: 32px; height: 18px; margin: 0; appearance: none; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--input); cursor: pointer; transition: border-color 120ms ease, background 120ms ease; }
 .shared-markdown-autosave input::after { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); content: ""; transition: transform 120ms ease, background 120ms ease; }
@@ -3665,6 +3667,7 @@ body.sidebar-resizing {
   background: var(--page);
 }
 .standalone-shared-editor .shared-markdown-editor nav a,
+.standalone-shared-editor .shared-markdown-back,
 .standalone-shared-editor .shared-markdown-editor nav button[aria-label="Close editor"] {
   display: none;
 }
@@ -3981,11 +3984,30 @@ body.sidebar-resizing {
 }
 @media (max-width: 1099px) {
   .editor-open .session { display: none; }
-  .shared-markdown-editor { position: fixed; width: 100%; min-height: 100dvh; border-left: 0; }
-  .shared-markdown-editor > header { padding-inline: 12px; }
-  .shared-markdown-editor > header > div { max-width: 35%; }
-  .shared-markdown-editor nav a { font-size: 0; }
-  .shared-markdown-editor nav a svg { width: 17px; height: 17px; }
+  .shared-markdown-editor { position: fixed; inset: 0; width: 100%; height: 100dvh; min-height: 0; border-left: 0; }
+  .shared-markdown-editor > header { position: relative; min-height: calc(60px + env(safe-area-inset-top)); gap: 8px; padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 8px calc(54px + env(safe-area-inset-left)); }
+  .shared-markdown-editor > header > div { max-width: none; flex: 1; }
+  .standalone-shared-editor .shared-markdown-editor > header { padding-left: calc(12px + env(safe-area-inset-left)); }
+  .shared-markdown-editor > header strong { display: block; font-size: 14px; }
+  .shared-markdown-editor nav { flex: 0 0 auto; gap: 6px; }
+  .shared-markdown-editor nav > button,
+  .shared-markdown-mobile-menu > summary { min-width: 44px; min-height: 44px; }
+  .shared-markdown-editor .shared-markdown-back { position: absolute; left: calc(5px + env(safe-area-inset-left)); display: inline-flex; align-items: center; justify-content: center; border: 0 !important; background: transparent !important; }
+  .shared-markdown-autosave,
+  .shared-markdown-open-desktop,
+  .shared-markdown-close { display: none !important; }
+  .shared-markdown-editor .shared-markdown-mobile-menu { position: relative; display: block; }
+  .shared-markdown-mobile-menu > summary { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 7px; background: var(--raised); cursor: pointer; list-style: none; }
+  .shared-markdown-mobile-menu > summary::-webkit-details-marker { display: none; }
+  .shared-markdown-mobile-menu > div { position: absolute; z-index: 2; top: calc(100% + 6px); right: 0; display: grid; width: 190px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--raised); box-shadow: 0 12px 30px rgb(0 0 0 / 18%); }
+  .shared-markdown-mobile-menu > div > * { display: flex; min-height: 44px; align-items: center; justify-content: space-between; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); padding: 10px 12px; font: inherit; font-size: 13px; text-decoration: none; }
+  .shared-markdown-mobile-menu > div > :last-child { border-bottom: 0; }
+  .shared-markdown-mobile-menu button span { color: var(--muted); }
+  .shared-markdown-external-change { align-items: stretch; flex-direction: column; gap: 8px; padding: 10px 12px; }
+  .shared-markdown-external-change > div { display: grid; grid-template-columns: 1fr 1fr; }
+  .shared-markdown-external-change button { min-height: 44px; }
+  .markdown-source-editor .cm-content { padding: 18px 16px calc(40px + env(safe-area-inset-bottom)); }
+  .markdown-source-editor .cm-scroller { font-size: 16px; }
   .sidebar,
   .sidebar-resize-handle,
   .sidebar-expand-control {
@@ -4052,6 +4074,15 @@ body.sidebar-resizing {
   .message.user {
     width: 92%;
   }
+}
+@media (min-width: 761px) and (max-width: 1099px) {
+  .shared-markdown-editor .shared-markdown-back,
+  .shared-markdown-editor .shared-markdown-mobile-menu { display: none; }
+  .shared-markdown-autosave { display: inline-flex; }
+  .shared-markdown-open-desktop,
+  .shared-markdown-close { display: inline-flex !important; }
+  .shared-markdown-editor > header { min-height: 72px; padding: 10px 12px; }
+  .shared-markdown-editor > header > div { max-width: 35%; }
 }
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -4,17 +4,20 @@ import { Undo2 } from "lucide-react";
 import remarkGfm from "remark-gfm";
 import type { TimelineItem } from "../application/workspace-model";
 
-function isSharedMarkdownUrl(url: string): boolean {
+function localSharedMarkdownUrl(url: string): string | undefined {
   try {
     const parsed = new URL(url, window.location.origin);
-    if (parsed.origin !== window.location.origin) return false;
-    if (parsed.pathname.startsWith("/shared/")) return /\.(?:md|markdown)$/iu.test(parsed.pathname);
+    const sharedMarkdown = parsed.pathname.startsWith("/shared/") && /\.(?:md|markdown)$/iu.test(parsed.pathname);
     const projectPath = parsed.searchParams.get("path");
-    return /^\/project-files\/[^/]+\/[^/]+$/u.test(parsed.pathname)
+    const projectMarkdown = /^\/project-files\/[^/]+\/[^/]+$/u.test(parsed.pathname)
       && projectPath !== null
       && /\.(?:md|markdown)$/iu.test(projectPath);
+    const editorFile = parsed.pathname === "/shared-editor" ? parsed.searchParams.get("file") : null;
+    if (editorFile !== null) return localSharedMarkdownUrl(editorFile);
+    if (!sharedMarkdown && !projectMarkdown) return undefined;
+    return parsed.origin === window.location.origin ? url : `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
@@ -24,16 +27,17 @@ function ExternalLink({
   ...properties
 }: ComponentPropsWithoutRef<"a"> & { onOpenSharedMarkdown?: ((url: string) => void) | undefined }) {
   const href = typeof properties.href === "string" ? properties.href : undefined;
-  const sharedMarkdown = href !== undefined && isSharedMarkdownUrl(href);
+  const sharedMarkdownUrl = href === undefined ? undefined : localSharedMarkdownUrl(href);
+  const opensInEditor = sharedMarkdownUrl !== undefined && onOpenSharedMarkdown !== undefined;
   return (
     <a
       {...properties}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={sharedMarkdown && onOpenSharedMarkdown !== undefined ? (event) => {
+      target={opensInEditor ? undefined : "_blank"}
+      rel={opensInEditor ? undefined : "noopener noreferrer"}
+      onClick={opensInEditor ? (event) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
-        onOpenSharedMarkdown(href);
+        onOpenSharedMarkdown(sharedMarkdownUrl);
       } : properties.onClick}
     >
       {children}

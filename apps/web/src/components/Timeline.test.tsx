@@ -283,12 +283,38 @@ describe("agent Markdown", () => {
     expect(onOpenSharedMarkdown).toHaveBeenCalledWith(url);
   });
 
+  it("opens an absolute shared Markdown link through the current Workspace origin", () => {
+    const onOpenSharedMarkdown = vi.fn();
+    const url = "https://station.example/shared/session/draft.md";
+    render(<FeedItem item={assistantItem(`[draft](${url})`)} onOpenSharedMarkdown={onOpenSharedMarkdown} />);
+
+    const link = screen.getByRole("link", { name: "draft" });
+    expect(link).not.toHaveAttribute("target");
+    fireEvent.click(link);
+
+    expect(onOpenSharedMarkdown).toHaveBeenCalledWith("/shared/session/draft.md");
+  });
+
+  it("opens a standalone editor link in the in-app editor pane", () => {
+    const onOpenSharedMarkdown = vi.fn();
+    const url = "http://127.0.0.1:8822/shared-editor?file=%2Fshared%2Fmobile-qa%2Fdemo.md";
+    render(<FeedItem item={assistantItem(`[demo](${url})`)} onOpenSharedMarkdown={onOpenSharedMarkdown} />);
+
+    const link = screen.getByRole("link", { name: "demo" });
+    expect(link).not.toHaveAttribute("target");
+    fireEvent.click(link);
+
+    expect(onOpenSharedMarkdown).toHaveBeenCalledWith("/shared/mobile-qa/demo.md");
+  });
+
   it("opens a stable Workspace-relative shared Markdown link in the editor pane", () => {
     const onOpenSharedMarkdown = vi.fn();
     const url = "/shared/session/draft.md";
     render(<FeedItem item={assistantItem(`[draft](${url})`)} onOpenSharedMarkdown={onOpenSharedMarkdown} />);
 
-    fireEvent.click(screen.getByRole("link", { name: "draft" }));
+    const link = screen.getByRole("link", { name: "draft" });
+    expect(link).not.toHaveAttribute("target");
+    fireEvent.click(link);
 
     expect(onOpenSharedMarkdown).toHaveBeenCalledWith(url);
   });
