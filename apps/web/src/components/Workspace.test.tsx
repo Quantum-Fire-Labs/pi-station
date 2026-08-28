@@ -27,6 +27,7 @@ afterEach(() => {
 });
 import { Workspace } from "./Workspace";
 import { sessionKeysEqual, type ApplicationState } from "../application/application-client-base";
+import type { ApplicationClient } from "../application/application-client";
 import { fixtureState } from "../fixtures/workspace";
 import { sessionsVisibleInWorkspace } from "../application/workspace-model";
 
@@ -77,6 +78,21 @@ describe("Workspace", () => {
     fireEvent.keyDown(window, { key: " ", code: "Space", ctrlKey: true, shiftKey: true });
     expect(onOpenQuickSession).toHaveBeenCalledTimes(2);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("confirms a pending recursive rm command", async () => {
+    enableDesktopViewport();
+    const respondToCommandApproval = vi.fn(() => Promise.resolve());
+    const client = { respondToCommandApproval } as unknown as ApplicationClient;
+    const state = {
+      ...fixtureState,
+      selected: { ...fixtureState.selected, commandApproval: { id: "approval-1", command: "rm -rf build" } },
+    };
+    render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
+    const dialog = screen.getByRole("alertdialog", { name: "Run recursive rm command?" });
+    expect(within(dialog).getByText("rm -rf build")).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Run command" }));
+    expect(respondToCommandApproval).toHaveBeenCalledWith("approval-1", true);
   });
 
   it("excludes Quick Sessions from normal Workspace collections", () => {
@@ -1791,6 +1807,29 @@ describe("Workspace", () => {
     await user.type(composer, "for an update");
     expect(composer).toHaveValue("Ask @Pi Station: Application client for an update");
     expect(screen.queryByRole("listbox", { name: "Open Sessions" })).not.toBeInTheDocument();
+  });
+
+  it("restores an undone user message to the composer", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onCommand = vi.fn();
+    const state: ApplicationState = {
+      ...fixtureState,
+      selected: {
+        ...fixtureState.selected,
+        projection: {
+          ...fixtureState.selected.projection!,
+          run: "idle",
+          capabilities: [...fixtureState.selected.projection!.capabilities, "session.undo"],
+        },
+      },
+    };
+    render(<Workspace state={state} onSelect={vi.fn()} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Undo this message" }));
+
+    expect(onCommand).toHaveBeenCalledWith({ kind: "session.undo", entryId: "user-1" });
+    expect(screen.getByLabelText("Message Pi")).toHaveValue("Build the first Workspace shell.\nPreserve the calm reading surface and navigation.");
+    expect(localStorage.getItem("pi-station:composer-draft:session-workspace-fixture")).toBe("Build the first Workspace shell.\nPreserve the calm reading surface and navigation.");
   });
 
   it("keeps each composer draft with its Session", async () => {

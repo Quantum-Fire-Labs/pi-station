@@ -19,6 +19,7 @@ import { DEFAULT_SESSION_DEFAULTS, type SessionDefaults } from "./session-defaul
 import { DELEGATION_REPORT_CUSTOM_TYPE, type DelegationReportStatus } from "./delegation-report.js"
 import { sharedFileInstructions, type SharedFileOrigins } from "./shared-files.js"
 import type { ScheduledJobAgentBridge } from "./scheduled-jobs.js"
+import type { CommandApprovalService } from "./command-approval.js"
 import { isolateToolProcess } from "./tool-process-execution.js"
 
 export const DELEGATION_TOOL_NAME = "delegate_to_agent"
@@ -167,8 +168,10 @@ export interface SdkSessionRuntimeOptions {
   readonly scheduledJobs?: ScheduledJobAgentBridge
   readonly agentMessaging?: AgentMessagingBridge
   readonly listProjects?: () => Promise<readonly Project[]>
+  readonly createProject?: (input: { readonly name: string; readonly directory: string }) => Promise<Project>
   readonly sessionMoves?: SessionMoveAgentBridge
   readonly newAgentInProject?: NewAgentInProjectBridge
+  readonly commandApprovals?: CommandApprovalService
 }
 
 export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options: SdkSessionRuntimeOptions = {}): SessionRuntime {
@@ -603,22 +606,31 @@ async function createSdkSession(input: {
   const newAgentTools = input.projectId === undefined || options.newAgentInProject === undefined
     ? []
     : newAgentInProjectTools(options.newAgentInProject, input.delegated === true)
+  const projectCreationTools = input.projectId === undefined || options.createProject === undefined
+    ? []
+    : createProjectTools(options.createProject, input.delegated === true)
   const sharedFiles = options.sharedFiles
-  const resourceLoader = sharedFiles === undefined ? undefined : new DefaultResourceLoader({
+  const commandApprovalExtension = input.projectId === undefined || options.commandApprovals === undefined
+    ? []
+    : [options.commandApprovals.extension({ projectId: input.projectId, sessionId: input.sessionId })]
+  const resourceLoader = new DefaultResourceLoader({
     cwd: input.cwd,
     agentDir: getAgentDir(),
-    appendSystemPromptOverride: (base) => [
-      ...base,
-      sharedFileInstructions(sharedFiles.directory, sharedFiles.origins, input.sessionId, input.projectId),
-    ],
+    extensionFactories: commandApprovalExtension,
+    ...(sharedFiles === undefined ? {} : {
+      appendSystemPromptOverride: (base) => [
+        ...base,
+        sharedFileInstructions(sharedFiles.directory, sharedFiles.origins, input.sessionId, input.projectId),
+      ],
+    }),
   })
-  await resourceLoader?.reload()
+  await resourceLoader.reload()
   const bashTool = createBashTool(input.cwd, { spawnHook: isolateToolProcess })
   const { session } = await createAgentSession({
     cwd: input.cwd,
     sessionManager,
-    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...sessionMoveTools, ...scheduledJobTools, ...projectListingTools, ...newAgentTools],
-    ...(resourceLoader === undefined ? {} : { resourceLoader }),
+    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...sessionMoveTools, ...scheduledJobTools, ...projectListingTools, ...projectCreationTools, ...newAgentTools],
+    resourceLoader,
     ...(options.modelRuntime === undefined ? {} : { modelRuntime: options.modelRuntime }),
     excludeTools: input.delegated === true
       ? [...DELEGATED_SESSION_EXCLUDED_TOOLS]
@@ -644,6 +656,26 @@ export function newAgentInProjectTools(bridge: NewAgentInProjectBridge, delegate
       return {
         content: [{ type: "text" as const, text: `Started top-level Session ${result.sessionId} in Project ${result.projectId}` }],
         details: result,
+      }
+    },
+  })]
+}
+
+export function createProjectTools(createProject: (input: { readonly name: string; readonly directory: string }) => Promise<Project>, delegated = false) {
+  if (delegated) return []
+  return [defineTool({
+    name: "create_project",
+    label: "Create Pi Station Project",
+    description: "Add an existing directory as a Pi Station Project. This configures the Project but does not create or modify the directory.",
+    parameters: Type.Object({
+      name: Type.String({ minLength: 1, maxLength: 200, description: "Project display name" }),
+      directory: Type.String({ minLength: 1, maxLength: 4096, description: "Existing directory to use as the Project working directory" }),
+    }, { additionalProperties: false }),
+    execute: async (_toolCallId, parameters) => {
+      const project = await createProject(parameters)
+      return {
+        content: [{ type: "text" as const, text: `Created Project ${project.name ?? parameters.name} (${project.id}) at ${project.root}` }],
+        details: { project },
       }
     },
   })]

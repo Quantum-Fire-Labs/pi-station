@@ -97,6 +97,7 @@ export interface SessionView {
   readonly hasEarlierHistory: boolean
   readonly settings: SessionSettings
   readonly sharedFiles: readonly SharedFileInfo[]
+  readonly commandApproval?: { readonly id: string; readonly command: string }
 }
 
 export interface SessionSharedFiles {

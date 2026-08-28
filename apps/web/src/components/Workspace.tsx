@@ -1308,6 +1308,8 @@ export function Workspace({
   };
   const [discardSharedMarkdownAction, setDiscardSharedMarkdownAction] = useState<(() => void)>();
   const [closeSessionConfirmOpen, setCloseSessionConfirmOpen] = useState(false);
+  const [commandApprovalPending, setCommandApprovalPending] = useState(false);
+  const [commandApprovalError, setCommandApprovalError] = useState<string>();
   const [closeSessionRequestId, setCloseSessionRequestId] = useState<string>();
   const [reloadSessionRequestId, setReloadSessionRequestId] = useState<string>();
   const [restartSessionRequestId, setRestartSessionRequestId] = useState<string>();
@@ -1858,6 +1860,15 @@ export function Workspace({
   const closeSessionError = closeSessionCommand?.status === "not-accepted"
     ? closeSessionCommand.error?.message ?? "Pi Station could not close this Session."
     : commandOutcomeError(closeSessionCommand?.result?.outcome);
+  const respondToCommandApproval = (allowed: boolean): void => {
+    const approval = state.selected.commandApproval;
+    if (approval === undefined || client === undefined || commandApprovalPending) return;
+    setCommandApprovalPending(true);
+    setCommandApprovalError(undefined);
+    void client.respondToCommandApproval(approval.id, allowed)
+      .catch((error: unknown) => setCommandApprovalError(error instanceof Error ? error.message : "Could not respond to the command approval."))
+      .finally(() => setCommandApprovalPending(false));
+  };
   const cloneSessionCommand = cloneSessionRequestId === undefined
     ? undefined
     : state.commands?.[cloneSessionRequestId];
@@ -3243,7 +3254,14 @@ export function Workspace({
                 item={item}
                 sessionWorking={state.selected.projection?.run === "working"}
                 onUndoUserMessage={item.category === "user-message" && item.source === "saved" && !working && synchronized && capabilities.includes("session.undo")
-                  ? () => { onCommand?.({ kind: "session.undo", entryId: item.timelineItemId }); }
+                  ? () => {
+                      setDraft(item.content.text);
+                      writeComposerDraft(selectedSessionIdentity, item.content.text);
+                      setVoiceMode(false);
+                      localStorage.setItem("pi-station:composer-mode", "text");
+                      onCommand?.({ kind: "session.undo", entryId: item.timelineItemId });
+                      requestAnimationFrame(() => composerInput.current?.focus());
+                    }
                   : undefined}
                 onOpenSharedMarkdown={(url) => {
                   const parsed = new URL(url, window.location.origin);
@@ -3677,6 +3695,29 @@ export function Workspace({
           <input ref={renameSessionNameInput} value={renameSessionName} onChange={(event) => setRenameSessionName(event.target.value)} />
         </label>
       </Modal>
+
+      <AlertDialog open={state.selected.commandApproval !== undefined} onOpenChange={(open) => {
+        if (!open && !commandApprovalPending) respondToCommandApproval(false);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Run recursive rm command?</AlertDialogTitle>
+            <AlertDialogDescription>This command can permanently delete files.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <pre className="command-approval-command"><code>{state.selected.commandApproval?.command}</code></pre>
+          {commandApprovalError !== undefined && <p className="modal-error" role="alert">{commandApprovalError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={commandApprovalPending} onClick={(event) => {
+              event.preventDefault();
+              respondToCommandApproval(false);
+            }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={commandApprovalPending} onClick={(event) => {
+              event.preventDefault();
+              respondToCommandApproval(true);
+            }}>{commandApprovalPending ? "Responding…" : "Run command"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={closeSessionConfirmOpen} onOpenChange={(open) => {
         if (closeSessionPending) return;
