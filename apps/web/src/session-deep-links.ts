@@ -5,23 +5,6 @@ export interface SessionDeepLinkTarget {
   readonly sessionId: string;
 }
 
-export function shouldAcceptSessionNavigation(options: {
-  readonly visible: boolean;
-  readonly focused: boolean;
-  readonly standalone: boolean;
-}): boolean {
-  return options.standalone || (options.visible && options.focused);
-}
-
-export function sessionNavigationTarget(value: unknown): SessionDeepLinkTarget | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const input = value as Record<string, unknown>;
-  if (Object.keys(input).sort().join(",") !== "project,session"
-    || typeof input.project !== "string" || input.project.length === 0
-    || typeof input.session !== "string" || input.session.length === 0) return undefined;
-  return { projectId: input.project, sessionId: input.session };
-}
-
 /**
  * Reads the public project/session selectors and the legacy notification
  * hostId/piSessionId selectors. Public selectors take precedence.
