@@ -107,6 +107,15 @@ describe("iOS-safe status animations", () => {
   });
 });
 
+describe("sidebar Project hierarchy", () => {
+  it("uses the theme accent for Project names while Session titles keep the primary text color", () => {
+    expect(styles).toMatch(/\.project header \.project-name-link\s*\{[^}]*color: var\(--accent\);/s);
+    expect(styles).toMatch(/\.project header \.project-name-link:hover,\s*\.project header \.project-name-link\.selected\s*\{[^}]*color: var\(--accent2\);/s);
+    expect(styles).toMatch(/\.session-row\s*\{[^}]*color: var\(--text\);/s);
+    expect(styles).toMatch(/\.project\.unavailable header \.project-name-link,[^{]*\{[^}]*color: var\(--faint\);/s);
+  });
+});
+
 describe("sidebar Session accessory layout", () => {
   it("overlaps content and shortcut layers in one fixed accessory slot", () => {
     expect(styles).toMatch(/\.session-row-accessory-content,\s*\.session-row-shortcut\s*{[^}]*position: absolute;[^}]*inset: 2px;[^}]*pointer-events: none;/s);

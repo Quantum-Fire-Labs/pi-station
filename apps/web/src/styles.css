@@ -455,7 +455,7 @@ body.sidebar-resizing {
   border: 0;
   background: transparent;
   padding: 0;
-  color: var(--muted);
+  color: var(--accent);
   font: 700 12px var(--sans);
   text-align: left;
   text-overflow: ellipsis;
@@ -463,7 +463,7 @@ body.sidebar-resizing {
 }
 .project header .project-name-link:hover,
 .project header .project-name-link.selected {
-  color: var(--text);
+  color: var(--accent2);
 }
 .project header .project-name-link.selected {
   text-decoration: underline;
