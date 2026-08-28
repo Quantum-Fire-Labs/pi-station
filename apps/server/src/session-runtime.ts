@@ -168,6 +168,7 @@ export interface SdkSessionRuntimeOptions {
   readonly scheduledJobs?: ScheduledJobAgentBridge
   readonly agentMessaging?: AgentMessagingBridge
   readonly listProjects?: () => Promise<readonly Project[]>
+  readonly createProject?: (input: { readonly name: string; readonly directory: string }) => Promise<Project>
   readonly sessionMoves?: SessionMoveAgentBridge
   readonly newAgentInProject?: NewAgentInProjectBridge
   readonly commandApprovals?: CommandApprovalService
@@ -605,6 +606,9 @@ async function createSdkSession(input: {
   const newAgentTools = input.projectId === undefined || options.newAgentInProject === undefined
     ? []
     : newAgentInProjectTools(options.newAgentInProject, input.delegated === true)
+  const projectCreationTools = input.projectId === undefined || options.createProject === undefined
+    ? []
+    : createProjectTools(options.createProject, input.delegated === true)
   const sharedFiles = options.sharedFiles
   const commandApprovalExtension = input.projectId === undefined || options.commandApprovals === undefined
     ? []
@@ -625,7 +629,7 @@ async function createSdkSession(input: {
   const { session } = await createAgentSession({
     cwd: input.cwd,
     sessionManager,
-    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...sessionMoveTools, ...scheduledJobTools, ...projectListingTools, ...newAgentTools],
+    customTools: [bashTool, ...delegationTools, ...agentMessagingTools, ...sessionMoveTools, ...scheduledJobTools, ...projectListingTools, ...projectCreationTools, ...newAgentTools],
     resourceLoader,
     ...(options.modelRuntime === undefined ? {} : { modelRuntime: options.modelRuntime }),
     excludeTools: input.delegated === true
@@ -652,6 +656,26 @@ export function newAgentInProjectTools(bridge: NewAgentInProjectBridge, delegate
       return {
         content: [{ type: "text" as const, text: `Started top-level Session ${result.sessionId} in Project ${result.projectId}` }],
         details: result,
+      }
+    },
+  })]
+}
+
+export function createProjectTools(createProject: (input: { readonly name: string; readonly directory: string }) => Promise<Project>, delegated = false) {
+  if (delegated) return []
+  return [defineTool({
+    name: "create_project",
+    label: "Create Pi Station Project",
+    description: "Add an existing directory as a Pi Station Project. This configures the Project but does not create or modify the directory.",
+    parameters: Type.Object({
+      name: Type.String({ minLength: 1, maxLength: 200, description: "Project display name" }),
+      directory: Type.String({ minLength: 1, maxLength: 4096, description: "Existing directory to use as the Project working directory" }),
+    }, { additionalProperties: false }),
+    execute: async (_toolCallId, parameters) => {
+      const project = await createProject(parameters)
+      return {
+        content: [{ type: "text" as const, text: `Created Project ${project.name ?? parameters.name} (${project.id}) at ${project.root}` }],
+        details: { project },
       }
     },
   })]

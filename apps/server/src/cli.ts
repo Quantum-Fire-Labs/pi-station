@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { ModelRuntime } from "@earendil-works/pi-coding-agent"
 import { AgentMessagingBridge } from "./agent-messaging.js"
@@ -80,6 +81,13 @@ const server = createPiStationServer({
     scheduledJobs: scheduledJobAgentBridge,
     agentMessaging,
     listProjects: () => projectStore.read(),
+    createProject: async ({ name, directory }) => {
+      const canonicalDirectory = await realpath(directory)
+      const projects = await projectStore.add(canonicalDirectory, name)
+      const project = projects.find((candidate) => candidate.root === canonicalDirectory)
+      if (project === undefined) throw new Error("Created Project was not returned")
+      return project
+    },
     sessionMoves,
     newAgentInProject,
     commandApprovals,
