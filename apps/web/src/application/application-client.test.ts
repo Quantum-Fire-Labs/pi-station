@@ -397,6 +397,29 @@ describe("Pi Station incremental Session summaries", () => {
     client.stop();
   });
 
+  it("restores a pending command approval from the Session view", async () => {
+    FakeEventSource.instances = [];
+    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    const view = {
+      version: 2,
+      eventCursor: 4,
+      session: saved("session", "2026-01-01T00:00:00.000Z"),
+      phase: "working",
+      timeline: [],
+      historyRevision: "revision",
+      hasEarlierHistory: false,
+      settings: { modelInventory: [], supportedThinkingLevels: ["off"] },
+      sharedFiles: [],
+      commandApproval: { id: "approval-1", command: "rm -rf build" },
+    };
+    globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(view));
+    const client = new ApplicationClient();
+    client.select({ hostId: "project", piSessionId: "session" });
+    await vi.waitFor(() => expect(client.snapshot.selected.commandApproval).toEqual(view.commandApproval));
+    expect(FakeEventSource.instances[0]?.url).toContain("after=4");
+    client.stop();
+  });
+
   it("replaces optimistic state with one settled saved-image message", async () => {
     FakeEventSource.instances = [];
     globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;

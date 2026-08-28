@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { ModelRuntime } from "@earendil-works/pi-coding-agent"
 import { AgentMessagingBridge } from "./agent-messaging.js"
@@ -15,6 +16,7 @@ import { resolveDataDirectory } from "./data-directory.js"
 import { ScheduledJobAgentBridge, ScheduledJobStore, SettingsStore } from "./scheduled-jobs.js"
 import { SessionMoveAgentBridge } from "./session-moves.js"
 import { ProviderAuthService } from "./provider-auth.js"
+import { CommandApprovalService } from "./command-approval.js"
 import { GitHubReleaseVersions, PiStationUpdater, readInstalledVersion, ServiceManagerUpdateLauncher, UpdateSettingsStore } from "./updater.js"
 
 const dataDirectory = resolveDataDirectory()
@@ -43,6 +45,7 @@ const updater = new PiStationUpdater(
 const scheduledJobAgentBridge = new ScheduledJobAgentBridge()
 const sessionMoves = new SessionMoveAgentBridge()
 const modelRuntime = await ModelRuntime.create()
+const commandApprovals = new CommandApprovalService()
 const sharedFiles = new SharedFileService(sharedRoot)
 const sharedOrigins = {
   publicOrigin: normalizeSharedFileOrigin(WEB_ORIGIN),
@@ -78,8 +81,16 @@ const server = createPiStationServer({
     scheduledJobs: scheduledJobAgentBridge,
     agentMessaging,
     listProjects: () => projectStore.read(),
+    createProject: async ({ name, directory }) => {
+      const canonicalDirectory = await realpath(directory)
+      const projects = await projectStore.add(canonicalDirectory, name)
+      const project = projects.find((candidate) => candidate.root === canonicalDirectory)
+      if (project === undefined) throw new Error("Created Project was not returned")
+      return project
+    },
     sessionMoves,
     newAgentInProject,
+    commandApprovals,
   }),
   delegationStore,
   delegationEvents,
@@ -93,6 +104,7 @@ const server = createPiStationServer({
   sessionMoves,
   newAgentInProject,
   providerAuth: new ProviderAuthService(modelRuntime),
+  commandApprovals,
   sessionDefaultModels: () => modelRuntime.getAvailableSnapshot().map((model) => ({
     provider: model.provider,
     modelId: model.id,

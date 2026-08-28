@@ -10,6 +10,11 @@ import { Workspace } from "./components/Workspace";
 import { QuickSessionDialog } from "./components/QuickSessionDialog";
 import { fixtureState, selectFixtureSession } from "./fixtures/workspace";
 import { notificationPresence } from "./notifications";
+import {
+  findDeepLinkedSession,
+  sessionDeepLinkTarget,
+  urlAfterConsumingSessionDeepLink,
+} from "./session-deep-links";
 import "./styles.css";
 import "./themes";
 
@@ -126,12 +131,12 @@ function Root() {
 
   useEffect(() => {
     if (client === undefined || state.connection !== "ready") return;
-    const parameters = new URLSearchParams(location.search);
-    const piSessionId = parameters.get("piSessionId");
-    const target = state.sessions.find((session) => session.sessionKey.piSessionId === piSessionId);
+    const deepLink = sessionDeepLinkTarget(location.search);
+    if (deepLink === undefined) return;
+    const target = findDeepLinkedSession(state.sessions, deepLink);
     if (target) {
       client.select(target.sessionKey);
-      history.replaceState(null, "", "/workspace");
+      history.replaceState(null, "", urlAfterConsumingSessionDeepLink(new URL(location.href)));
     }
   }, [client, state.connection, state.sessions]);
 

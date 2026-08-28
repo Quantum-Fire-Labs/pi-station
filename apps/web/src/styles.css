@@ -455,7 +455,7 @@ body.sidebar-resizing {
   border: 0;
   background: transparent;
   padding: 0;
-  color: var(--muted);
+  color: var(--accent);
   font: 700 12px var(--sans);
   text-align: left;
   text-overflow: ellipsis;
@@ -463,7 +463,7 @@ body.sidebar-resizing {
 }
 .project header .project-name-link:hover,
 .project header .project-name-link.selected {
-  color: var(--text);
+  color: var(--accent2);
 }
 .project header .project-name-link.selected {
   text-decoration: underline;
@@ -3286,6 +3286,17 @@ body.sidebar-resizing {
   color: var(--danger);
   font-size: 12px;
   line-height: 1.45;
+}
+.command-approval-command {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.5 var(--mono);
 }
 .modal-actions {
   display: flex;
