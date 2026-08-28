@@ -1793,6 +1793,29 @@ describe("Workspace", () => {
     expect(screen.queryByRole("listbox", { name: "Open Sessions" })).not.toBeInTheDocument();
   });
 
+  it("restores an undone user message to the composer", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onCommand = vi.fn();
+    const state: ApplicationState = {
+      ...fixtureState,
+      selected: {
+        ...fixtureState.selected,
+        projection: {
+          ...fixtureState.selected.projection!,
+          run: "idle",
+          capabilities: [...fixtureState.selected.projection!.capabilities, "session.undo"],
+        },
+      },
+    };
+    render(<Workspace state={state} onSelect={vi.fn()} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Undo this message" }));
+
+    expect(onCommand).toHaveBeenCalledWith({ kind: "session.undo", entryId: "user-1" });
+    expect(screen.getByLabelText("Message Pi")).toHaveValue("Build the first Workspace shell.\nPreserve the calm reading surface and navigation.");
+    expect(localStorage.getItem("pi-station:composer-draft:session-workspace-fixture")).toBe("Build the first Workspace shell.\nPreserve the calm reading surface and navigation.");
+  });
+
   it("keeps each composer draft with its Session", async () => {
     const user = userEvent.setup();
     const secondSession = fixtureState.sessions[1];
