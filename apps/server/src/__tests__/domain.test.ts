@@ -81,6 +81,18 @@ describe("saved active-path projector", () => {
     expect(projectActiveTimelineImage(entries, "not-a-saved-image")).toBeUndefined()
   })
 
+  it("handles large bounded image data without overflowing the JavaScript regexp stack", () => {
+    const largeBase64 = Buffer.alloc(4 * 1024 * 1024).toString("base64")
+    const entries = [{
+      type: "message", id: "large-image", parentId: null, timestamp: "2026-01-01T00:00:00Z",
+      message: { role: "user", content: [{ type: "image", mimeType: "image/png", data: largeBase64 }], timestamp: 1 },
+    }] as unknown as SessionEntry[]
+
+    expect(projectActiveTimeline(entries)[0]).toMatchObject({ kind: "user", images: [
+      { status: "available", mediaType: "image/png" },
+    ] })
+  })
+
   it("limits saved image metadata by count and decoded size", () => {
     const oversizedBase64 = "A".repeat(Math.ceil((10 * 1024 * 1024) / 3) * 4 + 4)
     const entries = [{

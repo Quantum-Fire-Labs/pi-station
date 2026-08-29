@@ -1380,6 +1380,7 @@ body.sidebar-resizing {
   outline: 0;
   background: transparent;
   color: var(--text);
+  caret-color: var(--text);
   padding: 3px 5px 12px;
   line-height: 1.45;
 }

@@ -196,8 +196,16 @@ function Dashboard({
       position,
     ]),
   );
+  const closedProjectIds = new Set(
+    state.projects
+      .filter((project) => project.closed === true)
+      .map((project) => project.projectId),
+  );
   const liveSessions = state.sessions
-    .filter(sessionIsOpen)
+    .filter((session) => (
+      sessionIsOpen(session)
+      && (session.projectId === undefined || !closedProjectIds.has(session.projectId))
+    ))
     .sort((left, right) => sessionTime(right.lastActivityAt)
       - sessionTime(left.lastActivityAt));
   const openSessionGroups = dashboardSessionGroups(liveSessions);
@@ -207,6 +215,7 @@ function Dashboard({
     ),
   );
   const projects = state.projects
+    .filter((project) => project.closed !== true)
     .filter((project) => (
       bookmarkPosition.has(project.projectId)
       || activeProjectIds.has(project.projectId)
@@ -1820,6 +1829,21 @@ export function Workspace({
     addFiles(allowed.filter((file) => !imageTypes.has(file.type)));
   };
 
+  const addPastedAttachments = (clipboard: DataTransfer): boolean => {
+    const files = [...clipboard.files];
+    if (files.length > 0) {
+      addSelectedAttachments(files);
+      return true;
+    }
+    const itemFiles = [...clipboard.items]
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+    if (itemFiles.length === 0) return false;
+    addSelectedAttachments(itemFiles);
+    return true;
+  };
+
   const openSession = (sessionKey: SessionKey): void => {
     const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, sessionKey));
     const project = target === undefined
@@ -2254,6 +2278,21 @@ export function Workspace({
         const input = composerInput.current;
         input?.focus();
         input?.setSelectionRange(input.value.length, input.value.length);
+        if (input !== null) {
+          const repaintCaret = (release: KeyboardEvent): void => {
+            if (release.key !== "Control" && release.key !== "Meta") return;
+            window.removeEventListener("keyup", repaintCaret, true);
+            requestAnimationFrame(() => {
+              if (document.activeElement !== input) return;
+              const caret = input.selectionEnd ?? input.value.length;
+              input.style.caretColor = "transparent";
+              void input.offsetWidth;
+              input.style.removeProperty("caret-color");
+              input.setSelectionRange(caret, caret);
+            });
+          };
+          window.addEventListener("keyup", repaintCaret, true);
+        }
         return;
       }
       if (wantsEditor && sharedMarkdownFile !== undefined) {
@@ -3377,8 +3416,7 @@ export function Workspace({
           ) : <form
             className="composer"
             onPaste={(event) => {
-              const pasted = [...event.clipboardData.files];
-              if (pasted.length > 0) { event.preventDefault(); addSelectedAttachments(pasted); }
+              if (addPastedAttachments(event.clipboardData)) event.preventDefault();
             }}
             onSubmit={(event) => {
               event.preventDefault();
