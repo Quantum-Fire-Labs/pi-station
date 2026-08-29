@@ -65,11 +65,18 @@ export function applySelectedTheme(): void {
     root.style.setProperty("--theme-error", systemTheme.colors.error);
     root.style.setProperty("--theme-warning", systemTheme.colors.warning);
     root.style.setProperty("--theme-success", systemTheme.colors.success);
+    if (systemTheme.style === undefined) {
+      for (const property of ["--omarchy-font-family", "--omarchy-base-font-size", "--omarchy-corner-radius"]) root.style.removeProperty(property);
+    } else {
+      root.style.setProperty("--omarchy-font-family", JSON.stringify(systemTheme.style.fontFamily));
+      root.style.setProperty("--omarchy-base-font-size", `${systemTheme.style.baseFontSize}px`);
+      root.style.setProperty("--omarchy-corner-radius", `${systemTheme.style.cornerRadius}px`);
+    }
     updateThemeColor(systemTheme.colors.background);
     custom?.remove();
     return;
   }
-  for (const property of ["--theme-background", "--theme-foreground", "--theme-accent", "--theme-error", "--theme-warning", "--theme-success"]) root.style.removeProperty(property);
+  for (const property of ["--theme-background", "--theme-foreground", "--theme-accent", "--theme-error", "--theme-warning", "--theme-success", "--omarchy-font-family", "--omarchy-base-font-size", "--omarchy-corner-radius"]) root.style.removeProperty(property);
   const appearance = activeAppearance();
   const id = selectedThemeId(appearance);
   root.dataset.appearance = appearance;

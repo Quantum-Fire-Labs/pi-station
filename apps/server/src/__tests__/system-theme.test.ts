@@ -64,6 +64,46 @@ green = "#9ECE6A"
     })
   })
 
+  it("merges Omarchy style metadata and falls back to the live Hyprland instance", async () => {
+    const current = await currentTheme("styled", `
+mode = "dark"
+background = "#111111"
+foreground = "#eeeeee"
+accent = "#7777ff"
+red = "#ff7777"
+yellow = "#ffcc77"
+green = "#77cc77"
+`)
+    await writeFile(join(current, "theme", "shell.toml"), "[font]\nbase-size = 12\n")
+    const home = await mkdtemp(join(tmpdir(), "pi-station-system-theme-home-"))
+    roots.push(home)
+    await mkdir(join(home, ".config", "omarchy"), { recursive: true })
+    await writeFile(join(home, ".config", "omarchy", "shell.toml"), "[font]\nbase-size = 14 # user override\n")
+    const command = vi.fn(async (file: string, args: readonly string[]) => {
+      if (file === "fc-match") return "JetBrainsMono Nerd Font\n"
+      if (!args.includes("-i")) throw new Error("No inherited Hyprland instance")
+      return '{"option":"decoration:rounding","int":3,"set":true}'
+    })
+
+    const theme = await readOmarchyTheme(current, { homeDir: home, command })
+    expect(theme.available && theme.style).toEqual({ fontFamily: "JetBrainsMono Nerd Font", baseFontSize: 14, cornerRadius: 3 })
+    expect(command).toHaveBeenCalledWith("hyprctl", ["-j", "-i", "0", "getoption", "decoration:rounding"])
+  })
+
+  it("omits all style metadata when one source is unavailable", async () => {
+    const current = await currentTheme("legacy-style", `
+background = "#ffffff"
+foreground = "#111111"
+red = "#aa0000"
+green = "#00aa00"
+yellow = "#aa7700"
+blue = "#0066cc"
+`)
+    const theme = await readOmarchyTheme(current, { command: async () => { throw new Error("command unavailable") } })
+    expect(theme.available).toBe(true)
+    if (theme.available) expect(theme.style).toBeUndefined()
+  })
+
   it("supports legacy terminal color aliases and infers appearance", async () => {
     const current = await currentTheme("legacy", `
 background = "#ffffff"

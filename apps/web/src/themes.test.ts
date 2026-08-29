@@ -72,6 +72,7 @@ describe("theme startup", () => {
       name: "Lumon",
       appearance: "dark",
       colors: { background: "#16242d", foreground: "#d6e2ee", accent: "#8bc9eb", error: "#4d86b0", warning: "#6fa4c9", success: "#5e95bc" },
+      style: { fontFamily: "JetBrainsMono Nerd Font", baseFontSize: 14, cornerRadius: 3 },
     };
     expect(isSystemTheme(response)).toBe(true);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(response)));
@@ -84,6 +85,9 @@ describe("theme startup", () => {
 
     expect(document.documentElement.dataset.appearance).toBe("dark");
     expect(document.documentElement.style.getPropertyValue("--theme-background")).toBe("#16242d");
+    expect(document.documentElement.style.getPropertyValue("--omarchy-font-family")).toBe('"JetBrainsMono Nerd Font"');
+    expect(document.documentElement.style.getPropertyValue("--omarchy-base-font-size")).toBe("14px");
+    expect(document.documentElement.style.getPropertyValue("--omarchy-corner-radius")).toBe("3px");
     expect([...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')].map((meta) => meta.content)).toEqual(["#16242d", "#16242d"]);
   });
 });
