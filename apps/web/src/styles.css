@@ -167,6 +167,7 @@
   --sans: monospace;
   --mono: monospace;
   --ui-radius: 0px;
+  font-size: 14px;
 }
 :root[data-theme-id="omarchy-system"] :where(
   button,
@@ -182,11 +183,25 @@
 ) {
   border-radius: 0 !important;
 }
+:root[data-theme-id="omarchy-system"] [data-slot="select-trigger"],
+:root[data-theme-id="omarchy-system"] select {
+  min-height: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-block: 2px;
+}
 :root[data-theme-id="omarchy-system"] :where(
   .pairing-card,
   .composer,
   .voice-mode,
   .follow-up-queue li,
+  .message.user,
+  .message.scheduled-job,
+  .message.context-summary details,
+  .message.tool pre,
+  .markdown-body pre,
+  .markdown-body code,
   .quick-session-dialog,
   .modal,
   .dialog,
@@ -194,6 +209,19 @@
 ) {
   border-radius: 0 !important;
   box-shadow: none !important;
+}
+:root[data-theme-id="omarchy-system"] .message-body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+:root[data-theme-id="omarchy-system"] .message.user .message-body,
+:root[data-theme-id="omarchy-system"] .message.scheduled-job .message-body {
+  font-size: 13px;
+  line-height: 1.45;
+}
+:root[data-theme-id="omarchy-system"] .message.user,
+:root[data-theme-id="omarchy-system"] .message.scheduled-job {
+  padding: 10px 12px;
 }
 :root[data-theme-id="catppuccin-latte"] { --theme-background:#eff1f5;--theme-foreground:#383b53;--theme-accent:#1e66f5;--theme-error:#d20f39;--theme-warning:#df8e1d;--theme-success:#40a02b; }
 :root[data-theme-id="everforest-light"] { --theme-background:#fbfaf4;--theme-foreground:#394740;--theme-accent:#5f7f6a;--theme-error:#a96159;--theme-warning:#987a48;--theme-success:#708058; }
@@ -4424,4 +4452,27 @@ body.sidebar-resizing {
   .quick-session-minimize { display: none; }
   .quick-session-dialog-body .embedded-session .session-header { display: none; }
   .quick-session-dialog-body .embedded-session .composer-shell { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+}
+
+/* Omarchy Quattro presents information like a compact TUI, not a web form. */
+:root[data-theme-id="omarchy-system"] .message-body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+:root[data-theme-id="omarchy-system"] .message.user .message-body,
+:root[data-theme-id="omarchy-system"] .message.scheduled-job .message-body {
+  font-size: 13px;
+  line-height: 1.45;
+}
+:root[data-theme-id="omarchy-system"] .message.user,
+:root[data-theme-id="omarchy-system"] .message.scheduled-job {
+  padding: 10px 12px;
+}
+:root[data-theme-id="omarchy-system"] [data-slot="select-trigger"],
+:root[data-theme-id="omarchy-system"] select {
+  min-height: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-block: 2px;
 }
