@@ -2269,6 +2269,21 @@ export function Workspace({
         const input = composerInput.current;
         input?.focus();
         input?.setSelectionRange(input.value.length, input.value.length);
+        if (input !== null) {
+          const repaintCaret = (release: KeyboardEvent): void => {
+            if (release.key !== "Control" && release.key !== "Meta") return;
+            window.removeEventListener("keyup", repaintCaret, true);
+            requestAnimationFrame(() => {
+              if (document.activeElement !== input) return;
+              const caret = input.selectionEnd ?? input.value.length;
+              input.style.caretColor = "transparent";
+              void input.offsetWidth;
+              input.style.removeProperty("caret-color");
+              input.setSelectionRange(caret, caret);
+            });
+          };
+          window.addEventListener("keyup", repaintCaret, true);
+        }
         return;
       }
       if (wantsEditor && sharedMarkdownFile !== undefined) {
