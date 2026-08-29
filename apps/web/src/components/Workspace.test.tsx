@@ -654,6 +654,40 @@ describe("Workspace", () => {
       .not.toBeInTheDocument();
   });
 
+  it("hides a closed Project and all of its Sessions from the Dashboard", async () => {
+    const user = userEvent.setup();
+    const project = fixtureState.projects[0];
+    if (project === undefined) throw new Error("Project fixture is missing");
+    const projectSessions = fixtureState.sessions.filter(
+      (session) => session.projectId === project.projectId,
+    );
+    render(
+      <Workspace
+        state={{
+          ...fixtureState,
+          projects: fixtureState.projects.map((item) => (
+            item.projectId === project.projectId ? { ...item, closed: true } : item
+          )),
+        }}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Dashboard" }));
+    const dashboard = screen.getByRole("heading", { name: "Dashboard" }).closest("main");
+    if (dashboard === null) throw new Error("Dashboard is missing");
+    expect(within(dashboard).queryByRole("heading", { name: project.name }))
+      .not.toBeInTheDocument();
+    for (const session of projectSessions) {
+      expect(within(dashboard).queryByText(session.name!)).not.toBeInTheDocument();
+    }
+
+    await user.click(within(dashboard).getByRole("tab", { name: "Open" }));
+    for (const session of projectSessions) {
+      expect(within(dashboard).queryByText(session.name!)).not.toBeInTheDocument();
+    }
+  });
+
   it("defaults the Dashboard to Projects when no saved view exists", async () => {
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
 
