@@ -161,6 +161,40 @@
   --muted: color-mix(in srgb, var(--theme-foreground) 82%, var(--theme-background));
   --faint: color-mix(in srgb, var(--theme-foreground) 68%, var(--theme-background));
 }
+:root[data-theme-id="omarchy-system"] {
+  --font-heading: monospace;
+  --font-sans: monospace;
+  --sans: monospace;
+  --mono: monospace;
+  --ui-radius: 0px;
+}
+:root[data-theme-id="omarchy-system"] :where(
+  button,
+  input,
+  textarea,
+  select,
+  [role="dialog"],
+  [role="menu"],
+  [data-slot="button"],
+  [data-slot="select-trigger"],
+  [data-slot="select-content"],
+  [data-slot="select-item"]
+) {
+  border-radius: 0 !important;
+}
+:root[data-theme-id="omarchy-system"] :where(
+  .pairing-card,
+  .composer,
+  .voice-mode,
+  .follow-up-queue li,
+  .quick-session-dialog,
+  .modal,
+  .dialog,
+  .card
+) {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
 :root[data-theme-id="catppuccin-latte"] { --theme-background:#eff1f5;--theme-foreground:#383b53;--theme-accent:#1e66f5;--theme-error:#d20f39;--theme-warning:#df8e1d;--theme-success:#40a02b; }
 :root[data-theme-id="everforest-light"] { --theme-background:#fbfaf4;--theme-foreground:#394740;--theme-accent:#5f7f6a;--theme-error:#a96159;--theme-warning:#987a48;--theme-success:#708058; }
 :root[data-theme-id="dayfox"] { --theme-background:#f6f2ee;--theme-foreground:#3d2b5a;--theme-accent:#287980;--theme-error:#a5222f;--theme-warning:#ac5402;--theme-success:#396847; }

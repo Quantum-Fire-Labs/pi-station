@@ -61,8 +61,8 @@ describe("theme startup", () => {
     expect(document.documentElement.dataset.themeId).toBe("palms");
   });
 
-  it("applies an available Omarchy theme when system theme sync is selected", async () => {
-    const values = new Map([["pi-station:theme-source", "system"]]);
+  it("uses an available Omarchy theme by default", async () => {
+    const values = new Map<string, string>();
     vi.stubGlobal("localStorage", { getItem: (key: string) => values.get(key) ?? null, setItem: vi.fn() });
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     const response = {

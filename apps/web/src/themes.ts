@@ -33,7 +33,7 @@ const media = typeof matchMedia === "function"
 const read = (key: string, fallback: string): string => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const storedAppearance = read("pi-station:appearance", "system");
 let appearancePreference: AppearancePreference = storedAppearance === "light" || storedAppearance === "dark" ? storedAppearance : "system";
-let themeSource: ThemeSource = read("pi-station:theme-source", "pi-station") === "system" ? "system" : "pi-station";
+let themeSource: ThemeSource = read("pi-station:theme-source", "system") === "pi-station" ? "pi-station" : "system";
 let systemTheme: SystemTheme = { version: 2, available: false };
 const selections: Record<ThemeAppearance, string> = {
   light: read("pi-station:light-theme", "palms"),
