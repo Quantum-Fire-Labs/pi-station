@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process"
 import { watch, type FSWatcher } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { homedir } from "node:os"
@@ -8,6 +9,13 @@ export type { SystemTheme } from "@pi-station/application-protocol"
 
 const UNAVAILABLE: SystemTheme = { version: 2, available: false }
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/u
+
+type CommandRunner = (file: string, args: readonly string[]) => Promise<string>
+
+interface OmarchyThemeOptions {
+  readonly homeDir?: string
+  readonly command?: CommandRunner
+}
 
 export class SystemThemeService {
   readonly #currentDir: string
@@ -80,11 +88,13 @@ export class SystemThemeService {
   }
 }
 
-export async function readOmarchyTheme(currentDir: string): Promise<SystemTheme> {
+export async function readOmarchyTheme(currentDir: string, options: OmarchyThemeOptions = {}): Promise<SystemTheme> {
   try {
-    const [nameValue, colorsValue] = await Promise.all([
+    const command = options.command ?? runCommand
+    const [nameValue, colorsValue, style] = await Promise.all([
       readFile(join(currentDir, "theme.name"), "utf8"),
       readFile(join(currentDir, "theme", "colors.toml"), "utf8"),
+      readOmarchyStyle(currentDir, options.homeDir ?? homedir(), command),
     ])
     const values = parseTopLevelToml(colorsValue)
     const background = color(values, "background")
@@ -105,8 +115,55 @@ export async function readOmarchyTheme(currentDir: string): Promise<SystemTheme>
       name: name.split(/[-_]+/u).filter(Boolean).map((part) => part[0]!.toUpperCase() + part.slice(1)).join(" "),
       appearance,
       colors: { background: background!, foreground: foreground!, accent: accent!, error: error!, warning: warning!, success: success! },
+      ...(style === undefined ? {} : { style }),
     }
   } catch { return UNAVAILABLE }
+}
+
+async function readOmarchyStyle(currentDir: string, homeDir: string, command: CommandRunner): Promise<Extract<SystemTheme, { available: true }>["style"]> {
+  try {
+    const [generatedShell, userShell, fontFamily, cornerRadius] = await Promise.all([
+      readFile(join(currentDir, "theme", "shell.toml"), "utf8"),
+      readFile(join(homeDir, ".config", "omarchy", "shell.toml"), "utf8").catch(() => ""),
+      command("fc-match", ["monospace", "--format=%{family[0]}"]).then((value) => value.trim()),
+      readHyprlandRounding(command),
+    ])
+    const generatedSize = tomlSectionNumber(generatedShell, "font", "base-size")
+    const userSize = tomlSectionNumber(userShell, "font", "base-size")
+    const baseFontSize = userSize ?? generatedSize
+    if (fontFamily.length === 0 || fontFamily.length > 200 || baseFontSize === undefined || baseFontSize < 8 || baseFontSize > 32 || cornerRadius < 0 || cornerRadius > 64) return undefined
+    return { fontFamily, baseFontSize, cornerRadius }
+  } catch { return undefined }
+}
+
+async function readHyprlandRounding(command: CommandRunner): Promise<number> {
+  let output: string
+  try { output = await command("hyprctl", ["-j", "getoption", "decoration:rounding"]) }
+  catch { output = await command("hyprctl", ["-j", "-i", "0", "getoption", "decoration:rounding"]) }
+  const value = (JSON.parse(output) as { int?: unknown }).int
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("Hyprland returned invalid rounding")
+  return value
+}
+
+function runCommand(file: string, args: readonly string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(file, [...args], { encoding: "utf8", timeout: 2_000 }, (error, stdout) => {
+      if (error !== null) reject(new Error(error.message, { cause: error }))
+      else resolve(stdout)
+    })
+  })
+}
+
+function tomlSectionNumber(input: string, section: string, key: string): number | undefined {
+  let active = false
+  for (const line of input.split(/\r?\n/u)) {
+    const sectionMatch = /^\s*\[([A-Za-z0-9_.-]+)\]\s*(?:#.*)?$/u.exec(line)
+    if (sectionMatch !== null) { active = sectionMatch[1] === section; continue }
+    if (!active) continue
+    const valueMatch = /^\s*([A-Za-z0-9_-]+)\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*(?:#.*)?$/u.exec(line)
+    if (valueMatch?.[1] === key) return Number(valueMatch[2])
+  }
+  return undefined
 }
 
 function parseTopLevelToml(input: string): Readonly<Record<string, string>> {
