@@ -177,4 +177,10 @@ describe("Omarchy square geometry", () => {
     expect(styles).toMatch(/:root\[data-theme-id="omarchy-system"\] \.message\.tool details,[\s\S]*\.message\.tool details pre\s*\{[^}]*border-radius: 0;/);
     expect(styles).toMatch(/:root\[data-theme-id="omarchy-system"\] \.composer-primary-actions > button:last-child,[\s\S]*\.dashboard-project-icon,[\s\S]*\.creation-item-icon\s*\{[^}]*border-radius: 0;/);
   });
+
+  it("uses compact sidebar labels and Settings iconography", () => {
+    expect(styles).toMatch(/\.project header \.project-name-link,[\s\S]*\.session-row-name\s*\{[^}]*font-size: 0\.78rem;/);
+    expect(styles).toMatch(/\.sidebar > footer button\s*\{[^}]*font-size: 0\.72rem;/);
+    expect(styles).toMatch(/\.sidebar > footer button svg\s*\{[^}]*width: 14px;[^}]*height: 14px;/);
+  });
 });
