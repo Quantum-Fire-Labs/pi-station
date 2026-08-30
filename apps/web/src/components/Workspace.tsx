@@ -196,8 +196,16 @@ function Dashboard({
       position,
     ]),
   );
+  const closedProjectIds = new Set(
+    state.projects
+      .filter((project) => project.closed === true)
+      .map((project) => project.projectId),
+  );
   const liveSessions = state.sessions
-    .filter(sessionIsOpen)
+    .filter((session) => (
+      sessionIsOpen(session)
+      && (session.projectId === undefined || !closedProjectIds.has(session.projectId))
+    ))
     .sort((left, right) => sessionTime(right.lastActivityAt)
       - sessionTime(left.lastActivityAt));
   const openSessionGroups = dashboardSessionGroups(liveSessions);
@@ -207,6 +215,7 @@ function Dashboard({
     ),
   );
   const projects = state.projects
+    .filter((project) => project.closed !== true)
     .filter((project) => (
       bookmarkPosition.has(project.projectId)
       || activeProjectIds.has(project.projectId)
