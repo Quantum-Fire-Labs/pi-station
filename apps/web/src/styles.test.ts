@@ -171,3 +171,10 @@ describe("sidebar Session status indicator", () => {
     expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.status-working::before\s*\{[^}]*opacity: 0\.38;[^}]*transform: scale\(1\);[^}]*animation: none;/);
   });
 });
+
+describe("Omarchy square geometry", () => {
+  it("squares tool cards, Send, and Project icon containers", () => {
+    expect(styles).toMatch(/:root\[data-theme-id="omarchy-system"\] \.message\.tool details,[\s\S]*\.message\.tool details pre\s*\{[^}]*border-radius: 0;/);
+    expect(styles).toMatch(/:root\[data-theme-id="omarchy-system"\] \.composer-primary-actions > button:last-child,[\s\S]*\.dashboard-project-icon,[\s\S]*\.creation-item-icon\s*\{[^}]*border-radius: 0;/);
+  });
+});

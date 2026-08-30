@@ -4475,8 +4475,20 @@ body.sidebar-resizing {
   gap: 6px;
   font-size: 0.78rem;
 }
+:root[data-theme-id="omarchy-system"] .message.tool details,
+:root[data-theme-id="omarchy-system"] .message.tool details summary,
+:root[data-theme-id="omarchy-system"] .message.tool details pre {
+  border-radius: 0;
+}
 :root[data-theme-id="omarchy-system"] .message.tool details[open] pre {
   margin: 2px 0 6px;
   border: 1px solid var(--line);
   padding: 8px 10px;
+}
+:root[data-theme-id="omarchy-system"] .composer-primary-actions > button:last-child,
+:root[data-theme-id="omarchy-system"] .project-page-hero-icon,
+:root[data-theme-id="omarchy-system"] .projects-page-card-icon,
+:root[data-theme-id="omarchy-system"] .dashboard-project-icon,
+:root[data-theme-id="omarchy-system"] .creation-item-icon {
+  border-radius: 0;
 }
