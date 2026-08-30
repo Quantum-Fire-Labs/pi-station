@@ -148,7 +148,7 @@ async function readHyprlandRounding(command: CommandRunner): Promise<number> {
 function runCommand(file: string, args: readonly string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(file, [...args], { encoding: "utf8", timeout: 2_000 }, (error, stdout) => {
-      if (error !== null) reject(error)
+      if (error !== null) reject(new Error(error.message, { cause: error }))
       else resolve(stdout)
     })
   })

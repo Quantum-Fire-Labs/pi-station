@@ -79,10 +79,10 @@ green = "#77cc77"
     roots.push(home)
     await mkdir(join(home, ".config", "omarchy"), { recursive: true })
     await writeFile(join(home, ".config", "omarchy", "shell.toml"), "[font]\nbase-size = 14 # user override\n")
-    const command = vi.fn(async (file: string, args: readonly string[]) => {
-      if (file === "fc-match") return "JetBrainsMono Nerd Font\n"
-      if (!args.includes("-i")) throw new Error("No inherited Hyprland instance")
-      return '{"option":"decoration:rounding","int":3,"set":true}'
+    const command = vi.fn((file: string, args: readonly string[]) => {
+      if (file === "fc-match") return Promise.resolve("JetBrainsMono Nerd Font\n")
+      if (!args.includes("-i")) return Promise.reject(new Error("No inherited Hyprland instance"))
+      return Promise.resolve('{"option":"decoration:rounding","int":3,"set":true}')
     })
 
     const theme = await readOmarchyTheme(current, { homeDir: home, command })
@@ -99,7 +99,7 @@ green = "#00aa00"
 yellow = "#aa7700"
 blue = "#0066cc"
 `)
-    const theme = await readOmarchyTheme(current, { command: async () => { throw new Error("command unavailable") } })
+    const theme = await readOmarchyTheme(current, { command: () => Promise.reject(new Error("command unavailable")) })
     expect(theme.available).toBe(true)
     if (theme.available) expect(theme.style).toBeUndefined()
   })
