@@ -4494,12 +4494,12 @@ body.sidebar-resizing {
 }
 :root[data-theme-id="omarchy-system"] .project header .project-name-link,
 :root[data-theme-id="omarchy-system"] .session-row-name {
-  font-size: 0.78rem;
+  font-size: 11px;
 }
 :root[data-theme-id="omarchy-system"] .sidebar > footer button {
-  font-size: 0.72rem;
+  font-size: 10px;
 }
 :root[data-theme-id="omarchy-system"] .sidebar > footer button svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
