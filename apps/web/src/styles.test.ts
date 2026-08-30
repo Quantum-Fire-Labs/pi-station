@@ -179,8 +179,8 @@ describe("Omarchy square geometry", () => {
   });
 
   it("uses compact sidebar labels and Settings iconography", () => {
-    expect(styles).toMatch(/\.project header \.project-name-link,[\s\S]*\.session-row-name\s*\{[^}]*font-size: 0\.78rem;/);
-    expect(styles).toMatch(/\.sidebar > footer button\s*\{[^}]*font-size: 0\.72rem;/);
-    expect(styles).toMatch(/\.sidebar > footer button svg\s*\{[^}]*width: 14px;[^}]*height: 14px;/);
+    expect(styles).toMatch(/\.project header \.project-name-link,[\s\S]*\.session-row-name\s*\{[^}]*font-size: 11px;/);
+    expect(styles).toMatch(/\.sidebar > footer button\s*\{[^}]*font-size: 10px;/);
+    expect(styles).toMatch(/\.sidebar > footer button svg\s*\{[^}]*width: 13px;[^}]*height: 13px;/);
   });
 });
