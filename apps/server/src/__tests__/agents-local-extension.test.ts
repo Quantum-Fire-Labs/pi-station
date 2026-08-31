@@ -6,6 +6,7 @@ import type {
   BeforeAgentStartEventResult,
   ExtensionAPI,
 } from "@earendil-works/pi-coding-agent"
+import { DefaultResourceLoader } from "@earendil-works/pi-coding-agent"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   agentsLocalExtension,
@@ -67,6 +68,34 @@ describe("agents-local extension", () => {
     expect(discoverLocalAgentsFiles(project, agentDir)).toEqual([
       { path: join(project, "AGENTS.local.md"), content: "project local" },
     ])
+  })
+
+  it("applies overrides independently at global and ancestor scopes", () => {
+    const root = temporaryDirectory()
+    const agentDir = join(root, "agent")
+    const project = join(root, "workspace", "project")
+    const service = join(project, "service")
+    mkdirSync(agentDir, { recursive: true })
+    mkdirSync(service, { recursive: true })
+    writeFileSync(join(agentDir, "AGENTS.local.md"), "global local")
+    writeFileSync(join(agentDir, "AGENTS.override.md"), "global override")
+    writeFileSync(join(project, "AGENTS.local.md"), "project local")
+    writeFileSync(join(service, "AGENTS.local.md"), "service local")
+    writeFileSync(join(service, "AGENTS.override.md"), "service override")
+
+    expect(discoverLocalAgentsFiles(service, agentDir)).toEqual([
+      { path: join(project, "AGENTS.local.md"), content: "project local" },
+    ])
+  })
+
+  it("ignores a non-file local candidate", () => {
+    const root = temporaryDirectory()
+    const agentDir = join(root, "agent")
+    const project = join(root, "project")
+    mkdirSync(agentDir, { recursive: true })
+    mkdirSync(join(project, "AGENTS.local.md"), { recursive: true })
+
+    expect(discoverLocalAgentsFiles(project, agentDir)).toEqual([])
   })
 
   it("loads local instructions without requiring a shared AGENTS.md", () => {
@@ -136,6 +165,29 @@ describe("agents-local extension", () => {
     writeFileSync(join(worktree, "AGENTS.override.md"), "worktree override")
 
     expect(discoverLocalAgentsFiles(worktree, agentDir)).toEqual([])
+  })
+
+  it("loads as a named inline extension through Pi's resource loader", async () => {
+    const root = temporaryDirectory()
+    const agentDir = join(root, "agent")
+    const project = join(root, "project")
+    mkdirSync(agentDir, { recursive: true })
+    mkdirSync(project, { recursive: true })
+    const loader = new DefaultResourceLoader({
+      cwd: project,
+      agentDir,
+      extensionFactories: [agentsLocalExtension(agentDir)],
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+    })
+
+    await loader.reload()
+
+    expect(loader.getExtensions().errors).toEqual([])
+    const extension = loader.getExtensions().extensions.find(({ path }) => path === "<inline:agents-local>")
+    expect(extension?.handlers.get("before_agent_start")).toHaveLength(1)
   })
 
   it("registers a built-in extension that injects discovered local instructions", async () => {
