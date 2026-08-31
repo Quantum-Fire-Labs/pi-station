@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
@@ -17,7 +17,7 @@ import {
 const temporaryDirectories: string[] = []
 
 function temporaryDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), "pi-station-agents-local-"))
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "pi-station-agents-local-")))
   temporaryDirectories.push(directory)
   return directory
 }
