@@ -570,6 +570,15 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         sendJson(response, 200, await notifications.capabilities())
         return
       }
+      if (request.method === "GET" && url.pathname === "/v2/notifications/events") {
+        try {
+          openNativeNotificationStream(request, response, notifications, url, eventStreams)
+        } catch (error) {
+          if (error instanceof NotificationInputError) throw new HttpError(error.status, error.code)
+          throw error
+        }
+        return
+      }
       if (request.method === "POST" && url.pathname === "/v2/notifications/subscription") {
         assertJsonMutation(request)
         const value = await readJsonBody(request)
@@ -1575,6 +1584,29 @@ function openSystemThemeStream(
   const unsubscribe = themes.subscribe(deliver)
   void themes.read().then((theme) => { if (!delivered) deliver(theme) })
   request.once("close", () => { closed = true; streams.delete(response); unsubscribe() })
+}
+
+function openNativeNotificationStream(
+  request: IncomingMessage,
+  response: ServerResponse,
+  notifications: NotificationService,
+  url: URL,
+  streams: Set<ServerResponse>,
+): void {
+  const deviceId = url.searchParams.get("deviceId")
+  const unsubscribe = notifications.subscribeNative(deviceId, (payload) => {
+    response.write(`event: notification\ndata: ${JSON.stringify({ version: PROTOCOL_VERSION, payload })}\n\n`)
+  })
+  response.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache, no-store",
+    connection: "keep-alive",
+    "access-control-allow-origin": WEB_ORIGIN,
+    vary: "Origin",
+  })
+  streams.add(response)
+  response.write(": connected\n\n")
+  request.once("close", () => { streams.delete(response); unsubscribe() })
 }
 
 function openSessionUpdates(

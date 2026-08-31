@@ -64,6 +64,24 @@ describe("composer width", () => {
   });
 });
 
+describe("Omarchy TUI styling", () => {
+  it("uses shared compositor tokens without broad important radius overrides", () => {
+    expect(styles).toContain("--omarchy-radius: var(--omarchy-corner-radius, 0px);");
+    expect(styles).toContain("font-size: var(--omarchy-base-font-size, 14px);");
+    expect(styles).toMatch(/\.message\.context-summary details,[\s\S]*border-radius: var\(--omarchy-radius\);/);
+    expect(styles).not.toMatch(/data-theme-id="omarchy-system"[\s\S]{0,700}border-radius:\s*0\s*!important/);
+    expect(styles).toMatch(/\.session-row,[\s\S]*:focus-visible\s*{[^}]*box-shadow: inset 3px 0 0 var\(--accent\);/s);
+    expect(styles).toMatch(/\.message\.tool details summary\s*{[^}]*min-height: 24px;[^}]*gap: 6px;/s);
+    expect(styles).toMatch(/\.message\.tool details\[open\] pre\s*{[^}]*border: 1px solid var\(--line\);/s);
+  });
+
+  it("removes web lift and decorative transitions while leaving circle tokens alone", () => {
+    expect(styles).toMatch(/data-theme-id="omarchy-system"[^}]*:where\(button, a, input, textarea, select, summary,[^}]*{\s*transition: none;/s);
+    expect(styles).toMatch(/data-theme-id="omarchy-system"[^}]*\.provider-choice:hover\s*{\s*transform: none;/s);
+    expect(styles).not.toMatch(/data-theme-id="omarchy-system"[^}]*border-radius: 50%/s);
+  });
+});
+
 describe("Session header", () => {
   it("clamps the Session name to one line", () => {
     expect(styles).toMatch(/\.session-title-text\s*\{[^}]*-webkit-line-clamp: 1;/s);
@@ -151,5 +169,18 @@ describe("sidebar Session status indicator", () => {
 
   it("replaces breathing motion with one static working halo", () => {
     expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.status-working::before\s*\{[^}]*opacity: 0\.38;[^}]*transform: scale\(1\);[^}]*animation: none;/);
+  });
+});
+
+describe("Omarchy square geometry", () => {
+  it("squares tool cards, Send, and Project icon containers", () => {
+    expect(styles).toMatch(/:root\[data-theme-id="omarchy-system"\] \.message\.tool details,[\s\S]*\.message\.tool details pre\s*\{[^}]*border-radius: 0;/);
+    expect(styles).toMatch(/:root\[data-theme-id="omarchy-system"\] \.composer-primary-actions > button:last-child,[\s\S]*\.dashboard-project-icon,[\s\S]*\.creation-item-icon\s*\{[^}]*border-radius: 0;/);
+  });
+
+  it("uses compact sidebar labels and Settings iconography", () => {
+    expect(styles).toMatch(/\.project header \.project-name-link,[\s\S]*\.session-row-name\s*\{[^}]*font-size: 11px;/);
+    expect(styles).toMatch(/\.sidebar > footer button\s*\{[^}]*font-size: 10px;/);
+    expect(styles).toMatch(/\.sidebar > footer button svg\s*\{[^}]*width: 13px;[^}]*height: 13px;/);
   });
 });

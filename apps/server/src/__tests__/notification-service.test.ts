@@ -77,6 +77,32 @@ describe("SDK notification service", () => {
     expect((await h.repository.list()).map((item) => item.endpoint)).toEqual(["https://push.example.test/ok"])
   })
 
+  it("streams native notifications and suppresses a visible Session", async () => {
+    const h = await harness()
+    const listener = vi.fn()
+    const unsubscribe = h.service.subscribeNative(deviceA, listener)
+
+    await h.service.notify(attention)
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Release Session",
+      body: "Finished safely",
+      data: { hostId: "project-one", piSessionId: "session-one" },
+    }))
+
+    h.presence.report({
+      deviceId: deviceA,
+      desktopActive: true,
+      visibleSession: { projectId: attention.projectId, sessionId: attention.sessionId },
+    })
+    await h.service.notify({ ...attention, id: "attention-2" })
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    unsubscribe()
+    h.advance(45_001)
+    await h.service.notify({ ...attention, id: "attention-3" })
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
   it("suppresses only the visible selected Session and paused mobile delivery", async () => {
     const h = await harness()
     await h.repository.upsert(deviceA, subscription("https://push.example.test/desktop", "desktop"))

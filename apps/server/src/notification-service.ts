@@ -42,7 +42,15 @@ export interface NotificationPresence {
   readonly visibleSession?: SessionKey
 }
 
+export interface NotificationPayload {
+  readonly title: string
+  readonly body: string
+  readonly tag: string
+  readonly data: { readonly hostId: string; readonly piSessionId: string }
+}
+
 export type PushSender = typeof webPush.sendNotification
+export type NativeNotificationListener = (payload: NotificationPayload) => void
 
 export class NotificationInputError extends Error {
   constructor(readonly status: number, readonly code: string) { super(code) }
@@ -150,6 +158,7 @@ export class NotificationService {
   readonly #repository: NotificationRepository
   readonly #presence: NotificationPresenceStore
   readonly #sender: PushSender
+  readonly #nativeListeners = new Map<string, Set<NativeNotificationListener>>()
   #keys: VapidKeys | undefined
   #initialization: Promise<void> | undefined
 
@@ -165,12 +174,29 @@ export class NotificationService {
     return { available: true, publicKey: this.#keys!.publicKey }
   }
 
+  subscribeNative(deviceIdValue: unknown, listener: NativeNotificationListener): () => void {
+    const deviceId = validateDeviceId(deviceIdValue)
+    const listeners = this.#nativeListeners.get(deviceId) ?? new Set<NativeNotificationListener>()
+    listeners.add(listener)
+    this.#nativeListeners.set(deviceId, listeners)
+    return () => {
+      listeners.delete(listener)
+      if (listeners.size === 0) this.#nativeListeners.delete(deviceId)
+    }
+  }
+
   async notify(attention: NotificationAttention): Promise<void> {
     try {
       if (!await this.#repository.claim(attention.id)) return
       await this.#initialize()
-      const payload = JSON.stringify(notificationPayload(attention))
+      const notification = notificationPayload(attention)
+      const payload = JSON.stringify(notification)
       const delivery = this.#presence.deliveryState()
+      for (const [deviceId, listeners] of this.#nativeListeners) {
+        const visible = delivery.visibleSessions.get(deviceId)
+        if (visible !== undefined && sameSession(visible, attention)) continue
+        for (const listener of listeners) listener(notification)
+      }
       const gone: string[] = []
       const subscriptions = (await this.#repository.list()).filter((item) => {
         if (delivery.suppressMobile && item.deviceClass === "mobile") return false
@@ -220,7 +246,7 @@ export class NotificationService {
   }
 }
 
-export function notificationPayload(attention: NotificationAttention) {
+export function notificationPayload(attention: NotificationAttention): NotificationPayload {
   const title = truncate(normalize(attention.sessionName ?? ""), 80, 320) || "Pi Station"
   const body = attention.kind === "completed"
     ? truncate(normalizeMarkdown(attention.text ?? ""), MAX_NOTIFICATION_BODY_GRAPHEMES, MAX_NOTIFICATION_BODY_BYTES) || "Response completed."

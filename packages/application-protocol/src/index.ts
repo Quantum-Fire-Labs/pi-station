@@ -15,7 +15,7 @@ export {
 export type { Project } from "./projects.js"
 
 export { isSystemTheme } from "./system-theme.js"
-export type { SystemTheme, SystemThemeColors } from "./system-theme.js"
+export type { SystemTheme, SystemThemeColors, SystemThemeStyle } from "./system-theme.js"
 
 export {
   isGeneratedSessionId,

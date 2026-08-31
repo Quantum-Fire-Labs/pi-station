@@ -161,6 +161,16 @@
   --muted: color-mix(in srgb, var(--theme-foreground) 82%, var(--theme-background));
   --faint: color-mix(in srgb, var(--theme-foreground) 68%, var(--theme-background));
 }
+:root[data-theme-id="omarchy-system"] {
+  --omarchy-radius: var(--omarchy-corner-radius, 0px);
+  --omarchy-radius-tight: min(var(--omarchy-radius), 4px);
+  --font-heading: var(--omarchy-font-family, monospace);
+  --font-sans: var(--omarchy-font-family, monospace);
+  --sans: var(--omarchy-font-family, monospace);
+  --mono: var(--omarchy-font-family, monospace);
+  --ui-radius: var(--omarchy-radius);
+  font-size: var(--omarchy-base-font-size, 14px);
+}
 :root[data-theme-id="catppuccin-latte"] { --theme-background:#eff1f5;--theme-foreground:#383b53;--theme-accent:#1e66f5;--theme-error:#d20f39;--theme-warning:#df8e1d;--theme-success:#40a02b; }
 :root[data-theme-id="everforest-light"] { --theme-background:#fbfaf4;--theme-foreground:#394740;--theme-accent:#5f7f6a;--theme-error:#a96159;--theme-warning:#987a48;--theme-success:#708058; }
 :root[data-theme-id="dayfox"] { --theme-background:#f6f2ee;--theme-foreground:#3d2b5a;--theme-accent:#287980;--theme-error:#a5222f;--theme-warning:#ac5402;--theme-success:#396847; }
@@ -1380,6 +1390,7 @@ body.sidebar-resizing {
   outline: 0;
   background: transparent;
   color: var(--text);
+  caret-color: var(--text);
   padding: 3px 5px 12px;
   line-height: 1.45;
 }
@@ -4381,4 +4392,106 @@ body.sidebar-resizing {
   .quick-session-minimize { display: none; }
   .quick-session-dialog-body .embedded-session .session-header { display: none; }
   .quick-session-dialog-body .embedded-session .composer-shell { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+}
+
+/* Omarchy presents information like a compact TUI, using compositor-derived tokens. */
+:root[data-theme-id="omarchy-system"] :where(button, a, input, textarea, select, summary, [role="menuitem"], [data-slot="select-item"]) {
+  transition: none;
+}
+:root[data-theme-id="omarchy-system"] :where(button, [role="button"]) {
+  transform: none;
+}
+:root[data-theme-id="omarchy-system"] :where(
+  .pairing-card,
+  .composer,
+  .voice-mode,
+  .follow-up-queue li,
+  .message.user,
+  .message.scheduled-job,
+  .message.context-summary details,
+  .message.tool pre,
+  .markdown-body pre,
+  .quick-session-dialog,
+  .modal,
+  .dialog,
+  .card,
+  [data-slot="select-content"]
+) {
+  border-radius: var(--omarchy-radius);
+  box-shadow: none;
+}
+:root[data-theme-id="omarchy-system"] :where(.markdown-body code, [data-slot="select-item"], .session-row, .session-context-menu button) {
+  border-radius: var(--omarchy-radius-tight);
+}
+:root[data-theme-id="omarchy-system"] [data-slot="select-trigger"],
+:root[data-theme-id="omarchy-system"] select {
+  min-height: 0;
+  border-color: transparent;
+  border-radius: var(--omarchy-radius-tight);
+  background: transparent;
+  box-shadow: none;
+  padding-block: 2px;
+}
+:root[data-theme-id="omarchy-system"] .message-body {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+:root[data-theme-id="omarchy-system"] .message.user .message-body,
+:root[data-theme-id="omarchy-system"] .message.scheduled-job .message-body {
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+:root[data-theme-id="omarchy-system"] .message.user,
+:root[data-theme-id="omarchy-system"] .message.scheduled-job {
+  padding: 8px 10px;
+}
+:root[data-theme-id="omarchy-system"] :where(
+  .session-row,
+  .sidebar-primary-actions > button,
+  .sidebar > footer button,
+  .project-name-link,
+  .session-context-menu button,
+  [data-slot="select-item"]
+):focus-visible {
+  outline: none;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+:root[data-theme-id="omarchy-system"] .provider-choice:hover {
+  transform: none;
+}
+:root[data-theme-id="omarchy-system"] .message.tool {
+  padding-block: 0;
+}
+:root[data-theme-id="omarchy-system"] .message.tool details summary {
+  min-height: 24px;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+:root[data-theme-id="omarchy-system"] .message.tool details,
+:root[data-theme-id="omarchy-system"] .message.tool details summary,
+:root[data-theme-id="omarchy-system"] .message.tool details pre {
+  border-radius: 0;
+}
+:root[data-theme-id="omarchy-system"] .message.tool details[open] pre {
+  margin: 2px 0 6px;
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+}
+:root[data-theme-id="omarchy-system"] .composer-primary-actions > button:last-child,
+:root[data-theme-id="omarchy-system"] .project-page-hero-icon,
+:root[data-theme-id="omarchy-system"] .projects-page-card-icon,
+:root[data-theme-id="omarchy-system"] .dashboard-project-icon,
+:root[data-theme-id="omarchy-system"] .creation-item-icon {
+  border-radius: 0;
+}
+:root[data-theme-id="omarchy-system"] .project header .project-name-link,
+:root[data-theme-id="omarchy-system"] .session-row-name {
+  font-size: 11px;
+}
+:root[data-theme-id="omarchy-system"] .sidebar > footer button {
+  font-size: 10px;
+}
+:root[data-theme-id="omarchy-system"] .sidebar > footer button svg {
+  width: 13px;
+  height: 13px;
 }

@@ -21,6 +21,7 @@ import { sharedFileInstructions, type SharedFileOrigins } from "./shared-files.j
 import type { ScheduledJobAgentBridge } from "./scheduled-jobs.js"
 import type { CommandApprovalService } from "./command-approval.js"
 import { isolateToolProcess } from "./tool-process-execution.js"
+import { agentsLocalExtension } from "./agents-local-extension.js"
 
 export const DELEGATION_TOOL_NAME = "delegate_to_agent"
 export const CLOSE_DELEGATED_AGENT_TOOL_NAME = "close_delegated_agent"
@@ -613,10 +614,11 @@ async function createSdkSession(input: {
   const commandApprovalExtension = input.projectId === undefined || options.commandApprovals === undefined
     ? []
     : [options.commandApprovals.extension({ projectId: input.projectId, sessionId: input.sessionId })]
+  const agentDir = getAgentDir()
   const resourceLoader = new DefaultResourceLoader({
     cwd: input.cwd,
-    agentDir: getAgentDir(),
-    extensionFactories: commandApprovalExtension,
+    agentDir,
+    extensionFactories: [agentsLocalExtension(agentDir), ...commandApprovalExtension],
     ...(sharedFiles === undefined ? {} : {
       appendSystemPromptOverride: (base) => [
         ...base,

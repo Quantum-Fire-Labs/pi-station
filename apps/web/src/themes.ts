@@ -33,7 +33,7 @@ const media = typeof matchMedia === "function"
 const read = (key: string, fallback: string): string => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const storedAppearance = read("pi-station:appearance", "system");
 let appearancePreference: AppearancePreference = storedAppearance === "light" || storedAppearance === "dark" ? storedAppearance : "system";
-let themeSource: ThemeSource = read("pi-station:theme-source", "pi-station") === "system" ? "system" : "pi-station";
+let themeSource: ThemeSource = read("pi-station:theme-source", "system") === "pi-station" ? "pi-station" : "system";
 let systemTheme: SystemTheme = { version: 2, available: false };
 const selections: Record<ThemeAppearance, string> = {
   light: read("pi-station:light-theme", "palms"),
@@ -65,11 +65,18 @@ export function applySelectedTheme(): void {
     root.style.setProperty("--theme-error", systemTheme.colors.error);
     root.style.setProperty("--theme-warning", systemTheme.colors.warning);
     root.style.setProperty("--theme-success", systemTheme.colors.success);
+    if (systemTheme.style === undefined) {
+      for (const property of ["--omarchy-font-family", "--omarchy-base-font-size", "--omarchy-corner-radius"]) root.style.removeProperty(property);
+    } else {
+      root.style.setProperty("--omarchy-font-family", JSON.stringify(systemTheme.style.fontFamily));
+      root.style.setProperty("--omarchy-base-font-size", `${systemTheme.style.baseFontSize}px`);
+      root.style.setProperty("--omarchy-corner-radius", `${systemTheme.style.cornerRadius}px`);
+    }
     updateThemeColor(systemTheme.colors.background);
     custom?.remove();
     return;
   }
-  for (const property of ["--theme-background", "--theme-foreground", "--theme-accent", "--theme-error", "--theme-warning", "--theme-success"]) root.style.removeProperty(property);
+  for (const property of ["--theme-background", "--theme-foreground", "--theme-accent", "--theme-error", "--theme-warning", "--theme-success", "--omarchy-font-family", "--omarchy-base-font-size", "--omarchy-corner-radius"]) root.style.removeProperty(property);
   const appearance = activeAppearance();
   const id = selectedThemeId(appearance);
   root.dataset.appearance = appearance;

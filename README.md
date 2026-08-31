@@ -30,6 +30,18 @@ npm run dev:workspace
 
 For isolated work, use `npm run dev:isolated`. It uses port 8811 and `~/.local/share/pi-station-dev`. The Workspace uses `VITE_PI_STATION_API` when its API is on another origin.
 
+## Local agent instructions
+
+Pi Station Sessions load `AGENTS.local.md` from the Pi agent directory and from each directory between the filesystem root and the Session working directory. Local files are applied from broadest to most specific after Pi's normal project context. An `AGENTS.override.md` in the same directory suppresses that directory's local file.
+
+Keep local instructions out of Git without changing a project's committed `.gitignore`:
+
+```bash
+echo "AGENTS.local.md" >> "$(git rev-parse --git-path info/exclude)"
+```
+
+This behavior is provided by Pi Station's built-in extension and does not change Pi CLI context discovery.
+
 ## Build and validation
 
 ```bash
