@@ -51,35 +51,14 @@ describe("SDK Session runtime", () => {
     ])
   })
 
-  it("uses Pi Station defaults for a delegated child Session when no overrides are present", () => {
-    const defaults = { provider: "openai-codex", modelId: "gpt-default", thinkingLevel: "medium" as const }
+  it("inherits the parent model and thinking level for a delegated child Session", () => {
+    const parent = fakeSession()
+    parent.setThinkingLevel("high")
 
-    expect(delegatedSessionSettings(defaults, {})).toEqual(defaults)
-  })
-
-  it("applies optional model and thinking-level overrides to a delegated child Session", () => {
-    const defaults = { provider: "openai-codex", modelId: "gpt-default", thinkingLevel: "medium" as const }
-
-    expect(delegatedSessionSettings(defaults, {
-      model: { provider: "anthropic", modelId: "claude-sonnet" },
+    expect(delegatedSessionSettings(parent)).toEqual({
+      provider: "openai",
+      modelId: "gpt-a",
       thinkingLevel: "high",
-    })).toEqual({
-      provider: "anthropic",
-      modelId: "claude-sonnet",
-      thinkingLevel: "high",
-    })
-  })
-
-  it("limits Sol delegated Sessions to medium thinking", () => {
-    const defaults = { provider: "openai-codex", modelId: "gpt-default", thinkingLevel: "high" as const }
-
-    expect(delegatedSessionSettings(defaults, {
-      model: { provider: "openai-codex", modelId: "gpt-5.6-sol" },
-      thinkingLevel: "max",
-    })).toEqual({
-      provider: "openai-codex",
-      modelId: "gpt-5.6-sol",
-      thinkingLevel: "medium",
     })
   })
 
