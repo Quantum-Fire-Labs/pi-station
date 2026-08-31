@@ -78,6 +78,11 @@ export function resolveDeploymentSharedRoot({ dataDir, retiredDefault, environme
   return `${dataDir}/shared`
 }
 
+export function resolveServicePath({ home, path = "/usr/local/bin:/usr/bin:/bin" }) {
+  const userDirectories = [`${home}/.local/bin`, `${home}/.local/share/mise/shims`, `${home}/.mise/shims`]
+  return [...new Set([...userDirectories, ...path.split(":").filter(Boolean)])].join(":")
+}
+
 export function buildSystemdService({ root, node, dataDir, sharedRoot, port = "8801", webOrigin, localOrigin, path }) {
   const loopbackOrigin = `http://127.0.0.1:${port}`
   return `[Unit]

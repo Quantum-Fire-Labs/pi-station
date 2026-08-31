@@ -7,7 +7,7 @@ import {
   OBSOLETE_SERVICE,
   serviceMigrationActions,
 } from "./sdk-deploy-request.mjs"
-import { buildSystemdService, prepareAndValidate, resolveDeploymentOrigins, resolveDeploymentSharedRoot } from "./sdk-deploy-worker-lib.mjs"
+import { buildSystemdService, prepareAndValidate, resolveDeploymentOrigins, resolveDeploymentSharedRoot, resolveServicePath } from "./sdk-deploy-worker-lib.mjs"
 
 const root = resolve(import.meta.dirname, "..")
 const userUnits = resolve(homedir(), ".config/systemd/user")
@@ -127,7 +127,7 @@ try {
     port,
     webOrigin,
     localOrigin,
-    path: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+    path: resolveServicePath({ home: homedir(), path: process.env.PATH }),
   }))
   run("systemctl", ["--user", "daemon-reload"])
   for (const action of migrationActions) run("systemctl", ["--user", ...action])
