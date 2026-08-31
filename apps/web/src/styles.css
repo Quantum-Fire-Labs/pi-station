@@ -3999,6 +3999,7 @@ body.sidebar-resizing {
   .shared-markdown-editor > header { position: relative; min-height: calc(60px + env(safe-area-inset-top)); gap: 8px; padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 8px calc(54px + env(safe-area-inset-left)); }
   .shared-markdown-editor > header > div { max-width: none; flex: 1; }
   .standalone-shared-editor .shared-markdown-editor > header { padding-left: calc(12px + env(safe-area-inset-left)); }
+  .standalone-shared-editor .shared-markdown-editor .shared-markdown-back { display: none; }
   .shared-markdown-editor > header strong { display: block; font-size: 14px; }
   .shared-markdown-editor nav { flex: 0 0 auto; gap: 6px; }
   .shared-markdown-editor nav > button,
@@ -4085,15 +4086,6 @@ body.sidebar-resizing {
   .message.user {
     width: 92%;
   }
-}
-@media (min-width: 761px) and (max-width: 1099px) {
-  .shared-markdown-editor .shared-markdown-back,
-  .shared-markdown-editor .shared-markdown-mobile-menu { display: none; }
-  .shared-markdown-autosave { display: inline-flex; }
-  .shared-markdown-open-desktop,
-  .shared-markdown-close { display: inline-flex !important; }
-  .shared-markdown-editor > header { min-height: 72px; padding: 10px 12px; }
-  .shared-markdown-editor > header > div { max-width: 35%; }
 }
 @media (prefers-reduced-motion: reduce) {
   *,
