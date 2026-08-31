@@ -7,6 +7,7 @@ import {
   parseSystemdEnvironment,
   resolveDeploymentOrigins,
   resolveDeploymentSharedRoot,
+  resolveServicePath,
   validationArguments,
 } from "./sdk-deploy-worker-lib.mjs"
 
@@ -51,6 +52,13 @@ describe("SDK deployment worker", () => {
 
   it("rejects values that are not exact HTTP origins", () => {
     expect(() => resolveDeploymentOrigins({ environment: { PI_STATION_WEB_ORIGIN: "https://station.example.test/path" } })).toThrow("HTTP or HTTPS origin")
+  })
+
+  it("adds user executable and Mise shim directories to the service path", () => {
+    expect(resolveServicePath({
+      home: "/home/example",
+      path: "/usr/local/bin:/home/example/.local/bin:/usr/bin",
+    })).toBe("/home/example/.local/bin:/home/example/.local/share/mise/shims:/home/example/.mise/shims:/usr/local/bin:/usr/bin")
   })
 
   it("generates the service from deployment inputs without maintainer paths", () => {
