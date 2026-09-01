@@ -1857,7 +1857,7 @@ export function Workspace({
       const separator = draft.length > 0 && consumed.stash.text.length > 0 ? "\n\n" : "";
       const nextDraft = `${draft}${separator}${consumed.stash.text}`;
       setDraft(nextDraft); writeComposerDraft(selectedSessionIdentity, nextDraft);
-      setImages((current) => [...current, ...consumed.stash.images.flatMap((image, index) => { const uploadId = consumed.imageIds[index]; return uploadId === undefined ? [] : [{ localId: crypto.randomUUID(), name: image.name, previewUrl: `/v2/images/${encodeURIComponent(uploadId)}`, controller: new AbortController(), status: "ready" as const, uploadId }]; })]);
+      setImages((current) => [...current, ...consumed.stash.images.flatMap((image, index) => { const uploadId = consumed.imageIds[index]; return uploadId === undefined ? [] : [{ localId: crypto.randomUUID(), name: image.name, previewUrl: `/v2/projects/${encodeURIComponent(key.hostId)}/sessions/${encodeURIComponent(key.piSessionId)}/attachments/${encodeURIComponent(image.id)}`, controller: new AbortController(), status: "ready" as const, uploadId }]; })]);
       setFiles((current) => [...current, ...consumed.stash.attachments.map((file) => ({ localId: crypto.randomUUID(), name: file.name, size: file.size, controller: new AbortController(), status: "ready" as const, uploadId: file.id }))]);
       setStashes((current) => current.filter((item) => item.id !== stash.id)); setPaletteOpen(false); setStashFeedback("Stashed message restored.");
       requestAnimationFrame(() => composerInput.current?.focus());
