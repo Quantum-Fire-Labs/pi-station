@@ -15,6 +15,7 @@ import {
   isGeneratedSessionId,
   isModelSettingRequest,
   isNewTurnRequest,
+  isCreateMessageStashRequest,
   isProjectRootsRequest,
   isProjectName,
   isPrompt,
@@ -65,6 +66,7 @@ import { allowsDirectNotification } from "./notification-policy.js"
 import type { SavedTimelineImage } from "./session-images.js"
 import { ScheduledJobError, ScheduledJobScheduler, ScheduledJobStore, SettingsStore } from "./scheduled-jobs.js"
 import { SessionAttachmentStore, attachmentMarker, attachmentPrompt } from "./session-attachments.js"
+import { MessageStashStore } from "./message-stashes.js"
 import type { ScheduledJobAgentBridge } from "./scheduled-jobs.js"
 import { VoiceSettingsError, VoiceSettingsStore } from "./voice-settings.js"
 import { SystemThemeService } from "./system-theme.js"
@@ -134,6 +136,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
     options.notificationSender,
   )
   const imageUploads = new ImageUploadStore()
+  const messageStashes = new MessageStashStore(options.dataDir, attachments, imageUploads)
   const delegationStore = options.delegationStore ?? new DelegationStore(options.dataDir)
   const settings = options.settingsStore ?? new SettingsStore(options.dataDir)
   const scheduledJobs = options.scheduledJobStore ?? new ScheduledJobStore(options.dataDir)
@@ -897,11 +900,37 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         return
       }
       const imageRoute = /^\/v2\/images\/([A-Za-z0-9_-]{1,64})$/u.exec(url.pathname)
+      if (request.method === "GET" && imageRoute !== null) {
+        const image = imageUploads.resolve([imageRoute[1]!])?.[0]
+        if (image === undefined) throw new HttpError(404, "Image is not available")
+        response.writeHead(200, { "content-type": image.mediaType, "content-length": image.data.length, "cache-control": "no-store", "x-content-type-options": "nosniff", "access-control-allow-origin": WEB_ORIGIN, vary: "Origin" })
+        response.end(image.data); return
+      }
       if (request.method === "DELETE" && imageRoute !== null) {
         imageUploads.delete(imageRoute[1]!)
         response.writeHead(204, { "access-control-allow-origin": WEB_ORIGIN, vary: "Origin" })
         response.end()
         return
+      }
+
+      const stashRoute = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)\/message-stashes(?:\/([A-Za-z0-9-]{1,64})\/consume)?$/u.exec(url.pathname)
+      if (stashRoute !== null) {
+        const key = { projectId: decodeURIComponent(stashRoute[1]!), sessionId: decodeURIComponent(stashRoute[2]!) }
+        const savedSession = await findSession(key)
+        if (savedSession === undefined) throw new HttpError(404, "Session not found")
+        await resolveProject(key, savedSession)
+        if (request.method === "GET" && stashRoute[3] === undefined) { sendJson(response, 200, { version: PROTOCOL_VERSION, stashes: await messageStashes.list(key) }); return }
+        if (request.method === "POST" && stashRoute[3] === undefined) {
+          if (savedSession.state === "closed") throw new HttpError(409, "Closed Session is read-only")
+          assertJsonMutation(request); const value = await readJsonBody(request)
+          if (!isCreateMessageStashRequest(value)) throw new HttpError(400, "Stashed message is invalid")
+          sendJson(response, 201, { version: PROTOCOL_VERSION, stash: await messageStashes.create(key, value) }); return
+        }
+        if (request.method === "POST" && stashRoute[3] !== undefined) {
+          if (savedSession.state === "closed") throw new HttpError(409, "Closed Session is read-only")
+          assertJsonMutation(request); await readJsonBody(request)
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...(await messageStashes.consume(key, stashRoute[3])) }); return
+        }
       }
 
       const attachmentRoute = parseSessionAttachmentRoute(url.pathname)
@@ -1033,6 +1062,13 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         if (!accepted) throw new HttpError(409, "Session is not accepting active-turn input")
         for (const id of imageIds) imageUploads.delete(id)
         sendJson(response, 202, { version: PROTOCOL_VERSION, accepted: true })
+        return
+      }
+
+      if (request.method === "DELETE" && route.action === "queue") {
+        assertJsonMutation(request)
+        if (!await turns.clearQueue(route.key)) throw new HttpError(409, "Session has no active message queue")
+        sendJson(response, 200, { version: PROTOCOL_VERSION, cleared: true })
         return
       }
 
@@ -1420,7 +1456,7 @@ function directoryEntry(path: string): { readonly name: string; readonly path: s
 
 interface SessionRoute {
   readonly key: SessionKey
-  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "abort" | "approval" | "undo" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
+  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "queue" | "abort" | "approval" | "undo" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
 }
 
 function isUndoRequest(value: unknown): value is { readonly entryId: string } {
@@ -1462,7 +1498,7 @@ function decodeRouteId(value: string): string | undefined {
 }
 
 function parseSessionRoute(pathname: string): SessionRoute | undefined {
-  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|abort|approval|undo|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
+  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|queue|abort|approval|undo|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
   if (match === null) return undefined
   const projectId = decodeURIComponent(match[1]!)
   const sessionId = decodeURIComponent(match[2]!)

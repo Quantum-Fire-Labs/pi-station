@@ -144,6 +144,7 @@ describe("Linux release installer", () => {
     const generatedEnvironment = readFileSync(resolve(root, "generated.environment"), "utf8")
     expect(generatedEnvironment).toContain('PI_STATION_PORT="19999"')
     expect(generatedEnvironment).toContain('PI_STATION_WEB_ORIGIN="https://station.example.test"')
+    expect(generatedEnvironment).toContain(`PATH="${home}/.local/bin:${home}/.local/share/mise/shims:${home}/.mise/shims:${bin}:/usr/bin:/bin"`)
     expect(generatedEnvironment).toContain(`PI_STATION_DATA_DIR="${resolve(root, "saved data").replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`)
     expect(() => readFileSync(resolve(installRoot, "0.2.0/VERSION"))).toThrow()
   })

@@ -25,6 +25,7 @@ current_link="$install_root/current"
 unit_file="$unit_dir/pi-station.service"
 environment_file="$config_dir/environment"
 node_bin=$(command -v node)
+service_path="$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.mise/shims:$PATH"
 environment_value() {
   node - "$1" "$2" <<'NODE'
 const { existsSync, readFileSync } = require("node:fs")
@@ -119,6 +120,7 @@ PI_STATION_SHARED_ROOT=$(unit_quote "$shared_root")
 PI_STATION_WEB_ROOT=$(unit_quote "$current_link/apps/web/dist")
 PI_STATION_WEB_ORIGIN=$(unit_quote "$web_origin")
 PI_STATION_LOCAL_ORIGIN=$(unit_quote "$local_origin")
+PATH=$(unit_quote "$service_path")
 EOF
 chmod 600 "$environment_file"
 

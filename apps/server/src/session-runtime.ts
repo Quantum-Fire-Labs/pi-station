@@ -15,12 +15,13 @@ import type { AgentMessagingBridge } from "./agent-messaging.js"
 import type { SessionMoveAgentBridge } from "./session-moves.js"
 import type { DelegationEvents, DelegationRecord } from "./delegations.js"
 import type { NewAgentInProjectBridge } from "./new-agent-in-project.js"
-import { DEFAULT_SESSION_DEFAULTS, type SessionDefaults } from "./session-defaults.js"
+import type { SessionDefaults } from "./session-defaults.js"
 import { DELEGATION_REPORT_CUSTOM_TYPE, type DelegationReportStatus } from "./delegation-report.js"
 import { sharedFileInstructions, type SharedFileOrigins } from "./shared-files.js"
 import type { ScheduledJobAgentBridge } from "./scheduled-jobs.js"
 import type { CommandApprovalService } from "./command-approval.js"
 import { isolateToolProcess } from "./tool-process-execution.js"
+import { agentsLocalExtension } from "./agents-local-extension.js"
 
 export const DELEGATION_TOOL_NAME = "delegate_to_agent"
 export const CLOSE_DELEGATED_AGENT_TOOL_NAME = "close_delegated_agent"
@@ -96,6 +97,7 @@ export interface RuntimeTurn {
   readonly ownershipLost: Promise<never>
   steer(message: string, images?: readonly RuntimePromptImage[], attachmentMarker?: unknown, agentMentions?: readonly RuntimeAgentMention[]): Promise<void>
   followUp(message: string, images?: readonly RuntimePromptImage[], attachmentMarker?: unknown, agentMentions?: readonly RuntimeAgentMention[]): Promise<void>
+  clearQueue?(): Promise<void>
   sendAgentMessage?(message: RuntimeAgentMessage): Promise<void>
   abort(): Promise<void>
   control(command: RuntimeControlCommand): Promise<RuntimeResponse>
@@ -115,6 +117,7 @@ export interface SessionRuntime {
 
 export type RuntimeSession = Pick<AgentSession,
   | "abort"
+  | "clearQueue"
   | "dispose"
   | "followUp"
   | "getAvailableThinkingLevels"
@@ -143,18 +146,13 @@ export type RuntimeSessionFactory = (input: {
   readonly delegated?: boolean
 }) => Promise<RuntimeSession>
 
-export function delegatedSessionSettings(
-  defaults: SessionDefaults,
-  overrides: { readonly model?: { readonly provider: string; readonly modelId: string }; readonly thinkingLevel?: SessionDefaults["thinkingLevel"] },
-): SessionDefaults {
-  const modelId = overrides.model?.modelId ?? defaults.modelId
-  const requestedThinkingLevel = overrides.thinkingLevel ?? defaults.thinkingLevel
+export function delegatedSessionSettings(parent: RuntimeSession): SessionDefaults {
+  const model = parent.model
+  if (model === undefined) throw new Error("Parent Session has no model")
   return {
-    provider: overrides.model?.provider ?? defaults.provider,
-    modelId,
-    thinkingLevel: modelId.endsWith("-sol") && ["high", "xhigh", "max"].includes(requestedThinkingLevel)
-      ? "medium"
-      : requestedThinkingLevel,
+    provider: model.provider,
+    modelId: model.id,
+    thinkingLevel: parent.thinkingLevel,
   }
 }
 
@@ -392,6 +390,7 @@ export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options
             return images === undefined ? session.followUp(message) : session.prompt(message, { images: sdkImages(images), streamingBehavior: "followUp" })
           })
         },
+        clearQueue() { return ready.then((session) => { session.clearQueue() }) },
         sendAgentMessage(message) {
           return ready.then((session) => sendInboundAgentMessage(session, message, "steer"))
         },
@@ -504,34 +503,20 @@ async function createSdkSession(input: {
   const delegationTools = input.delegated === true || input.projectId === undefined ? [] : [defineTool({
     name: DELEGATION_TOOL_NAME,
     label: "Delegate",
-    description: "Start an independent Pi Station child Session for a bounded task. The child Session appears nested under this Session.",
+    description: "Start an independent Pi Station child Session for a bounded task. The child Session appears nested under this Session and inherits its model and thinking level.",
     parameters: Type.Object({
       prompt: Type.String({ description: "Complete, self-contained task instructions" }),
       name: Type.Optional(Type.String({ description: "Short child Session name" })),
-      model: Type.Optional(Type.Object({
-        provider: Type.String({ description: "Model provider ID" }),
-        modelId: Type.String({ description: "Model ID" }),
-      }, { additionalProperties: false, description: "Model for the child Session. Uses the Pi Station default when omitted." })),
-      thinkingLevel: Type.Optional(Type.Union([
-        Type.Literal("off"),
-        Type.Literal("minimal"),
-        Type.Literal("low"),
-        Type.Literal("medium"),
-        Type.Literal("high"),
-        Type.Literal("xhigh"),
-        Type.Literal("max"),
-      ], { description: "Thinking level for the child Session. Uses the Pi Station default when omitted. Sol models are limited to medium." })),
     }, { additionalProperties: false }),
     execute: async (toolCallId, parameters) => {
       if (input.projectId === undefined) throw new Error("Delegation requires a Project")
       if (parent.session === undefined) throw new Error("Delegation requires an active parent Session")
-      const defaults = await options.sessionDefaults?.() ?? DEFAULT_SESSION_DEFAULTS
       const record = await delegate({
         projectId: input.projectId,
         parentSessionId: input.sessionId,
         cwd: input.cwd,
         prompt: parameters.prompt,
-        settings: delegatedSessionSettings(defaults, parameters),
+        settings: delegatedSessionSettings(parent.session),
         ...(parameters.name === undefined ? {} : { name: parameters.name }),
         onComplete: async (report) => {
           if (parent.session === undefined) return
@@ -613,10 +598,11 @@ async function createSdkSession(input: {
   const commandApprovalExtension = input.projectId === undefined || options.commandApprovals === undefined
     ? []
     : [options.commandApprovals.extension({ projectId: input.projectId, sessionId: input.sessionId })]
+  const agentDir = getAgentDir()
   const resourceLoader = new DefaultResourceLoader({
     cwd: input.cwd,
-    agentDir: getAgentDir(),
-    extensionFactories: commandApprovalExtension,
+    agentDir,
+    extensionFactories: [agentsLocalExtension(agentDir), ...commandApprovalExtension],
     ...(sharedFiles === undefined ? {} : {
       appendSystemPromptOverride: (base) => [
         ...base,

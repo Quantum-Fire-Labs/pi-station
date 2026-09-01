@@ -16,6 +16,7 @@ describe("composer width", () => {
     expect(styles).toMatch(/\.composer\s*{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 16px;/s);
     expect(styles).toMatch(/\.follow-up-queue\s*{[^}]*var\(--composer-content\)/s);
     expect(styles).toMatch(/\.follow-up-queue li\s*\{[^}]*width: min\(92%, 620px\);[^}]*border-radius: 14px 14px 3px;[^}]*background: var\(--user\);/s);
+    expect(styles).toMatch(/\.message\.user \.message-body,\s*\.follow-up-queue li > span\s*{[^}]*font-size: 15px;[^}]*line-height: 1\.5;/s);
     expect(styles).toMatch(/\.voice-mode\s*{[^}]*var\(--composer-content\)/s);
     expect(styles).toMatch(/\.composer\s*{[^}]*min-height: 120px;/s);
     expect(styles).toMatch(/\.voice-mode\s*{[^}]*min-height: 120px;[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 16px;/s);
