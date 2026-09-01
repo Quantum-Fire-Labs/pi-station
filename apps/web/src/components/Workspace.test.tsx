@@ -2153,6 +2153,7 @@ describe("Workspace", () => {
       },
     }} onSelect={vi.fn()} onCommand={onCommand} />);
     expect(screen.queryByRole("complementary", { name: "Pending Session input" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Message Pi")).toHaveValue("Skip this message");
   });
 
   it("opens the command palette, scrolls the active option, and restores focus on Escape", async () => {

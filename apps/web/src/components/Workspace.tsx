@@ -2383,13 +2383,17 @@ export function Workspace({
   useEffect(() => {
     if (clearQueueRequestId === undefined || clearQueueRequest === undefined) return
     if (clearQueueRequest.status === "completed") {
+      const canceledMessages = queuedInputs.map((item) => item.text).join("\n\n")
+      const restoredDraft = [canceledMessages, draft].filter((value) => value.length > 0).join("\n\n")
+      writeComposerDraft(selectedSessionIdentity, restoredDraft)
+      setDraft(restoredDraft)
       setQueuedInputs([])
       setClearQueueRequestId(undefined)
     } else if (clearQueueRequest.status === "not-accepted") {
       setPromptError("Pi Station could not cancel the queued messages.")
       setClearQueueRequestId(undefined)
     }
-  }, [clearQueueRequest, clearQueueRequestId])
+  }, [clearQueueRequest, clearQueueRequestId, draft, queuedInputs, selectedSessionIdentity])
 
   useEffect(() => {
     setPendingAgentActivity(undefined)
