@@ -57,6 +57,9 @@ export type { TimelineAttachment, TimelineImage, TimelineItem } from "./timeline
 export { isNewTurnRequest, isPrompt, MAX_PROMPT_IMAGES } from "./turns.js"
 export type { NewTurnRequest, PromptRequest } from "./turns.js"
 
+export { isCreateMessageStashRequest } from "./message-stashes.js"
+export type { CreateMessageStashRequest, MessageStash, MessageStashFile } from "./message-stashes.js"
+
 export { encodeSse } from "./stream.js"
 export type { JournalEvent, StreamEvent } from "./stream.js"
 

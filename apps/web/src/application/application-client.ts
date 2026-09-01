@@ -17,6 +17,8 @@ import type {
   StreamEvent,
   UpdateChannel,
   TimelineItem as RpcTimelineItem,
+  MessageStash,
+  CreateMessageStashRequest,
 } from "@pi-station/application-protocol";
 import type {
   ApplicationCommand,
@@ -275,6 +277,18 @@ export class ApplicationClient extends ApplicationClientBase {
   async createScheduledJob(projectId: string, input: ScheduledJobMutation): Promise<ScheduledJob> { return (await mutate("/v2/scheduled-jobs", "POST", { projectId, ...input }) as { job: ScheduledJob }).job; }
   async updateScheduledJob(id: string, input: ScheduledJobMutation): Promise<ScheduledJob> { return (await mutate(`/v2/scheduled-jobs/${encodeURIComponent(id)}`, "PUT", input) as { job: ScheduledJob }).job; }
   async scheduledJobAction(id: string, action: "pause" | "resume" | "run-now" | "delete"): Promise<void> { await mutate(`/v2/scheduled-jobs/${encodeURIComponent(id)}${action === "delete" ? "" : `/${action}`}`, action === "delete" ? "DELETE" : "POST", action === "run-now" ? {} : action === "delete" ? undefined : {}); }
+
+  async listMessageStashes(key: SessionKey): Promise<readonly MessageStash[]> {
+    return (await request<{ stashes: readonly MessageStash[] }>(`${sessionPath(targetFromKey(key))}/message-stashes`)).stashes;
+  }
+
+  async createMessageStash(key: SessionKey, value: CreateMessageStashRequest): Promise<MessageStash> {
+    return (await mutate(`${sessionPath(targetFromKey(key))}/message-stashes`, "POST", value) as { stash: MessageStash }).stash;
+  }
+
+  async consumeMessageStash(key: SessionKey, id: string): Promise<{ stash: MessageStash; imageIds: readonly string[] }> {
+    return await mutate(`${sessionPath(targetFromKey(key))}/message-stashes/${encodeURIComponent(id)}/consume`, "POST", {}) as { stash: MessageStash; imageIds: readonly string[] };
+  }
 
   async uploadAttachment(file: File, signal?: AbortSignal): Promise<string> {
     const key = this.rpcState.selectedSessionKey;
