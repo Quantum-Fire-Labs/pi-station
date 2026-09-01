@@ -1102,8 +1102,8 @@ describe("Workspace", () => {
     expect(within(otherSection).getAllByRole("listitem")).toHaveLength(
       fixtureState.projects.length - 1,
     );
+    expect(within(bookmarkedSection).getByRole("list")).toHaveAttribute("data-slot", "card");
     const bookmarkedCard = within(bookmarkedSection).getByRole("listitem");
-    expect(bookmarkedCard).toHaveAttribute("data-slot", "card");
     expect(within(bookmarkedCard).getByText(bookmarkedProject.displayPath)).toBeVisible();
     const openProjectAction = within(bookmarkedCard).getByRole("button", {
       name: `Open ${bookmarkedProject.name}`,
