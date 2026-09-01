@@ -49,12 +49,9 @@ export function ProjectsPage({
     .filter((project) => project.closed !== true && positions.has(project.projectId) && matchesQuery(project))
     .sort((left, right) => (positions.get(left.projectId) ?? Number.MAX_SAFE_INTEGER) - (positions.get(right.projectId) ?? Number.MAX_SAFE_INTEGER));
   const other = state.projects
-    .filter((project) => project.closed !== true && !positions.has(project.projectId) && matchesQuery(project))
+    .filter((project) => !positions.has(project.projectId) && matchesQuery(project))
     .sort(compareProjects);
-  const closed = state.projects
-    .filter((project) => project.closed === true && matchesQuery(project))
-    .sort(compareProjects);
-  const hasResults = bookmarked.length + other.length + closed.length > 0;
+  const hasResults = bookmarked.length + other.length > 0;
   const setClosed = (projectId: ProjectId, value: boolean): void => {
     setProjectSaving(projectId);
     setProjectError(undefined);
@@ -96,8 +93,7 @@ export function ProjectsPage({
                   const requestId = onReorderBookmark(projectId, direction);
                   if (requestId !== undefined) setMutationRequestId(requestId);
                 }} />}
-                {other.length > 0 && <ProjectGroup title="Other Projects" projects={other} onOpen={onOpen} saving={saving} />}
-                {closed.length > 0 && <ProjectGroup title="Closed Projects" projects={closed} onOpen={onOpen} saving={saving} closed {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
+                {other.length > 0 && <ProjectGroup title="Other Projects" projects={other} onOpen={onOpen} saving={saving} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
               </>
             ) : (
               <div className="projects-page-no-results"><Search aria-hidden="true" /><strong>No matching Projects</strong><span>Try a different name or path.</span></div>
@@ -114,13 +110,12 @@ const compareProjects = (left: ApplicationState["projects"][number], right: Appl
   left.name.localeCompare(right.name, undefined, { sensitivity: "base" }) || left.projectId.localeCompare(right.projectId)
 );
 
-function ProjectGroup({ title, projects, onOpen, saving, onReorder, closed = false, projectSaving, onSetClosed }: {
+function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSaving, onSetClosed }: {
   title: string;
   projects: ApplicationState["projects"];
   onOpen: (projectId: ProjectId) => void;
   saving: boolean;
   onReorder?: (projectId: ProjectId, direction: "up" | "down") => void;
-  closed?: boolean;
   projectSaving?: ProjectId;
   onSetClosed?: (projectId: ProjectId, closed: boolean) => void;
 }) {
@@ -131,7 +126,7 @@ function ProjectGroup({ title, projects, onOpen, saving, onReorder, closed = fal
       <Card className="projects-page-list bg-transparent" role="list">
         {projects.map((project, index) => (
           <div className={`projects-page-row${project.available ? "" : " unavailable"}`} key={project.projectId} role="listitem">
-            <div className="projects-page-row-open" role="button" tabIndex={0} aria-label={`${closed ? "View" : "Open"} ${project.name}`} onClick={() => onOpen(project.projectId)} onKeyDown={(event: KeyboardEvent) => {
+            <div className="projects-page-row-open" role="button" tabIndex={0} aria-label={`${project.closed === true ? "View" : "Open"} ${project.name}`} onClick={() => onOpen(project.projectId)} onKeyDown={(event: KeyboardEvent) => {
               if (event.key !== "Enter" && event.key !== " ") return;
               event.preventDefault();
               onOpen(project.projectId);
@@ -141,7 +136,7 @@ function ProjectGroup({ title, projects, onOpen, saving, onReorder, closed = fal
             </div>
             <div className="projects-page-row-status">{project.available ? <Badge variant="outline">Available</Badge> : <Badge variant="outline">Unavailable</Badge>}</div>
             <div className="projects-page-row-actions">
-              {closed && onSetClosed !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button>}
+              {project.closed === true && onSetClosed !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button>}
               {onReorder !== undefined && <span className="projects-page-order" role="group" aria-label={`Change ${project.name} order`}>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} up`} disabled={saving || index === 0} onClick={() => onReorder(project.projectId, "up")}><ArrowUp aria-hidden="true" /></Button>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} down`} disabled={saving || index === projects.length - 1} onClick={() => onReorder(project.projectId, "down")}><ArrowDown aria-hidden="true" /></Button>

@@ -59,7 +59,7 @@ describe("ProjectsPage", () => {
     expect(screen.queryByRole("heading", { name: "Pi Station" })).not.toBeInTheDocument();
   });
 
-  it("separates closed Projects and requires an explicit Open action", async () => {
+  it("keeps closed Projects in the main list and requires an explicit Open action", async () => {
     const user = userEvent.setup();
     const project = fixtureState.projects[0]!;
     const onOpen = vi.fn();
@@ -73,15 +73,16 @@ describe("ProjectsPage", () => {
       />,
     );
 
-    const closed = screen.getByRole("heading", { name: "Closed Projects" }).closest("section");
-    if (closed === null) throw new Error("Closed Projects section is missing");
-    expect(within(closed).getByRole("heading", { name: project.name })).toBeVisible();
-    const viewAction = within(closed).getByRole("button", { name: `View ${project.name}` });
+    expect(screen.queryByRole("heading", { name: "Closed Projects" })).not.toBeInTheDocument();
+    const projects = screen.getByRole("heading", { name: "Other Projects" }).closest("section");
+    if (projects === null) throw new Error("Other Projects section is missing");
+    expect(within(projects).getByRole("heading", { name: project.name })).toBeVisible();
+    const viewAction = within(projects).getByRole("button", { name: `View ${project.name}` });
     await user.click(viewAction);
     expect(onOpen).toHaveBeenCalledWith(project.projectId);
     expect(onSetProjectClosed).not.toHaveBeenCalled();
 
-    await user.click(within(closed).getByRole("button", { name: "Open Project" }));
+    await user.click(within(projects).getByRole("button", { name: "Open Project" }));
     expect(onSetProjectClosed).toHaveBeenCalledWith(project.projectId, false);
   });
 
