@@ -49,6 +49,16 @@ describe("ProjectsPage", () => {
       .toEqual(["Field Notes", "Pi Station"]);
   });
 
+  it("filters Projects by name or path", async () => {
+    const user = userEvent.setup();
+    render(<ProjectsPage {...pageProps} state={fixtureState} onOpen={vi.fn()} />);
+
+    await user.type(screen.getByRole("textbox", { name: "Search Projects" }), "field-notes");
+
+    expect(screen.getByRole("heading", { name: "Field Notes" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Pi Station" })).not.toBeInTheDocument();
+  });
+
   it("separates closed Projects and requires an explicit Open action", async () => {
     const user = userEvent.setup();
     const project = fixtureState.projects[0]!;
