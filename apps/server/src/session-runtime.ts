@@ -97,6 +97,7 @@ export interface RuntimeTurn {
   readonly ownershipLost: Promise<never>
   steer(message: string, images?: readonly RuntimePromptImage[], attachmentMarker?: unknown, agentMentions?: readonly RuntimeAgentMention[]): Promise<void>
   followUp(message: string, images?: readonly RuntimePromptImage[], attachmentMarker?: unknown, agentMentions?: readonly RuntimeAgentMention[]): Promise<void>
+  clearQueue?(): Promise<void>
   sendAgentMessage?(message: RuntimeAgentMessage): Promise<void>
   abort(): Promise<void>
   control(command: RuntimeControlCommand): Promise<RuntimeResponse>
@@ -116,6 +117,7 @@ export interface SessionRuntime {
 
 export type RuntimeSession = Pick<AgentSession,
   | "abort"
+  | "clearQueue"
   | "dispose"
   | "followUp"
   | "getAvailableThinkingLevels"
@@ -388,6 +390,7 @@ export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options
             return images === undefined ? session.followUp(message) : session.prompt(message, { images: sdkImages(images), streamingBehavior: "followUp" })
           })
         },
+        clearQueue() { return ready.then((session) => { session.clearQueue() }) },
         sendAgentMessage(message) {
           return ready.then((session) => sendInboundAgentMessage(session, message, "steer"))
         },

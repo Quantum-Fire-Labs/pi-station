@@ -916,7 +916,8 @@ body.sidebar-resizing {
   background: var(--user);
   padding: 14px 16px;
 }
-.message.user .message-body {
+.message.user .message-body,
+.follow-up-queue li > span {
   font-size: 15px;
   line-height: 1.5;
 }
@@ -1264,12 +1265,24 @@ body.sidebar-resizing {
   margin: 0 auto 8px;
   padding: 0 6px;
 }
-.follow-up-queue > strong {
-  display: block;
+.follow-up-queue > header {
+  display: flex;
   margin: 0 4px 6px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
   color: var(--muted);
   font: 10px var(--mono);
-  text-align: right;
+}
+.follow-up-queue > header button {
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  padding: 0;
+  font: inherit;
+}
+.follow-up-queue > header button:disabled {
+  color: var(--faint);
 }
 .follow-up-queue ul {
   display: grid;
@@ -1290,8 +1303,6 @@ body.sidebar-resizing {
 }
 .follow-up-queue li > span {
   overflow-wrap: anywhere;
-  font-size: 15px;
-  line-height: 1.5;
   white-space: pre-wrap;
 }
 .follow-up-queue li > small {

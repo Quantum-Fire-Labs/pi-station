@@ -1036,6 +1036,13 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         return
       }
 
+      if (request.method === "DELETE" && route.action === "queue") {
+        assertJsonMutation(request)
+        if (!await turns.clearQueue(route.key)) throw new HttpError(409, "Session has no active message queue")
+        sendJson(response, 200, { version: PROTOCOL_VERSION, cleared: true })
+        return
+      }
+
       if (request.method === "POST" && route.action === "approval") {
         assertJsonMutation(request)
         const value = await readJsonBody(request)
@@ -1420,7 +1427,7 @@ function directoryEntry(path: string): { readonly name: string; readonly path: s
 
 interface SessionRoute {
   readonly key: SessionKey
-  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "abort" | "approval" | "undo" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
+  readonly action?: "events" | "history" | "turn" | "steer" | "follow-up" | "queue" | "abort" | "approval" | "undo" | "clone" | "reload" | "move" | "state" | "name" | "model" | "thinking" | "read" | "shared-files"
 }
 
 function isUndoRequest(value: unknown): value is { readonly entryId: string } {
@@ -1462,7 +1469,7 @@ function decodeRouteId(value: string): string | undefined {
 }
 
 function parseSessionRoute(pathname: string): SessionRoute | undefined {
-  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|abort|approval|undo|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
+  const match = /^\/v2\/projects\/([^/]+)\/sessions\/([^/]+)(?:\/(events|history|turn|steer|follow-up|queue|abort|approval|undo|clone|reload|move|state|name|model|thinking|read|shared-files))?$/.exec(pathname)
   if (match === null) return undefined
   const projectId = decodeURIComponent(match[1]!)
   const sessionId = decodeURIComponent(match[2]!)
