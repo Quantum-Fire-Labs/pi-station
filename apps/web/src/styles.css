@@ -916,7 +916,8 @@ body.sidebar-resizing {
   background: var(--user);
   padding: 14px 16px;
 }
-.message.user .message-body {
+.message.user .message-body,
+.follow-up-queue li > span {
   font-size: 15px;
   line-height: 1.5;
 }
@@ -1290,8 +1291,6 @@ body.sidebar-resizing {
 }
 .follow-up-queue li > span {
   overflow-wrap: anywhere;
-  font-size: 15px;
-  line-height: 1.5;
   white-space: pre-wrap;
 }
 .follow-up-queue li > small {
