@@ -4584,3 +4584,40 @@ body.sidebar-resizing {
   width: 13px;
   height: 13px;
 }
+:root[data-theme-id="omarchy-system"] .palette,
+:root[data-theme-id="omarchy-system"] .palette-form input,
+:root[data-theme-id="omarchy-system"] .palette-form button,
+:root[data-theme-id="omarchy-system"] .palette-results button,
+:root[data-theme-id="omarchy-system"] .palette-results button.active:before {
+  border-radius: 0;
+}
+:root[data-theme-id="omarchy-system"] .palette {
+  width: min(calc(100% - 28px), 500px);
+  border-color: var(--line);
+  box-shadow: none;
+}
+:root[data-theme-id="omarchy-system"] .palette-search,
+:root[data-theme-id="omarchy-system"] .palette-flow-header {
+  min-height: 44px;
+  padding-inline: 12px;
+}
+:root[data-theme-id="omarchy-system"] .palette-search > svg {
+  width: 14px;
+  height: 14px;
+}
+:root[data-theme-id="omarchy-system"] .palette-search input {
+  min-height: 34px;
+  font-size: 12px;
+}
+:root[data-theme-id="omarchy-system"] .palette-results {
+  padding: 4px;
+}
+:root[data-theme-id="omarchy-system"] .palette-results button {
+  min-height: 36px;
+  gap: 8px;
+  padding: 4px 8px;
+}
+:root[data-theme-id="omarchy-system"] .palette-results button:focus-visible {
+  outline: none;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
