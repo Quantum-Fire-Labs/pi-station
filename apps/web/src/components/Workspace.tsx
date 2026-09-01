@@ -1,5 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import type { MessageStash } from "@pi-station/application-protocol";
 import {
   ArrowDown,
   ArrowLeft,
@@ -1384,6 +1385,9 @@ export function Workspace({
   const [files, setFiles] = useState<readonly { localId: string; name: string; size: number; controller: AbortController; status: "uploading" | "ready" | "error"; uploadId?: string; error?: string }[]>([]);
   const [attachmentError, setAttachmentError] = useState<string>();
   const [promptError, setPromptError] = useState<string>();
+  const [stashes, setStashes] = useState<readonly MessageStash[]>([]);
+  const [stashFeedback, setStashFeedback] = useState<string>();
+  const [stashPending, setStashPending] = useState(false);
   const [voiceConfiguration, setVoiceConfiguration] = useState<{ configured: boolean; maximumSeconds: number; playbackSpeed: number; speechModel: string; speechVoice: string }>({ configured: false, maximumSeconds: 60, playbackSpeed: 1, speechModel: "", speechVoice: "" });
   const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing" | "playing">("idle");
   const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem("pi-station:composer-mode") === "voice");
@@ -1435,7 +1439,11 @@ export function Workspace({
     setDraft(readComposerDraft(selectedSessionIdentity));
     setAgentMention(undefined);
     setSelectedAgentMentions([]);
-  }, [selectedSessionIdentity]);
+    setStashFeedback(undefined);
+    const key = state.selectedSessionKey;
+    if (key === undefined || client === undefined || typeof client.listMessageStashes !== "function") { setStashes([]); return; }
+    void client.listMessageStashes(key).then(setStashes).catch(() => setStashes([]));
+  }, [client, selectedSessionIdentity]);
 
   useEffect(() => {
     void fetch("/v2/voice/settings", { headers: { Accept: "application/json" } })
@@ -1819,6 +1827,54 @@ export function Workspace({
     addImages(allowed.filter((file) => imageTypes.has(file.type)));
     addFiles(allowed.filter((file) => !imageTypes.has(file.type)));
   };
+
+  const stashComposer = async (): Promise<void> => {
+    const key = state.selectedSessionKey;
+    const readyImages = images.filter((image) => image.status === "ready" && image.uploadId !== undefined);
+    const readyFiles = files.filter((file) => file.status === "ready" && file.uploadId !== undefined);
+    if (key === undefined || client === undefined || stashPending || (draft.trim().length === 0 && readyImages.length === 0 && readyFiles.length === 0)) return;
+    if (images.some((image) => image.status !== "ready") || files.some((file) => file.status !== "ready")) { setStashFeedback("Wait for uploads to finish before stashing."); return; }
+    setStashPending(true); setStashFeedback(undefined);
+    try {
+      const stash = await client.createMessageStash(key, { text: draft, imageIds: readyImages.map((image) => image.uploadId!), attachmentIds: readyFiles.map((file) => file.uploadId!) });
+      for (const image of images) { image.controller.abort(); URL.revokeObjectURL(image.previewUrl); }
+      for (const file of files) file.controller.abort();
+      setImages([]); setFiles([]); setDraft(""); writeComposerDraft(selectedSessionIdentity, "");
+      setStashes((current) => [...current, stash]); setStashFeedback("Message stashed.");
+      requestAnimationFrame(() => composerInput.current?.focus());
+    } catch (error) { setStashFeedback(error instanceof Error ? error.message : "Message could not be stashed."); }
+    finally { setStashPending(false); }
+  };
+
+  const restoreStash = async (stash: MessageStash): Promise<void> => {
+    const key = state.selectedSessionKey;
+    if (key === undefined || client === undefined || stashPending) return;
+    const hasContent = draft.trim().length > 0 || images.length > 0 || files.length > 0;
+    if (hasContent && !window.confirm("Append this stashed message to the current composer?")) return;
+    setStashPending(true); setStashFeedback(undefined);
+    try {
+      const consumed = await client.consumeMessageStash(key, stash.id);
+      const separator = draft.length > 0 && consumed.stash.text.length > 0 ? "\n\n" : "";
+      const nextDraft = `${draft}${separator}${consumed.stash.text}`;
+      setDraft(nextDraft); writeComposerDraft(selectedSessionIdentity, nextDraft);
+      setImages((current) => [...current, ...consumed.stash.images.flatMap((image, index) => { const uploadId = consumed.imageIds[index]; return uploadId === undefined ? [] : [{ localId: crypto.randomUUID(), name: image.name, previewUrl: `/v2/images/${encodeURIComponent(uploadId)}`, controller: new AbortController(), status: "ready" as const, uploadId }]; })]);
+      setFiles((current) => [...current, ...consumed.stash.attachments.map((file) => ({ localId: crypto.randomUUID(), name: file.name, size: file.size, controller: new AbortController(), status: "ready" as const, uploadId: file.id }))]);
+      setStashes((current) => current.filter((item) => item.id !== stash.id)); setPaletteOpen(false); setStashFeedback("Stashed message restored.");
+      requestAnimationFrame(() => composerInput.current?.focus());
+    } catch (error) { setStashFeedback(error instanceof Error ? error.message : "Stashed message could not be restored."); }
+    finally { setStashPending(false); }
+  };
+
+  useEffect(() => {
+    const handleStashShortcut = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "s") return;
+      if (route !== "workspace" || state.selectedSessionKey === undefined || voiceMode || paletteOpenRef.current || document.querySelector("dialog[open], .editor-open, .details-open") !== null) return;
+      if (draft.trim().length === 0 && images.length === 0 && files.length === 0) return;
+      event.preventDefault(); void stashComposer();
+    };
+    window.addEventListener("keydown", handleStashShortcut);
+    return () => window.removeEventListener("keydown", handleStashShortcut);
+  }, [client, draft, files, images, route, stashPending, state.selectedSessionKey, voiceMode]);
 
   const addPastedAttachments = (clipboard: DataTransfer): boolean => {
     const files = [...clipboard.files];
@@ -3149,7 +3205,7 @@ export function Workspace({
     if (onLoadEarlier?.()) historyScrollAnchor.current = anchor;
   };
 
-  const composerFeedback = sessionSettingError ?? (sessionSettingPending ? "Applying Session setting…" : undefined) ?? voiceError ?? promptError ?? attachmentError;
+  const composerFeedback = stashFeedback ?? sessionSettingError ?? (sessionSettingPending ? "Applying Session setting…" : undefined) ?? voiceError ?? promptError ?? attachmentError;
 
   return (
     <>
@@ -3851,7 +3907,8 @@ export function Workspace({
               closed: session.projection.availability === "closed",
             }];
           })}
-          pending={sessionSettingPending || closeSessionPending}
+          stashes={stashes}
+          pending={sessionSettingPending || closeSessionPending || stashPending}
           error={sessionSettingError ?? closeSessionError}
           onDashboard={() => setRoute("dashboard")}
           onProjects={() => setRoute("projects")}
@@ -3879,6 +3936,7 @@ export function Workspace({
             const requestId = onCommand?.({ kind: "session.thinking.set", level });
             if (requestId !== undefined) setSessionSettingRequestId(requestId);
           }}
+          onRestoreStash={(stash) => { void restoreStash(stash); }}
           onOpenSession={(id) => {
             const session = state.sessions.find((candidate) => candidate.sessionKey.piSessionId === id);
             if (session) openSession(session.sessionKey);

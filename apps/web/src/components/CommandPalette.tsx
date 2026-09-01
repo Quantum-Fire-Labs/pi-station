@@ -23,9 +23,11 @@ import {
   Plus,
   Search,
   Square,
+  Archive,
   X,
 } from "lucide-react";
 import type { ModelChoice, ThinkingLevel } from "../application/workspace-model";
+import type { MessageStash } from "@pi-station/application-protocol";
 
 interface PaletteAction {
   glyph: ReactNode;
@@ -46,6 +48,7 @@ type Flow =
   | { kind: "model" }
   | { kind: "thinking" }
   | { kind: "sessions" }
+  | { kind: "stashes" }
   | { kind: "close" };
 
 export interface CommandPaletteProps {
@@ -67,6 +70,7 @@ export interface CommandPaletteProps {
   currentModel?: ModelChoice | undefined;
   currentThinking?: ThinkingLevel | undefined;
   sessions?: readonly PaletteSession[] | undefined;
+  stashes?: readonly MessageStash[] | undefined;
   pending?: boolean | undefined;
   error?: string | undefined;
   onDashboard: () => void;
@@ -80,6 +84,7 @@ export interface CommandPaletteProps {
   onSetModel?: ((provider: string, modelId: string) => void) | undefined;
   onSetThinking?: ((level: ThinkingLevel) => void) | undefined;
   onOpenSession?: ((id: string) => void) | undefined;
+  onRestoreStash?: ((stash: MessageStash) => void) | undefined;
   onSetBookmark?: ((bookmarked: boolean) => void) | undefined;
   onClone?: (() => void) | undefined;
   onAbort?: (() => void) | undefined;
@@ -104,6 +109,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       { glyph: <FolderPlus aria-hidden="true" size={16} />, name: "Add Project", run: () => closeAfter(props.onAddProject) },
     ];
     if (props.onOpenSession) items.push({ glyph: <History aria-hidden="true" size={16} />, name: "Sessions", run: () => { setFlow({ kind: "sessions" }); setQuery(""); } });
+    if (props.sessionId && props.onRestoreStash) items.push({ glyph: <Archive aria-hidden="true" size={16} />, name: "Stashed messages", run: () => { setFlow({ kind: "stashes" }); setQuery(""); } });
     if (props.canCreateSession && props.onNewSession) items.push({ glyph: <Plus aria-hidden="true" size={16} />, name: "New Session", run: () => closeAfter(props.onNewSession) });
     if (props.projectName && props.onOpenProject) items.push({ glyph: <FolderKanban aria-hidden="true" size={16} />, name: `Open Project: ${props.projectName}`, run: () => closeAfter(props.onOpenProject) });
     if (props.projectName && props.canCreateSession && props.onNewProjectSession) items.push({ glyph: <Plus aria-hidden="true" size={16} />, name: `New Session in ${props.projectName}`, run: () => closeAfter(props.onNewProjectSession) });
@@ -131,11 +137,12 @@ export function CommandPalette(props: CommandPaletteProps) {
         || left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
         || (left.projectName ?? "").localeCompare(right.projectName ?? "", undefined, { sensitivity: "base" }));
   }, [flow.kind, props.sessions, query]);
+  const shownStashes = flow.kind === "stashes" ? [...(props.stashes ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [];
   const closeChoices = [
     { glyph: <ArrowLeft aria-hidden="true" size={16} />, name: "Keep Session open", danger: false },
     { glyph: <X aria-hidden="true" size={16} />, name: props.working ? "Stop work and close Session" : "Close Session", danger: true },
   ] as const;
-  const count = flow.kind === "actions" ? shownActions.length : flow.kind === "sessions" ? shownSessions.length : flow.kind === "close" ? closeChoices.length : choices.length;
+  const count = flow.kind === "actions" ? shownActions.length : flow.kind === "sessions" ? shownSessions.length : flow.kind === "stashes" ? shownStashes.length : flow.kind === "close" ? closeChoices.length : choices.length;
 
   useEffect(() => () => returnFocusRef.current?.focus(), []);
   useLayoutEffect(() => {
@@ -157,6 +164,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     else if (flow.kind === "model") { const model = props.models?.[activeIndex]; if (model) props.onSetModel?.(model.provider, model.modelId); }
     else if (flow.kind === "thinking") { const level = props.thinkingLevels?.[activeIndex]; if (level) props.onSetThinking?.(level); }
     else if (flow.kind === "sessions") { const session = shownSessions[activeIndex]; if (session) closeAfter(() => props.onOpenSession?.(session.id)); }
+    else if (flow.kind === "stashes") { const stash = shownStashes[activeIndex]; if (stash) props.onRestoreStash?.(stash); }
     else if (flow.kind === "close") {
       if (activeIndex === 0) back();
       else props.onConfirmClose?.();
@@ -178,7 +186,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     if (event.key === "Enter" && flow.kind !== "rename") { event.preventDefault(); select(); }
   };
   const closeSessionName = props.sessionName?.trim();
-  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?";
+  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : flow.kind === "stashes" ? "Stashed messages" : closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?";
   const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
 
   return <div className="palette-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) back(); }}>
@@ -213,6 +221,12 @@ export function CommandPalette(props: CommandPaletteProps) {
         </button>)}
         {count === 0 && <p className="palette-empty" role="status">No named Sessions match that search.</p>}
       </div>}
+      {flow.kind === "stashes" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Stashed messages">
+        {shownStashes.map((stash, index) => <button type="button" key={stash.id} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => props.onRestoreStash?.(stash)} disabled={props.pending}>
+          <span className="palette-option-glyph" aria-hidden="true"><Archive size={14} /></span><span className="palette-option-copy"><span className="palette-option-name">{stash.text.trim().slice(0, 80) || `${stash.images.length + stash.attachments.length} attachment${stash.images.length + stash.attachments.length === 1 ? "" : "s"}`}</span><small>{new Date(stash.createdAt).toLocaleString()}</small></span>
+        </button>)}
+        {count === 0 && <p className="palette-empty" role="status">No stashed messages.</p>}
+      </div>}
       {flow.kind === "close" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Close Session confirmation">
         {closeChoices.map((item, index) => <button
           type="button"
@@ -229,7 +243,7 @@ export function CommandPalette(props: CommandPaletteProps) {
         ><span className="palette-option-glyph" aria-hidden="true">{item.glyph}</span><span className="palette-option-name">{item.danger && props.pending ? "Closing…" : item.name}</span></button>)}
       </div>}
       {props.error && <p className="palette-error" role="alert">{props.error}</p>}
-      <footer>{flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "sessions" ? "↑↓/Tab navigate · Enter select" : "Escape goes back"}</footer>
+      <footer>{flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "sessions" || flow.kind === "stashes" ? "↑↓/Tab navigate · Enter select" : "Escape goes back"}</footer>
     </section>
   </div>;
 }
