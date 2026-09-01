@@ -1631,7 +1631,7 @@ body.sidebar-resizing {
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--raised);
   box-shadow: 0 10px 30px rgb(0 0 0 / 14%);
   padding: 11px 12px;
   color: var(--text);
