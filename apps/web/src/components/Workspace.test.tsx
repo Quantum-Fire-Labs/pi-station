@@ -2588,6 +2588,15 @@ describe("Workspace", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("prevents browser Save and opens empty stashes when the composer is empty", async () => {
+    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    const shortcut = new KeyboardEvent("keydown", { key: "s", ctrlKey: true, cancelable: true });
+    window.dispatchEvent(shortcut);
+    expect(shortcut.defaultPrevented).toBe(true);
+    expect(await screen.findByRole("dialog", { name: "Stashed messages" })).toBeVisible();
+    expect(screen.getByText("No stashed messages.")).toBeVisible();
+  });
+
   it("preserves transcript whitespace and native tool disclosure", () => {
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
     expect(

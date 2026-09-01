@@ -42,6 +42,8 @@ export interface PaletteSession {
   readonly closed: boolean;
 }
 
+export type CommandPaletteInitialFlow = "actions" | "stashes";
+
 type Flow =
   | { kind: "actions" }
   | { kind: "rename"; value: string }
@@ -53,6 +55,7 @@ type Flow =
 
 export interface CommandPaletteProps {
   onClose: () => void;
+  initialFlow?: CommandPaletteInitialFlow;
   sessionName?: string | undefined;
   sessionId?: string | undefined;
   projectName?: string | undefined;
@@ -92,7 +95,7 @@ export interface CommandPaletteProps {
 }
 
 export function CommandPalette(props: CommandPaletteProps) {
-  const [flow, setFlow] = useState<Flow>({ kind: "actions" });
+  const [flow, setFlow] = useState<Flow>({ kind: props.initialFlow ?? "actions" });
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -187,7 +190,7 @@ export function CommandPalette(props: CommandPaletteProps) {
   };
   const closeSessionName = props.sessionName?.trim();
   const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : flow.kind === "stashes" ? "Stashed messages" : closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?";
-  const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
+  const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : flow.kind === "stashes" ? <Archive aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
 
   return <div className="palette-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) back(); }}>
     <section ref={panelRef} className="palette" role="dialog" aria-modal="true" aria-labelledby="palette-title" tabIndex={-1} onKeyDown={handleKeyDown}>
@@ -225,7 +228,7 @@ export function CommandPalette(props: CommandPaletteProps) {
         {shownStashes.map((stash, index) => <button type="button" key={stash.id} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => props.onRestoreStash?.(stash)} disabled={props.pending}>
           <span className="palette-option-glyph" aria-hidden="true"><Archive size={14} /></span><span className="palette-option-copy"><span className="palette-option-name">{stash.text.trim().slice(0, 80) || `${stash.images.length + stash.attachments.length} attachment${stash.images.length + stash.attachments.length === 1 ? "" : "s"}`}</span><small>{new Date(stash.createdAt).toLocaleString()}</small></span>
         </button>)}
-        {count === 0 && <p className="palette-empty" role="status">No stashed messages.</p>}
+        {count === 0 && <p className="palette-empty palette-empty-option" role="status"><span className="palette-option-glyph" aria-hidden="true"><Archive size={14} /></span><span className="palette-option-copy"><span className="palette-option-name">No stashed messages.</span></span></p>}
       </div>}
       {flow.kind === "close" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Close Session confirmation">
         {closeChoices.map((item, index) => <button

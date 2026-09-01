@@ -42,7 +42,8 @@ import type { ApplicationState } from "../application/application-client-base";
 import { sessionKeysEqual } from "../application/application-client-base";
 import type { ApplicationClient } from "../application/application-client";
 import { AgentMentionMenu, agentMentionLabel, filterAgentMentions, type AgentMentionOption } from "./AgentMentionMenu";
-import { CommandPalette } from "./CommandPalette";
+import { CommandPalette, type CommandPaletteInitialFlow } from "./CommandPalette";
+import { useToast } from "./Toast";
 import { ComposerControls } from "./ComposerControls";
 import { FeedItem, isThinkingPlaceholder } from "./Timeline";
 import type { SharedMarkdownFile } from "./SharedMarkdownEditor";
@@ -1236,6 +1237,8 @@ export function Workspace({
     ? applicationState
     : { ...applicationState, sessions: sessionsVisibleInWorkspace(applicationState.sessions) };
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteInitialFlow, setPaletteInitialFlow] = useState<CommandPaletteInitialFlow>("actions");
+  const { toast } = useToast();
   const [sessionShortcutsVisible, setSessionShortcutsVisible] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(408);
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -1386,7 +1389,6 @@ export function Workspace({
   const [attachmentError, setAttachmentError] = useState<string>();
   const [promptError, setPromptError] = useState<string>();
   const [stashes, setStashes] = useState<readonly MessageStash[]>([]);
-  const [stashFeedback, setStashFeedback] = useState<string>();
   const [stashPending, setStashPending] = useState(false);
   const [voiceConfiguration, setVoiceConfiguration] = useState<{ configured: boolean; maximumSeconds: number; playbackSpeed: number; speechModel: string; speechVoice: string }>({ configured: false, maximumSeconds: 60, playbackSpeed: 1, speechModel: "", speechVoice: "" });
   const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing" | "playing">("idle");
@@ -1439,7 +1441,6 @@ export function Workspace({
     setDraft(readComposerDraft(selectedSessionIdentity));
     setAgentMention(undefined);
     setSelectedAgentMentions([]);
-    setStashFeedback(undefined);
     const key = state.selectedSessionKey;
     if (key === undefined || client === undefined || typeof client.listMessageStashes !== "function") { setStashes([]); return; }
     void client.listMessageStashes(key).then(setStashes).catch(() => setStashes([]));
@@ -1753,6 +1754,7 @@ export function Workspace({
         event.key.toLowerCase() === "p"
       ) {
         event.preventDefault();
+        setPaletteInitialFlow("actions");
         setPaletteOpen(true);
       } else if (
         event.key === "Escape"
@@ -1833,16 +1835,16 @@ export function Workspace({
     const readyImages = images.filter((image) => image.status === "ready" && image.uploadId !== undefined);
     const readyFiles = files.filter((file) => file.status === "ready" && file.uploadId !== undefined);
     if (key === undefined || client === undefined || stashPending || (draft.trim().length === 0 && readyImages.length === 0 && readyFiles.length === 0)) return;
-    if (images.some((image) => image.status !== "ready") || files.some((file) => file.status !== "ready")) { setStashFeedback("Wait for uploads to finish before stashing."); return; }
-    setStashPending(true); setStashFeedback(undefined);
+    if (images.some((image) => image.status !== "ready") || files.some((file) => file.status !== "ready")) { toast({ message: "Wait for uploads to finish before stashing.", variant: "info" }); return; }
+    setStashPending(true);
     try {
       const stash = await client.createMessageStash(key, { text: draft, imageIds: readyImages.map((image) => image.uploadId!), attachmentIds: readyFiles.map((file) => file.uploadId!) });
       for (const image of images) { image.controller.abort(); URL.revokeObjectURL(image.previewUrl); }
       for (const file of files) file.controller.abort();
       setImages([]); setFiles([]); setDraft(""); writeComposerDraft(selectedSessionIdentity, "");
-      setStashes((current) => [...current, stash]); setStashFeedback("Message stashed.");
+      setStashes((current) => [...current, stash]); toast({ message: "Message stashed.", variant: "success" });
       requestAnimationFrame(() => composerInput.current?.focus());
-    } catch (error) { setStashFeedback(error instanceof Error ? error.message : "Message could not be stashed."); }
+    } catch (error) { toast({ message: error instanceof Error ? error.message : "Message could not be stashed.", variant: "error" }); }
     finally { setStashPending(false); }
   };
 
@@ -1851,7 +1853,7 @@ export function Workspace({
     if (key === undefined || client === undefined || stashPending) return;
     const hasContent = draft.trim().length > 0 || images.length > 0 || files.length > 0;
     if (hasContent && !window.confirm("Append this stashed message to the current composer?")) return;
-    setStashPending(true); setStashFeedback(undefined);
+    setStashPending(true);
     try {
       const consumed = await client.consumeMessageStash(key, stash.id);
       const separator = draft.length > 0 && consumed.stash.text.length > 0 ? "\n\n" : "";
@@ -1859,9 +1861,9 @@ export function Workspace({
       setDraft(nextDraft); writeComposerDraft(selectedSessionIdentity, nextDraft);
       setImages((current) => [...current, ...consumed.stash.images.flatMap((image, index) => { const uploadId = consumed.imageIds[index]; return uploadId === undefined ? [] : [{ localId: crypto.randomUUID(), name: image.name, previewUrl: `/v2/projects/${encodeURIComponent(key.hostId)}/sessions/${encodeURIComponent(key.piSessionId)}/attachments/${encodeURIComponent(image.id)}`, controller: new AbortController(), status: "ready" as const, uploadId }]; })]);
       setFiles((current) => [...current, ...consumed.stash.attachments.map((file) => ({ localId: crypto.randomUUID(), name: file.name, size: file.size, controller: new AbortController(), status: "ready" as const, uploadId: file.id }))]);
-      setStashes((current) => current.filter((item) => item.id !== stash.id)); setPaletteOpen(false); setStashFeedback("Stashed message restored.");
+      setStashes((current) => current.filter((item) => item.id !== stash.id)); setPaletteOpen(false); toast({ message: "Stashed message restored.", variant: "success" });
       requestAnimationFrame(() => composerInput.current?.focus());
-    } catch (error) { setStashFeedback(error instanceof Error ? error.message : "Stashed message could not be restored."); }
+    } catch (error) { toast({ message: error instanceof Error ? error.message : "Stashed message could not be restored.", variant: "error" }); }
     finally { setStashPending(false); }
   };
 
@@ -1869,8 +1871,13 @@ export function Workspace({
     const handleStashShortcut = (event: KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "s") return;
       if (route !== "workspace" || state.selectedSessionKey === undefined || voiceMode || paletteOpenRef.current || document.querySelector("dialog[open], .editor-open, .details-open") !== null) return;
-      if (draft.trim().length === 0 && images.length === 0 && files.length === 0) return;
-      event.preventDefault(); void stashComposer();
+      event.preventDefault();
+      if (draft.trim().length === 0 && images.length === 0 && files.length === 0) {
+        setPaletteInitialFlow("stashes");
+        setPaletteOpen(true);
+        return;
+      }
+      void stashComposer();
     };
     window.addEventListener("keydown", handleStashShortcut);
     return () => window.removeEventListener("keydown", handleStashShortcut);
@@ -3205,7 +3212,7 @@ export function Workspace({
     if (onLoadEarlier?.()) historyScrollAnchor.current = anchor;
   };
 
-  const composerFeedback = stashFeedback ?? sessionSettingError ?? (sessionSettingPending ? "Applying Session setting…" : undefined) ?? voiceError ?? promptError ?? attachmentError;
+  const composerFeedback = sessionSettingError ?? (sessionSettingPending ? "Applying Session setting…" : undefined) ?? voiceError ?? promptError ?? attachmentError;
 
   return (
     <>
@@ -3878,7 +3885,8 @@ export function Workspace({
 
       {paletteOpen && (
         <CommandPalette
-          onClose={() => setPaletteOpen(false)}
+          onClose={() => { setPaletteOpen(false); setPaletteInitialFlow("actions"); }}
+          initialFlow={paletteInitialFlow}
           sessionName={selectedSessionName}
           sessionId={selectedSummary?.sessionKey.piSessionId}
           projectName={selectedProject?.name}

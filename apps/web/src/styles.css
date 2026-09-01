@@ -1589,6 +1589,15 @@ body.sidebar-resizing {
 .palette-option-glyph svg { width: 14px; height: 14px; stroke-width: 1.7; }
 .palette-results button.active .palette-option-glyph { color: var(--accent2); }
 .palette-option-copy { min-width: 0; }
+.palette-empty-option {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 10px;
+  color: var(--faint);
+}
 .palette-option-copy small { display: block; margin-top: 3px; overflow: hidden; color: var(--faint); font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
 .palette-option-name {
   display: block;
@@ -1605,6 +1614,33 @@ body.sidebar-resizing {
 .palette-results button.danger.active:before { background: var(--danger); }
 .palette-results button.danger .palette-option-glyph { color: var(--danger); }
 .palette-results button:disabled { cursor: not-allowed; opacity: 0.45; }
+.toast-viewport {
+  position: fixed;
+  z-index: 200;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  display: grid;
+  width: min(380px, calc(100vw - 32px));
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 14%);
+  padding: 11px 12px;
+  color: var(--text);
+  pointer-events: auto;
+}
+.toast-success > svg { color: var(--success, #22863a); }
+.toast-error > svg { color: var(--danger); }
+.toast-info > svg { color: var(--accent2); }
+.toast button { border: 0; background: transparent; color: var(--faint); cursor: pointer; padding: 0; }
 .palette footer {
   display: flex;
   min-height: 34px;
