@@ -8,6 +8,7 @@ import { ProviderAuthPage } from "./components/ProviderAuthPage";
 import { UpdatingScreen } from "./components/UpdatingScreen";
 import { Workspace } from "./components/Workspace";
 import { QuickSessionDialog } from "./components/QuickSessionDialog";
+import { ToastProvider } from "./components/Toast";
 import { fixtureState, selectFixtureSession } from "./fixtures/workspace";
 import { notificationPresence } from "./notifications";
 import {
@@ -292,10 +293,12 @@ if (rootElement === null) {
 const sharedFile = standaloneSharedFile();
 createRoot(rootElement).render(
   <StrictMode>
-    {sharedFile === undefined ? <Root /> : (
-      <Suspense fallback={<p className="page-loading" role="status">Loading editor…</p>}>
-        <StandaloneSharedMarkdownEditor file={sharedFile} />
-      </Suspense>
-    )}
+    <ToastProvider>
+      {sharedFile === undefined ? <Root /> : (
+        <Suspense fallback={<p className="page-loading" role="status">Loading editor…</p>}>
+          <StandaloneSharedMarkdownEditor file={sharedFile} />
+        </Suspense>
+      )}
+    </ToastProvider>
   </StrictMode>,
 );
