@@ -1635,6 +1635,8 @@ body.sidebar-resizing {
   box-shadow: 0 10px 30px rgb(0 0 0 / 14%);
   padding: 11px 12px;
   color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.4;
   pointer-events: auto;
 }
 .toast-success > svg { color: var(--success, #22863a); }
