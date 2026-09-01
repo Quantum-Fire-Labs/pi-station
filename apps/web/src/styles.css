@@ -1538,6 +1538,35 @@ body.sidebar-resizing {
 .palette-search input::placeholder { color: var(--faint); }
 .palette-search kbd,
 .palette-flow-header kbd,
+.toast-viewport {
+  position: fixed;
+  z-index: 200;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  display: grid;
+  width: min(380px, calc(100vw - 32px));
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 14%);
+  padding: 11px 12px;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+.toast-success > svg { color: var(--success, #22863a); }
+.toast-error > svg { color: var(--danger); }
+.toast-info > svg { color: var(--accent2); }
+.toast button { border: 0; background: transparent; color: var(--faint); cursor: pointer; padding: 0; }
 .palette footer {
   color: var(--faint);
   font: 9px var(--mono);
