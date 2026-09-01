@@ -130,6 +130,13 @@ export class TurnService {
     return active?.turn.control(command) ?? this.#runner.control({ projectId: key.projectId, sessionId: key.sessionId, sessionPath, cwd, command })
   }
 
+  async clearQueue(key: SessionKey): Promise<boolean> {
+    const active = this.#active.get(key.sessionId)
+    if (active?.turn.clearQueue === undefined) return false
+    await active.turn.clearQueue()
+    return true
+  }
+
   async abort(key: SessionKey): Promise<boolean> {
     const active = this.#active.get(key.sessionId)
     if (active === undefined) return false

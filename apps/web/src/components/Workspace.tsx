@@ -1519,6 +1519,7 @@ export function Workspace({
     readonly baselineMatches: number
     readonly status: "submitting" | "queued"
   }[]>([]);
+  const [clearQueueRequestId, setClearQueueRequestId] = useState<string>();
 
   const newSessionRequest = newSessionRequestId === undefined
     ? undefined
@@ -2373,6 +2374,22 @@ export function Workspace({
       ))
     }
   }, [selectedSessionIdentity, submitted, submittedRequestId]);
+
+  const clearQueueRequest = clearQueueRequestId === undefined
+    ? undefined
+    : state.commands?.[clearQueueRequestId]
+  const clearQueuePending = clearQueueRequest?.status === "queued" || clearQueueRequest?.status === "accepted"
+
+  useEffect(() => {
+    if (clearQueueRequestId === undefined || clearQueueRequest === undefined) return
+    if (clearQueueRequest.status === "completed") {
+      setQueuedInputs([])
+      setClearQueueRequestId(undefined)
+    } else if (clearQueueRequest.status === "not-accepted") {
+      setPromptError("Pi Station could not cancel the queued messages.")
+      setClearQueueRequestId(undefined)
+    }
+  }, [clearQueueRequest, clearQueueRequestId])
 
   useEffect(() => {
     setPendingAgentActivity(undefined)
@@ -3379,7 +3396,19 @@ export function Workspace({
           )}
           {queuedInputs.length > 0 && (
             <aside className="follow-up-queue" aria-label="Pending Session input">
-            <strong>{queuedInputs.length} pending {queuedInputs.length === 1 ? "message" : "messages"}</strong>
+            <header>
+              <strong>{queuedInputs.length} pending {queuedInputs.length === 1 ? "message" : "messages"}</strong>
+              <button
+                type="button"
+                disabled={clearQueuePending || queuedInputs.some((item) => item.status === "submitting")}
+                onClick={() => {
+                  const requestId = onCommand?.({ kind: "session.queue.clear" })
+                  if (requestId !== undefined) setClearQueueRequestId(requestId)
+                }}
+              >
+                {clearQueuePending ? "Canceling…" : "Cancel all"}
+              </button>
+            </header>
             <ul>
               {queuedInputs.map((item) => (
                 <li key={item.requestId}>

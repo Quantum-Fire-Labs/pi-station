@@ -193,12 +193,13 @@ describe("TurnService", () => {
     service.dispose()
   })
 
-  it("routes steering, follow-up, and abort through the active turn", async () => {
+  it("routes steering, follow-up, queue clearing, and abort through the active turn", async () => {
     const abort = vi.fn(() => Promise.resolve())
+    const clearQueue = vi.fn(() => Promise.resolve())
     const steer = vi.fn(() => Promise.resolve())
     const followUp = vi.fn(() => Promise.resolve())
     const control = vi.fn()
-    const run = vi.fn(() => ({ completion: new Promise<{ sessionId: string; promptAccepted: true; settled: true }>(() => undefined), ownershipLost: new Promise<never>(() => undefined), steer, followUp, abort, control }))
+    const run = vi.fn(() => ({ completion: new Promise<{ sessionId: string; promptAccepted: true; settled: true }>(() => undefined), ownershipLost: new Promise<never>(() => undefined), steer, followUp, clearQueue, abort, control }))
     const runner: SessionRuntime = { run, control, interruptOwned: vi.fn(), dispose: vi.fn() }
     const service = new TurnService(runner, () => undefined)
     expect(service.start({ projectId: "p1", sessionId: "new", cwd: "/project", prompt: "Go", mode: "new", name: "Named", settledTimeline: () => Promise.resolve([]) })).toBe(true)
@@ -207,6 +208,8 @@ describe("TurnService", () => {
     await expect(service.followUp(key, "Then verify")).resolves.toBe(true)
     expect(steer).toHaveBeenCalledWith("Change direction")
     expect(followUp).toHaveBeenCalledWith("Then verify")
+    await expect(service.clearQueue(key)).resolves.toBe(true)
+    expect(clearQueue).toHaveBeenCalledOnce()
     await expect(service.abort(key)).resolves.toBe(true)
     expect(abort).toHaveBeenCalledOnce()
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "new", session: "new", name: "Named" }))

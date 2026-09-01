@@ -580,6 +580,8 @@ export class ApplicationClient extends ApplicationClientBase {
       });
     } else if (action.kind === "session.abort") {
       operation = mutate(`${sessionPath(target)}/abort`, "POST", {});
+    } else if (action.kind === "session.queue.clear") {
+      operation = mutate(`${sessionPath(target)}/queue`, "DELETE", undefined);
     } else if (action.kind === "session.undo") {
       operation = mutate(`${sessionPath(target)}/undo`, "POST", { entryId: action.entryId }).then(() => this.select(key));
     } else if (action.kind === "session.close") {

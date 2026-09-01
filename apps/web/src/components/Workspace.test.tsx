@@ -29,7 +29,7 @@ import { Workspace } from "./Workspace";
 import { sessionKeysEqual, type ApplicationState } from "../application/application-client-base";
 import type { ApplicationClient } from "../application/application-client";
 import { fixtureState } from "../fixtures/workspace";
-import { sessionsVisibleInWorkspace } from "../application/workspace-model";
+import { sessionsVisibleInWorkspace, type ApplicationCommand } from "../application/workspace-model";
 
 const enableDesktopViewport = (): void => {
   const matchMedia = vi.fn((query: string) => ({
@@ -2109,6 +2109,52 @@ describe("Workspace", () => {
     expect(screen.getByRole("region", { name: "Conversation" }))
       .not.toHaveTextContent("Review this next");
   });
+
+  it("cancels all queued messages", async () => {
+    const user = userEvent.setup();
+    const onCommand = vi.fn((action: ApplicationCommand["action"]) => (
+      action.kind === "session.queue.clear" ? "request-clear" : "request-follow-up"
+    ));
+    const { rerender } = render(
+      <Workspace state={fixtureState} onSelect={vi.fn()} onCommand={onCommand} />,
+    );
+    await user.click(screen.getByRole("combobox", { name: "Message delivery" }));
+    await user.click(await screen.findByRole("option", { name: "Follow up" }));
+    await user.type(screen.getByLabelText("Message Pi"), "Skip this message");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+    const queuedState: ApplicationState = {
+      ...fixtureState,
+      commands: {
+        "request-follow-up": {
+          requestId: "request-follow-up",
+          status: "completed",
+          result: {
+            requestId: "request-follow-up",
+            outcome: { status: "succeeded", effect: { kind: "queue-item-created", queueItemId: "queued-1" } },
+          },
+        },
+      },
+    };
+    rerender(<Workspace state={queuedState} onSelect={vi.fn()} onCommand={onCommand} />);
+    await user.click(screen.getByRole("button", { name: "Cancel all" }));
+    expect(onCommand).toHaveBeenLastCalledWith({ kind: "session.queue.clear" });
+    rerender(<Workspace state={{
+      ...queuedState,
+      commands: {
+        ...queuedState.commands,
+        "request-clear": {
+          requestId: "request-clear",
+          status: "completed",
+          result: {
+            requestId: "request-clear",
+            outcome: { status: "succeeded", effect: { kind: "queue-item-created", queueItemId: "cleared" } },
+          },
+        },
+      },
+    }} onSelect={vi.fn()} onCommand={onCommand} />);
+    expect(screen.queryByRole("complementary", { name: "Pending Session input" })).not.toBeInTheDocument();
+  });
+
   it("opens the command palette, scrolls the active option, and restores focus on Escape", async () => {
     const user = userEvent.setup();
     const scrollIntoView = vi.fn();
