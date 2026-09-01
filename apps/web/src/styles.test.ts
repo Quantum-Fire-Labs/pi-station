@@ -183,4 +183,11 @@ describe("Omarchy square geometry", () => {
     expect(styles).toMatch(/\.sidebar > footer button\s*\{[^}]*font-size: 10px;/);
     expect(styles).toMatch(/\.sidebar > footer button svg\s*\{[^}]*width: 13px;[^}]*height: 13px;/);
   });
+
+  it("makes the command palette square, compact, and keyboard-first", () => {
+    expect(styles).toMatch(/\.palette,[\s\S]*\.palette-results button\.active:before\s*\{[^}]*border-radius: 0;/);
+    expect(styles).toMatch(/\.palette\s*\{[^}]*width: min\(calc\(100% - 28px\), 500px\);[^}]*box-shadow: none;/);
+    expect(styles).toMatch(/\.palette-results button\s*\{[^}]*min-height: 36px;/);
+    expect(styles).toMatch(/\.palette-results button:focus-visible\s*\{[^}]*box-shadow: inset 3px 0 0 var\(--accent\);/);
+  });
 });
