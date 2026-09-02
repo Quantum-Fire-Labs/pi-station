@@ -27,7 +27,6 @@ import {
   isThinkingSettingRequest,
   isUpdateChannelMutation,
   isWorkspaceCreateMutation,
-  isProjectWorkspaceMoveMutation,
   isWorkspaceUpdateMutation,
   PROTOCOL_VERSION,
 } from "@pi-station/application-protocol"
@@ -748,6 +747,21 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.select(workspaceId, await projectStore.read()) })
         return
       }
+      const workspaceProjectRoute = /^\/v2\/workspaces\/([^/]+)\/projects\/([^/]+)(?:\/(open))?$/u.exec(url.pathname)
+      if (workspaceProjectRoute !== null && ((request.method === "POST" && workspaceProjectRoute[3] === "open") || (request.method === "DELETE" && workspaceProjectRoute[3] === undefined))) {
+        const workspaceId = decodeURIComponent(workspaceProjectRoute[1]!)
+        const projectId = decodeURIComponent(workspaceProjectRoute[2]!)
+        if (!isProtocolId(workspaceId) || !isProtocolId(projectId)) throw new HttpError(404, "Not found")
+        const projects = await projectStore.read()
+        if (request.method === "POST") {
+          assertJsonMutation(request)
+          await requireEmptyJsonObject(request)
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.openProject(workspaceId, projectId, projects) })
+        } else {
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.removeWorkspaceProject(workspaceId, projectId, projects) })
+        }
+        return
+      }
       const workspaceRoute = /^\/v2\/workspaces\/([^/]+)$/u.exec(url.pathname)
       if (workspaceRoute !== null && (request.method === "PUT" || request.method === "DELETE")) {
         const workspaceId = decodeURIComponent(workspaceRoute[1]!)
@@ -768,7 +782,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const active = state.workspaces.find(({ id }) => id === state.activeWorkspaceId)!
         sendJson(response, 200, {
           version: PROTOCOL_VERSION,
-          projects: projects.filter(({ id }) => active.projectIds.includes(id)).map((project) => ({ ...project, closed: active.closedProjectIds.includes(project.id) || undefined })),
+          projects: projects.map((project) => ({ ...project, closed: active.closedProjectIds.includes(project.id) || undefined })),
           bookmarks: active.bookmarkedProjectIds.map((projectId, position) => ({ projectId, position })),
         })
         return
@@ -817,16 +831,6 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         sendJson(response, 200, { version: PROTOCOL_VERSION, projects })
         return
       }
-      const projectWorkspaceRoute = /^\/v2\/projects\/([^/]+)\/workspace$/u.exec(url.pathname)
-      if (request.method === "POST" && projectWorkspaceRoute !== null) {
-        assertJsonMutation(request)
-        const projectId = decodeURIComponent(projectWorkspaceRoute[1]!)
-        if (!isProtocolId(projectId)) throw new HttpError(404, "Not found")
-        const value = await readJsonBody(request)
-        if (!isProjectWorkspaceMoveMutation(value)) throw new HttpError(400, "Project Workspace move is invalid")
-        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.moveProject(projectId, value.workspaceId, await projectStore.read()) })
-        return
-      }
       const projectStateRoute = /^\/v2\/projects\/([^/]+)\/(close|open)$/u.exec(url.pathname)
       if (request.method === "POST" && projectStateRoute !== null) {
         assertJsonMutation(request)
@@ -837,7 +841,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         await workspaceStore.list(projects, (await projectBookmarks.list(projects)).map(({ projectId: id }) => id))
         const state = await workspaceStore.setClosed(projectId, projectStateRoute[2] === "close", projects)
         const active = state.workspaces.find(({ id }) => id === state.activeWorkspaceId)!
-        sendJson(response, 200, { version: PROTOCOL_VERSION, projects: projects.filter(({ id }) => active.projectIds.includes(id)).map((project) => ({ ...project, closed: active.closedProjectIds.includes(project.id) || undefined })), bookmarks: active.bookmarkedProjectIds.map((id, position) => ({ projectId: id, position })) })
+        sendJson(response, 200, { version: PROTOCOL_VERSION, projects: projects.map((project) => ({ ...project, closed: active.closedProjectIds.includes(project.id) || undefined })), bookmarks: active.bookmarkedProjectIds.map((id, position) => ({ projectId: id, position })) })
         return
       }
       const projectRoute = /^\/v2\/projects\/([^/]+)$/u.exec(url.pathname)

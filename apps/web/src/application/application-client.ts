@@ -414,8 +414,13 @@ export class ApplicationClient extends ApplicationClientBase {
     await this.refreshActiveWorkspaceProjects();
   }
 
-  override async moveProjectToWorkspace(projectId: ProjectId, workspaceId: string): Promise<void> {
-    this.applyWorkspaceCollection(await mutate(`/v2/projects/${encodeURIComponent(projectId)}/workspace`, "POST", { workspaceId }) as WorkspaceCollection);
+  override async openProjectInWorkspace(workspaceId: string, projectId: ProjectId): Promise<void> {
+    this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}/open`, "POST", {}) as WorkspaceCollection);
+    await this.refreshActiveWorkspaceProjects();
+  }
+
+  override async removeProjectFromWorkspace(workspaceId: string, projectId: ProjectId): Promise<void> {
+    this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}/open`, "DELETE") as WorkspaceCollection);
     await this.refreshActiveWorkspaceProjects();
   }
 

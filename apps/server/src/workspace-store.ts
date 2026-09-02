@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { join } from "node:path"
-import { isWorkspaceState, MAX_WORKSPACES, type Project, type Workspace, type WorkspaceCreateMutation, type WorkspaceUpdateMutation, type WorkspaceState } from "@pi-station/application-protocol"
+import { isWorkspaceState, MAX_WORKSPACE_PROJECTS, MAX_WORKSPACES, type Project, type Workspace, type WorkspaceCreateMutation, type WorkspaceUpdateMutation, type WorkspaceState } from "@pi-station/application-protocol"
 import { AtomicJsonStore } from "./atomic-json-store.js"
 
 interface StoredWorkspaceData extends WorkspaceState { readonly version: 2 }
@@ -51,26 +51,22 @@ export class WorkspaceStore {
   }
 
   addProject(projectId: string, projects: readonly Project[]): Promise<WorkspaceState> {
-    return this.#update(projects.filter((project) => project.id !== projectId), [], (current) => current.workspaces.some((workspace) => workspace.projectIds.includes(projectId))
-      ? current
-      : mapWorkspace(current, current.activeWorkspaceId, (workspace) => ({ ...workspace, projectIds: [...workspace.projectIds, projectId] })))
+    return this.#update(projects.filter((project) => project.id !== projectId), [], (current) => addToWorkspace(current, current.activeWorkspaceId, projectId))
   }
 
-  moveProject(projectId: string, workspaceId: string, projects: readonly Project[]): Promise<WorkspaceState> {
+  openProject(workspaceId: string, projectId: string, projects: readonly Project[]): Promise<WorkspaceState> {
     return this.#update(projects, [], (current) => {
-      requireProject(projects, projectId); requireWorkspace(current, workspaceId)
-      const source = current.workspaces.find((workspace) => workspace.projectIds.includes(projectId))!
-      if (source.id === workspaceId) return current
-      const wasClosed = source.closedProjectIds.includes(projectId)
-      const bookmarkIndex = source.bookmarkedProjectIds.indexOf(projectId)
-      return { ...current, workspaces: current.workspaces.map((workspace) => workspace.id === source.id
-        ? removeFromWorkspace(workspace, projectId)
-        : workspace.id === workspaceId ? {
-          ...workspace,
-          projectIds: [...workspace.projectIds, projectId],
-          closedProjectIds: wasClosed ? [...workspace.closedProjectIds, projectId] : workspace.closedProjectIds,
-          bookmarkedProjectIds: bookmarkIndex >= 0 ? [...workspace.bookmarkedProjectIds, projectId] : workspace.bookmarkedProjectIds,
-        } : workspace) }
+      requireProject(projects, projectId)
+      return addToWorkspace(current, workspaceId, projectId)
+    })
+  }
+
+  removeWorkspaceProject(workspaceId: string, projectId: string, projects: readonly Project[]): Promise<WorkspaceState> {
+    return this.#update(projects, [], (current) => {
+      requireProject(projects, projectId)
+      const workspace = requireWorkspace(current, workspaceId)
+      if (!workspace.projectIds.includes(projectId)) throw new WorkspaceStoreError("not-found", "Project is not in this Workspace")
+      return mapWorkspace(current, workspaceId, (value) => removeFromWorkspace(value, projectId))
     })
   }
 
@@ -103,7 +99,8 @@ export class WorkspaceStore {
   #projectUpdate(projectId: string, projects: readonly Project[], change: (workspace: Workspace) => Workspace): Promise<WorkspaceState> {
     return this.#update(projects, [], (current) => {
       requireProject(projects, projectId)
-      const workspace = current.workspaces.find((item) => item.projectIds.includes(projectId))!
+      const workspace = requireWorkspace(current, current.activeWorkspaceId)
+      if (!workspace.projectIds.includes(projectId)) throw new WorkspaceStoreError("not-found", "Project is not in the active Workspace")
       return mapWorkspace(current, workspace.id, change)
     })
   }
@@ -120,23 +117,24 @@ function reconcile(stored: StoredData, projects: readonly Project[], legacyBookm
     : stored.version === 1
       ? stored.workspaces.map((workspace) => ({ ...workspace, closedProjectIds: [], bookmarkedProjectIds: [] }))
       : stored.workspaces
-  const seen = new Set<string>()
   const workspaces = source.map((workspace) => {
-    const projectIds = workspace.projectIds.filter((id) => configured.has(id) && !seen.has(id)); projectIds.forEach((id) => seen.add(id))
+    const projectIds = workspace.projectIds.filter((id) => configured.has(id))
     const bookmarkedProjectIds = workspace.bookmarkedProjectIds.filter((id) => projectIds.includes(id))
     return { ...workspace, projectIds, closedProjectIds: workspace.closedProjectIds.filter((id) => projectIds.includes(id)), bookmarkedProjectIds: [...bookmarkedProjectIds, ...legacyBookmarks.filter((id) => projectIds.includes(id) && !bookmarkedProjectIds.includes(id))] }
   })
-  const missing = projects.filter(({ id }) => !seen.has(id)).map(({ id }) => id)
-  const first = workspaces[0]!
-  workspaces[0] = {
-    ...first,
-    projectIds: [...first.projectIds, ...missing],
-    closedProjectIds: [...first.closedProjectIds, ...projects.filter(({ id, closed }) => missing.includes(id) && closed === true).map(({ id }) => id)],
-    bookmarkedProjectIds: [...first.bookmarkedProjectIds, ...legacyBookmarks.filter((id) => missing.includes(id))],
-  }
   const activeWorkspaceId = stored.activeWorkspaceId !== undefined && workspaces.some(({ id }) => id === stored.activeWorkspaceId)
     ? stored.activeWorkspaceId
-    : workspaces[0].id
+    : workspaces[0]!.id
+  const assigned = new Set(workspaces.flatMap(({ projectIds }) => projectIds))
+  const missing = projects.filter(({ id }) => !assigned.has(id)).map(({ id }) => id)
+  const active = workspaces.find(({ id }) => id === activeWorkspaceId)!
+  const activeIndex = workspaces.indexOf(active)
+  workspaces[activeIndex] = {
+    ...active,
+    projectIds: [...active.projectIds, ...missing],
+    closedProjectIds: [...active.closedProjectIds, ...projects.filter(({ id, closed }) => missing.includes(id) && closed === true).map(({ id }) => id)],
+    bookmarkedProjectIds: [...active.bookmarkedProjectIds, ...legacyBookmarks.filter((id) => missing.includes(id))],
+  }
   return { version: 2, workspaces, activeWorkspaceId }
 }
 
@@ -144,6 +142,12 @@ function emptyWorkspace(name: string): Workspace { return { id: randomUUID(), na
 function requireWorkspace(state: StoredWorkspaceData, id: string): Workspace { const value = state.workspaces.find((item) => item.id === id); if (!value) throw new WorkspaceStoreError("not-found", "Workspace not found"); return value }
 function requireProject(projects: readonly Project[], id: string): void { if (!projects.some((project) => project.id === id)) throw new WorkspaceStoreError("not-found", "Project not found") }
 function mapWorkspace(state: StoredWorkspaceData, id: string, change: (workspace: Workspace) => Workspace): StoredWorkspaceData { return { ...state, workspaces: state.workspaces.map((workspace) => workspace.id === id ? change(workspace) : workspace) } }
+function addToWorkspace(state: StoredWorkspaceData, workspaceId: string, projectId: string): StoredWorkspaceData {
+  const workspace = requireWorkspace(state, workspaceId)
+  if (workspace.projectIds.includes(projectId)) return state
+  if (workspace.projectIds.length >= MAX_WORKSPACE_PROJECTS) throw new WorkspaceStoreError("limit", "A maximum of 100 Projects per Workspace is allowed")
+  return mapWorkspace(state, workspaceId, (value) => ({ ...value, projectIds: [...value.projectIds, projectId] }))
+}
 function removeFromWorkspace(workspace: Workspace, id: string): Workspace { return { ...workspace, projectIds: workspace.projectIds.filter((item) => item !== id), closedProjectIds: workspace.closedProjectIds.filter((item) => item !== id), bookmarkedProjectIds: workspace.bookmarkedProjectIds.filter((item) => item !== id) } }
 function publicState({ workspaces, activeWorkspaceId }: StoredWorkspaceData): WorkspaceState { return { workspaces, activeWorkspaceId } }
 function isStoredData(value: unknown): value is StoredData {

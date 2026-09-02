@@ -20,7 +20,6 @@ export interface WorkspaceState {
 
 export interface WorkspaceCreateMutation { readonly name: string }
 export interface WorkspaceUpdateMutation { readonly name: string }
-export interface ProjectWorkspaceMoveMutation { readonly workspaceId: string }
 
 export function isWorkspaceName(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= 120 && value.trim() === value
@@ -35,11 +34,6 @@ export function isWorkspaceUpdateMutation(value: unknown): value is WorkspaceUpd
   return isExactRecord(value, ["name"]) && Object.keys(value).length === 1 && isWorkspaceName(value.name)
 }
 
-export function isProjectWorkspaceMoveMutation(value: unknown): value is ProjectWorkspaceMoveMutation {
-  return isExactRecord(value, ["workspaceId"]) && Object.keys(value).length === 1
-    && typeof value.workspaceId === "string" && isProtocolId(value.workspaceId)
-}
-
 export function isWorkspace(value: unknown): value is Workspace {
   if (!isExactRecord(value, ["id", "name", "projectIds", "closedProjectIds", "bookmarkedProjectIds"])) return false
   if (typeof value.id !== "string" || !isProtocolId(value.id) || !isWorkspaceName(value.name)) return false
@@ -52,8 +46,7 @@ export function isWorkspaceState(value: unknown): value is WorkspaceState {
   if (!isExactRecord(value, ["workspaces", "activeWorkspaceId"]) || !Array.isArray(value.workspaces)) return false
   if (value.workspaces.length === 0 || value.workspaces.length > MAX_WORKSPACES || !value.workspaces.every(isWorkspace)) return false
   const ids = value.workspaces.map(({ id }) => id)
-  const projectIds = value.workspaces.flatMap((workspace) => workspace.projectIds)
-  return new Set(ids).size === ids.length && new Set(projectIds).size === projectIds.length
+  return new Set(ids).size === ids.length
     && typeof value.activeWorkspaceId === "string" && isProtocolId(value.activeWorkspaceId) && ids.includes(value.activeWorkspaceId)
 }
 

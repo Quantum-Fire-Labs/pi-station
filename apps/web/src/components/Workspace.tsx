@@ -3122,10 +3122,10 @@ export function Workspace({
   if (route === "projects") {
     return renderPage(
       <ProjectsPage
-        state={state}
-        workspaces={applicationState.workspaces ?? []}
-        activeWorkspaceId={activeWorkspace?.id}
-        onMoveToWorkspace={(projectId, workspaceId) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.moveProjectToWorkspace(projectId, workspaceId)}
+        state={applicationState}
+        activeWorkspace={activeWorkspace}
+        onOpenInWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.openProjectInWorkspace(activeWorkspace.id, projectId)}
+        onRemoveFromWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.removeProjectFromWorkspace(activeWorkspace.id, projectId)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
@@ -3144,7 +3144,7 @@ export function Workspace({
   }
 
   if (route === "project") {
-    const project = state.projects.find(
+    const project = applicationState.projects.find(
       (candidate) => candidate.projectId === selectedProjectId,
     );
     if (project !== undefined) {
@@ -3192,10 +3192,10 @@ export function Workspace({
     }
     return renderPage(
       <ProjectsPage
-        state={state}
-        workspaces={applicationState.workspaces ?? []}
-        activeWorkspaceId={activeWorkspace?.id}
-        onMoveToWorkspace={(projectId, workspaceId) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.moveProjectToWorkspace(projectId, workspaceId)}
+        state={applicationState}
+        activeWorkspace={activeWorkspace}
+        onOpenInWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.openProjectInWorkspace(activeWorkspace.id, projectId)}
+        onRemoveFromWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.removeProjectFromWorkspace(activeWorkspace.id, projectId)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
