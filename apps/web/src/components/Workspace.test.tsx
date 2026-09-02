@@ -2232,6 +2232,141 @@ describe("Workspace", () => {
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ piSessionId: "open-zulu" }));
   });
 
+  it("creates a named Session from a palette-selected Project and closes after success", async () => {
+    enableDesktopViewport();
+    const user = userEvent.setup();
+    const onCreateManagedSession = vi.fn(() => "palette-create");
+    const state = { ...fixtureState, hostCapabilities: ["managed-session.create"], managedSessionCreates: {} };
+    const view = render(<Workspace state={state} onSelect={vi.fn()} onCreateManagedSession={onCreateManagedSession} />);
+
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
+    await user.click(screen.getByRole("option", { name: /^New Session$/ }));
+    expect(screen.getByRole("dialog", { name: "Choose location" })).toBeVisible();
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "ProjectsChoose from available projects",
+      "DirectoriesBrowse from the current directory",
+    ]);
+    await user.click(screen.getByRole("option", { name: /^Projects/ }));
+    const projectFilter = screen.getByRole("textbox", { name: "Filter projects" });
+    await user.type(projectFilter, "pi station");
+    await user.keyboard("{Enter}");
+    expect(screen.getByText("~/workspace/pi-station")).toBeVisible();
+    const name = within(screen.getByRole("dialog", { name: "Name your Session" })).getByLabelText(/Session name/);
+    await user.type(name, "Palette Session{Enter}");
+    expect(onCreateManagedSession).toHaveBeenCalledWith("~/workspace/pi-station", "Palette Session");
+
+    view.rerender(<Workspace
+      state={{
+        ...state,
+        managedSessionCreates: {
+          "palette-create": { requestId: "palette-create", status: "starting" },
+        },
+      }}
+      onSelect={vi.fn()}
+      onCreateManagedSession={onCreateManagedSession}
+    />);
+    expect(screen.getByRole("button", { name: "Starting…" })).toBeDisabled();
+
+    view.rerender(<Workspace
+      state={{
+        ...state,
+        managedSessionCreates: {
+          "palette-create": {
+            requestId: "palette-create",
+            status: "succeeded",
+            result: { status: "succeeded", sessionKey: fixtureState.selectedSessionKey! },
+          },
+        },
+      }}
+      onSelect={vi.fn()}
+      onCreateManagedSession={onCreateManagedSession}
+    />);
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Name your Session" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText("Message Pi")).toHaveFocus());
+  });
+
+  it("browses parent and child directories with hidden entries from the palette", async () => {
+    const user = userEvent.setup();
+    const onListDirectory = vi.fn(() => "palette-directory");
+    const onCreateManagedSession = vi.fn(() => "palette-create");
+    const state = { ...fixtureState, hostCapabilities: ["managed-session.create"], directoryLists: {} };
+    const view = render(<Workspace state={state} onSelect={vi.fn()} onListDirectory={onListDirectory} onCreateManagedSession={onCreateManagedSession} />);
+
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
+    await user.click(screen.getByRole("option", { name: /^New Session$/ }));
+    await user.click(screen.getByRole("option", { name: /^Directories/ }));
+    expect(onListDirectory).toHaveBeenCalledWith(undefined, false);
+
+    view.rerender(<Workspace
+      state={{
+        ...state,
+        directoryLists: {
+          "palette-directory": {
+            requestId: "palette-directory",
+            status: "succeeded",
+            result: {
+              status: "succeeded",
+              current: { name: "workspace", path: "/home/pi/workspace", displayPath: "~/workspace" },
+              parent: { name: "pi", path: "/home/pi", displayPath: "~" },
+              directories: [{ name: ".hidden-project", path: "/home/pi/workspace/.hidden-project", displayPath: "~/workspace/.hidden-project" }],
+            },
+          },
+        },
+      }}
+      onSelect={vi.fn()}
+      onListDirectory={onListDirectory}
+      onCreateManagedSession={onCreateManagedSession}
+    />);
+
+    expect(screen.getByRole("textbox", { name: "Filter directories" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Hidden" }));
+    expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi/workspace", true);
+    expect(screen.getByRole("option", { name: /Use current directory/ })).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi", true);
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi/workspace/.hidden-project", true);
+    await user.click(screen.getByRole("option", { name: /Use current directory/ }));
+    expect(screen.getByText("~/workspace")).toBeVisible();
+    await user.keyboard("{Enter}");
+    expect(onCreateManagedSession).toHaveBeenCalledWith("/home/pi/workspace", undefined);
+  });
+
+  it("skips location for contextual palette creation and goes back one step on Escape", async () => {
+    const user = userEvent.setup();
+    const onCreateManagedSession = vi.fn(() => "palette-contextual-create");
+    render(<Workspace state={{ ...fixtureState, hostCapabilities: ["managed-session.create"] }} onSelect={vi.fn()} onCreateManagedSession={onCreateManagedSession} />);
+
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
+    await user.click(screen.getByRole("option", { name: /^New Session in Pi Station$/ }));
+    expect(screen.getByRole("dialog", { name: "Name your Session" })).toBeVisible();
+    expect(screen.queryByRole("listbox", { name: "Session locations" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Session actions" })).toBeVisible();
+    await user.click(screen.getByRole("option", { name: /^New Session in Pi Station$/ }));
+    await user.keyboard("{Enter}");
+    expect(onCreateManagedSession).toHaveBeenCalledWith("~/workspace/pi-station", undefined);
+  });
+
+  it("returns through each general palette creation step with Escape", async () => {
+    const user = userEvent.setup();
+    render(<Workspace state={{ ...fixtureState, hostCapabilities: ["managed-session.create"] }} onSelect={vi.fn()} onCreateManagedSession={vi.fn()} />);
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
+    await user.click(screen.getByRole("option", { name: /^New Session$/ }));
+    await user.click(screen.getByRole("option", { name: /^Projects/ }));
+    await user.click(screen.getByRole("option", { name: /Pi Station.*~\/workspace\/pi-station/ }));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Choose project" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Choose location" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Session actions" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+  });
+
   it("runs palette setting subflows with authoritative choices", async () => {
     const user = userEvent.setup();
     const onCommand = vi.fn(() => "request-setting");
