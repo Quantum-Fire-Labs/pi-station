@@ -1,36 +1,39 @@
-import { mkdtemp } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import { mkdtemp, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { tmpdir } from "node:os"
 import { describe, expect, it } from "vitest"
 import { WorkspaceStore, WorkspaceStoreError } from "../workspace-store.js"
 
-const projects = [{ id: "project-1", root: "/one" }, { id: "project-2", root: "/two" }]
+const projects = [{ id: "project-1", root: "/one", closed: true }, { id: "project-2", root: "/two" }]
 
 describe("WorkspaceStore", () => {
-  it("persists ordered membership and active selection", async () => {
+  it("migrates existing Projects into one default Workspace", async () => {
     const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
-    const store = new WorkspaceStore(data)
-    const created = await store.create({ name: "Main" })
-    const id = created.workspaces[0]!.id
-    expect(created).toMatchObject({ activeWorkspaceId: id, workspaces: [{ name: "Main", projectIds: [] }] })
-    await store.update(id, { projectIds: ["project-2", "project-1"] }, projects)
-    await store.update(id, { name: "Renamed", projectIds: ["project-1"] }, projects)
-    expect(await new WorkspaceStore(data).list()).toMatchObject({ activeWorkspaceId: id, workspaces: [{ id, name: "Renamed", projectIds: ["project-1"] }] })
-    expect(await store.select(undefined)).toEqual({ workspaces: [{ id, name: "Renamed", projectIds: ["project-1"] }] })
+    const state = await new WorkspaceStore(data).list(projects, ["project-2"])
+    expect(state.workspaces).toHaveLength(1)
+    expect(state.workspaces[0]).toMatchObject({ name: "Default", projectIds: ["project-1", "project-2"], closedProjectIds: ["project-1"], bookmarkedProjectIds: ["project-2"] })
+    expect(state.activeWorkspaceId).toBe(state.workspaces[0]!.id)
   })
 
-  it("validates Projects and repairs membership when a Project is removed", async () => {
+  it("migrates legacy Workspace membership and removes duplicates safely", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    await writeFile(join(data, "workspaces.json"), JSON.stringify({ version: 1, workspaces: [{ id: "one", name: "One", projectIds: ["project-1"] }, { id: "two", name: "Two", projectIds: ["project-1"] }], activeWorkspaceId: "two" }))
+    const state = await new WorkspaceStore(data).list(projects)
+    expect(state.workspaces.map(({ projectIds }) => projectIds)).toEqual([["project-1", "project-2"], []])
+    expect(state.activeWorkspaceId).toBe("two")
+  })
+
+  it("moves a Project only through the explicit move operation", async () => {
     const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
     const store = new WorkspaceStore(data)
-    const invalid = await store.create({ name: "Bad" })
-    await expect(store.update(invalid.workspaces[0]!.id, { projectIds: ["missing"] }, projects)).rejects.toBeInstanceOf(WorkspaceStoreError)
-    await store.remove(invalid.workspaces[0]!.id)
-    const first = await store.create({ name: "First" })
-    await store.update(first.workspaces[0]!.id, { projectIds: ["project-1", "project-2"] }, projects)
-    const second = await store.create({ name: "Second" })
-    await store.update(second.workspaces[1]!.id, { projectIds: ["project-2"] }, projects)
-    expect((await store.removeProject("project-2")).workspaces.map(({ projectIds }) => projectIds)).toEqual([["project-1"], []])
-    const removed = await store.remove(first.workspaces[0]!.id)
-    expect(removed.activeWorkspaceId).toBe(removed.workspaces[0]!.id)
+    const initial = await store.list(projects)
+    const created = await store.create({ name: "Other" }, projects)
+    const target = created.workspaces[1]!.id
+    await store.setBookmarked("project-1", true, projects)
+    await store.setClosed("project-1", true, projects)
+    const moved = await store.moveProject("project-1", target, projects)
+    expect(moved.workspaces.map(({ projectIds }) => projectIds)).toEqual([["project-2"], ["project-1"]])
+    expect(moved.workspaces[1]).toMatchObject({ closedProjectIds: ["project-1"], bookmarkedProjectIds: ["project-1"] })
+    await expect(store.remove(initial.workspaces[0]!.id, projects)).rejects.toBeInstanceOf(WorkspaceStoreError)
   })
 })

@@ -391,6 +391,11 @@ export class ApplicationClient extends ApplicationClientBase {
     this.updateRpcState({ workspaces: collection.workspaces, activeWorkspaceId: collection.activeWorkspaceId });
   }
 
+  private async refreshActiveWorkspaceProjects(): Promise<void> {
+    const response = await request<ProjectsResponse>("/v2/projects");
+    this.updateRpcState({ projects: response.projects.map(projectSummary), projectBookmarks: response.bookmarks });
+  }
+
   override async createWorkspace(name: string): Promise<void> {
     this.applyWorkspaceCollection(await mutate("/v2/workspaces", "POST", { name }) as WorkspaceCollection);
   }
@@ -401,14 +406,17 @@ export class ApplicationClient extends ApplicationClientBase {
 
   override async deleteWorkspace(id: string): Promise<void> {
     this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}`, "DELETE") as WorkspaceCollection);
+    await this.refreshActiveWorkspaceProjects();
   }
 
   override async activateWorkspace(id: string): Promise<void> {
     this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}/activate`, "POST", {}) as WorkspaceCollection);
+    await this.refreshActiveWorkspaceProjects();
   }
 
   override async moveProjectToWorkspace(projectId: ProjectId, workspaceId: string): Promise<void> {
     this.applyWorkspaceCollection(await mutate(`/v2/projects/${encodeURIComponent(projectId)}/workspace`, "POST", { workspaceId }) as WorkspaceCollection);
+    await this.refreshActiveWorkspaceProjects();
   }
 
   override async setProjectClosed(projectId: ProjectId, closed: boolean): Promise<void> {
