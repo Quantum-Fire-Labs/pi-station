@@ -4017,6 +4017,8 @@ export function Workspace({
           projectName={selectedProject?.name}
           projectPath={selectedProject?.displayPath}
           projects={state.projects}
+          workspaces={state.workspaces}
+          activeWorkspaceId={state.activeWorkspaceId}
           directoryLists={state.directoryLists}
           managedSessionCreates={state.managedSessionCreates}
           projectCreates={state.projectCreates}
@@ -4079,6 +4081,13 @@ export function Workspace({
             if (requestId !== undefined) setSessionSettingRequestId(requestId);
           }}
           onRestoreStash={(stash) => { void restoreStash(stash); }}
+          onSelectWorkspace={(id) => {
+            if (client === undefined || id === state.activeWorkspaceId) return;
+            void client.activateWorkspace(id).catch((reason: unknown) => toast({
+              message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.",
+              variant: "error",
+            }));
+          }}
           onOpenSession={(id) => {
             const session = state.sessions.find((candidate) => candidate.sessionKey.piSessionId === id);
             if (session) openSession(session.sessionKey);

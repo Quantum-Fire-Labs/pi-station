@@ -20,6 +20,7 @@ import {
   Hash,
   Info,
   LayoutDashboard,
+  PanelsTopLeft,
   Pencil,
   Plus,
   Search,
@@ -29,7 +30,7 @@ import {
 } from "lucide-react";
 import type { MessageStash } from "@pi-station/application-protocol";
 import type { ApplicationState } from "../application/application-client-base";
-import type { ModelChoice, ProjectId, ProjectSummary, SessionKey, ThinkingLevel } from "../application/workspace-model";
+import type { ModelChoice, ProjectId, ProjectSummary, SavedWorkspace, SessionKey, ThinkingLevel } from "../application/workspace-model";
 
 interface PaletteAction {
   glyph: ReactNode;
@@ -52,6 +53,7 @@ type Flow =
   | { kind: "model" }
   | { kind: "thinking" }
   | { kind: "sessions" }
+  | { kind: "workspaces" }
   | { kind: "stashes" }
   | { kind: "close" }
   | { kind: "new-location" }
@@ -68,6 +70,8 @@ export interface CommandPaletteProps {
   projectName?: string | undefined;
   projectPath?: string | undefined;
   projects?: readonly ProjectSummary[] | undefined;
+  workspaces?: readonly SavedWorkspace[] | undefined;
+  activeWorkspaceId?: string | undefined;
   directoryLists?: ApplicationState["directoryLists"] | undefined;
   managedSessionCreates?: ApplicationState["managedSessionCreates"] | undefined;
   projectCreates?: ApplicationState["projectCreates"] | undefined;
@@ -102,6 +106,7 @@ export interface CommandPaletteProps {
   onSetModel?: ((provider: string, modelId: string) => void) | undefined;
   onSetThinking?: ((level: ThinkingLevel) => void) | undefined;
   onOpenSession?: ((id: string) => void) | undefined;
+  onSelectWorkspace?: ((id: string) => void) | undefined;
   onRestoreStash?: ((stash: MessageStash) => void) | undefined;
   onSetBookmark?: ((bookmarked: boolean) => void) | undefined;
   onClone?: (() => void) | undefined;
@@ -151,6 +156,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       { glyph: <FolderPlus aria-hidden="true" size={16} />, name: "Add Project", run: () => openDirectory("project") },
     ];
     if (props.onOpenSession) items.push({ glyph: <History aria-hidden="true" size={16} />, name: "Sessions", run: () => { setFlow({ kind: "sessions" }); setQuery(""); } });
+    if (props.workspaces?.length && props.onSelectWorkspace) items.push({ glyph: <PanelsTopLeft aria-hidden="true" size={16} />, name: "Workspaces", run: () => { setFlow({ kind: "workspaces" }); setQuery(""); } });
     if (props.sessionId && props.onRestoreStash) items.push({ glyph: <Archive aria-hidden="true" size={16} />, name: "Stashed messages", run: () => { setFlow({ kind: "stashes" }); setQuery(""); } });
     if (props.canCreateSession && props.onCreateSession) items.push({ glyph: <Plus aria-hidden="true" size={16} />, name: "New Session", run: () => setFlow({ kind: "new-location" }) });
     if (props.projectName && props.onOpenProject) items.push({ glyph: <FolderKanban aria-hidden="true" size={16} />, name: `Open Project: ${props.projectName}`, run: () => closeAfter(props.onOpenProject) });
@@ -183,6 +189,7 @@ export function CommandPalette(props: CommandPaletteProps) {
         || left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
         || (left.projectName ?? "").localeCompare(right.projectName ?? "", undefined, { sensitivity: "base" }));
   }, [flow.kind, props.sessions, query]);
+  const shownWorkspaces = flow.kind === "workspaces" ? props.workspaces ?? [] : [];
   const shownStashes = flow.kind === "stashes" ? [...(props.stashes ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [];
   const closeChoices = [
     { glyph: <ArrowLeft aria-hidden="true" size={16} />, name: "Keep Session open", danger: false },
@@ -195,7 +202,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     return item.name.toLocaleLowerCase().includes(normalizedQuery) || item.displayPath.toLocaleLowerCase().includes(normalizedQuery);
   });
   const directoryChoiceCount = directory === undefined ? 0 : 1 + (directory.parent === undefined ? 0 : 1) + shownDirectories.length;
-  const count = flow.kind === "actions" ? shownActions.length : flow.kind === "sessions" ? shownSessions.length : flow.kind === "stashes" ? shownStashes.length : flow.kind === "close" ? closeChoices.length : flow.kind === "new-location" ? locationChoices.length : flow.kind === "new-project" ? shownProjects.length : flow.kind === "new-directory" ? directoryChoiceCount : choices.length;
+  const count = flow.kind === "actions" ? shownActions.length : flow.kind === "sessions" ? shownSessions.length : flow.kind === "workspaces" ? shownWorkspaces.length : flow.kind === "stashes" ? shownStashes.length : flow.kind === "close" ? closeChoices.length : flow.kind === "new-location" ? locationChoices.length : flow.kind === "new-project" ? shownProjects.length : flow.kind === "new-directory" ? directoryChoiceCount : choices.length;
   const createRequest = createRequestId === undefined ? undefined : props.managedSessionCreates?.[createRequestId];
   const projectCreateRequest = projectCreateRequestId === undefined ? undefined : props.projectCreates?.[projectCreateRequestId];
   const starting = createRequest?.status === "starting";
@@ -254,6 +261,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     else if (flow.kind === "model") { const model = props.models?.[activeIndex]; if (model) props.onSetModel?.(model.provider, model.modelId); }
     else if (flow.kind === "thinking") { const level = props.thinkingLevels?.[activeIndex]; if (level) props.onSetThinking?.(level); }
     else if (flow.kind === "sessions") { const session = shownSessions[activeIndex]; if (session) closeAfter(() => props.onOpenSession?.(session.id)); }
+    else if (flow.kind === "workspaces") { const workspace = shownWorkspaces[activeIndex]; if (workspace) closeAfter(() => props.onSelectWorkspace?.(workspace.id)); }
     else if (flow.kind === "stashes") { const stash = shownStashes[activeIndex]; if (stash) props.onRestoreStash?.(stash); }
     else if (flow.kind === "new-location") {
       const location = locationChoices[activeIndex];
@@ -291,15 +299,15 @@ export function CommandPalette(props: CommandPaletteProps) {
   });
   const handleKeyDown = (event: ReactKeyboardEvent): void => {
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); back(); return; }
-    const listFlow = flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "close" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "stashes";
+    const listFlow = flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "close" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "workspaces" || flow.kind === "stashes";
     if (listFlow && (event.key === "ArrowDown" || (event.key === "Tab" && !event.shiftKey))) { event.preventDefault(); if (count) setActiveIndex((i) => (i + 1) % count); return; }
     if (listFlow && (event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey))) { event.preventDefault(); if (count) setActiveIndex((i) => (i - 1 + count) % count); return; }
     if (event.key === "Enter" && flow.kind !== "rename" && flow.kind !== "new-name" && flow.kind !== "add-project-name") { event.preventDefault(); select(); }
   };
   const closeSessionName = props.sessionName?.trim();
-  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : flow.kind === "stashes" ? "Stashed messages" : flow.kind === "close" ? closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?" : flow.kind === "new-location" ? "Choose location" : flow.kind === "new-project" ? "Choose project" : flow.kind === "new-directory" ? "Choose directory" : flow.kind === "add-project-name" ? "Name your Project" : "Name your Session";
-  const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : flow.kind === "stashes" ? <Archive aria-hidden="true" size={14} /> : flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" ? <Folder aria-hidden="true" size={14} /> : flow.kind === "new-name" || flow.kind === "add-project-name" ? <Plus aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
-  const listFooter = flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "stashes";
+  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : flow.kind === "workspaces" ? "Workspaces" : flow.kind === "stashes" ? "Stashed messages" : flow.kind === "close" ? closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?" : flow.kind === "new-location" ? "Choose location" : flow.kind === "new-project" ? "Choose project" : flow.kind === "new-directory" ? "Choose directory" : flow.kind === "add-project-name" ? "Name your Project" : "Name your Session";
+  const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : flow.kind === "workspaces" ? <PanelsTopLeft aria-hidden="true" size={14} /> : flow.kind === "stashes" ? <Archive aria-hidden="true" size={14} /> : flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" ? <Folder aria-hidden="true" size={14} /> : flow.kind === "new-name" || flow.kind === "add-project-name" ? <Plus aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
+  const listFooter = flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "workspaces" || flow.kind === "stashes";
 
   return <div className="palette-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) back(); }}>
     <section ref={panelRef} className="palette" role="dialog" aria-modal="true" aria-labelledby="palette-title" tabIndex={-1} onKeyDown={handleKeyDown}>
@@ -323,6 +331,12 @@ export function CommandPalette(props: CommandPaletteProps) {
           <span className="palette-option-copy"><span className="palette-option-name">{session.name}</span><small>{[session.projectName, session.closed ? "Closed" : undefined].filter(Boolean).join(" · ")}</small></span>
         </button>)}
         {count === 0 && <p className="palette-empty" role="status">No named Sessions match that search.</p>}
+      </div>}
+      {flow.kind === "workspaces" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Workspaces">
+        {shownWorkspaces.map((workspace, index) => <button type="button" key={workspace.id} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => closeAfter(() => props.onSelectWorkspace?.(workspace.id))} disabled={props.pending}>
+          <span className="palette-option-glyph" aria-hidden="true">{workspace.id === props.activeWorkspaceId ? "✓" : <PanelsTopLeft size={14} />}</span>
+          <span className="palette-option-copy"><span className="palette-option-name">{workspace.name}</span><small>{workspace.projectIds.length} {workspace.projectIds.length === 1 ? "Project" : "Projects"}</small></span>
+        </button>)}
       </div>}
       {flow.kind === "stashes" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Stashed messages">
         {shownStashes.map((stash, index) => <button type="button" key={stash.id} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => props.onRestoreStash?.(stash)} disabled={props.pending}>
