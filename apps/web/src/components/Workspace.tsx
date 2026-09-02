@@ -1963,9 +1963,12 @@ export function Workspace({
       .filter((item) => item.kind === "file")
       .map((item) => item.getAsFile())
       .filter((file): file is File => file !== null);
-    if (itemFiles.length === 0) return false;
-    addSelectedAttachments(itemFiles);
-    return true;
+    if (itemFiles.length > 0) {
+      addSelectedAttachments(itemFiles);
+      return true;
+    }
+    const uri = clipboard.getData("text/uri-list").split(/\r?\n/u).find((line) => line.startsWith("file://"));
+    return uri !== undefined && /\.(?:gif|jpe?g|png|webp)(?:$|[?#])/iu.test(uri);
   };
 
   const openSession = (sessionKey: SessionKey): void => {
