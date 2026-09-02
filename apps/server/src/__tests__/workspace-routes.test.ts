@@ -4,6 +4,8 @@ import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import type { SessionIndex } from "../domain.js"
 import type { SessionRuntime } from "../session-runtime.js"
+import { ProjectBookmarkStore } from "../project-bookmarks.js"
+import { ProjectStore } from "../project-store.js"
 import { createPiStationServer } from "../server.js"
 
 const index: SessionIndex = {
@@ -13,6 +15,39 @@ const index: SessionIndex = {
 async function request(base: string, path: string, method = "GET", body?: unknown) { const response = await fetch(`${base}${path}`, { method, ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) }); return { status: response.status, body: await response.json() as Record<string, unknown> } }
 
 describe("Workspace routes", () => {
+  it("migrates legacy Project state through the first-start HTTP flow", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pi-workspace-migration-routes-"))
+    const openRoot = join(dataDir, "open")
+    const bookmarkedRoot = join(dataDir, "bookmarked")
+    const archivedRoot = join(dataDir, "archived")
+    await Promise.all([mkdir(openRoot), mkdir(bookmarkedRoot), mkdir(archivedRoot)])
+    const projectStore = new ProjectStore(dataDir)
+    const [openProject, bookmarkedProject, archivedProject] = await projectStore.configure([openRoot, bookmarkedRoot, archivedRoot])
+    await projectStore.setClosed(bookmarkedProject!.id, true)
+    await projectStore.setClosed(archivedProject!.id, true)
+    await new ProjectBookmarkStore(dataDir).set(bookmarkedProject!.id, true, await projectStore.read())
+
+    const server = createPiStationServer({ dataDir, index, runner: { run: vi.fn(), control: vi.fn(), dispose: vi.fn() } as unknown as SessionRuntime })
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+    const address = server.address()
+    if (!address || typeof address === "string") throw new Error("No address")
+    try {
+      const response = await request(`http://127.0.0.1:${address.port}`, "/v2/workspaces")
+      expect(response.status).toBe(200)
+      expect(response.body).toMatchObject({
+        workspaces: [{
+          name: "Default",
+          projectIds: [openProject!.id, bookmarkedProject!.id],
+          closedProjectIds: [bookmarkedProject!.id],
+          bookmarkedProjectIds: [bookmarkedProject!.id],
+        }],
+      })
+      expect((response.body.workspaces as Array<{ projectIds: string[] }>)[0]?.projectIds).not.toContain(archivedProject!.id)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
   it("manages shared Project membership through explicit Workspace APIs", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pi-workspace-routes-")); const root1 = join(dataDir, "one"); const root2 = join(dataDir, "two"); await mkdir(root1); await mkdir(root2)
     const server = createPiStationServer({ dataDir, index, runner: { run: vi.fn(), control: vi.fn(), dispose: vi.fn() } as unknown as SessionRuntime })
