@@ -9,6 +9,9 @@ import type {
 export interface SessionKey { readonly hostId: string; readonly piSessionId: string }
 export type ProjectId = string;
 export type CapabilityId = string;
+export interface SavedWorkspace { readonly id: string; readonly name: string; readonly projectIds: readonly ProjectId[]; readonly createdAt: string; readonly updatedAt: string }
+export interface WorkspaceCollection { readonly workspaces: readonly SavedWorkspace[]; readonly activeWorkspaceId: string }
+
 export interface ProjectSummary { readonly projectId: ProjectId; readonly name: string; readonly displayPath: string; readonly available: boolean; readonly closed?: boolean; readonly createdAt: string; readonly updatedAt: string }
 export interface ProjectBookmark { readonly projectId: ProjectId; readonly position: number }
 export interface SessionBookmark { readonly projectId: ProjectId; readonly sessionKey: SessionKey; readonly position: number }

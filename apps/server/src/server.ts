@@ -26,6 +26,8 @@ import {
   isScheduledJobMutation,
   isThinkingSettingRequest,
   isUpdateChannelMutation,
+  isWorkspaceCreateMutation,
+  isWorkspaceUpdateMutation,
   PROTOCOL_VERSION,
 } from "@pi-station/application-protocol"
 import type { CommandSummary, ModelChoice, Project, SavedSession, ScheduledJob, SessionKey, SessionSettings, ThinkingLevel } from "@pi-station/application-protocol"
@@ -47,6 +49,7 @@ import {
 } from "./http.js"
 import { ProjectBookmarkStore } from "./project-bookmarks.js"
 import { ProjectStore } from "./project-store.js"
+import { WorkspaceStore, WorkspaceStoreError } from "./workspace-store.js"
 import { SessionBookmarkStore } from "./session-bookmarks.js"
 import { isSessionDefaults, normalizeSessionDefaults, SessionDefaultsStore } from "./session-defaults.js"
 import { SessionMetadataStore } from "./session-metadata.js"
@@ -119,6 +122,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   })
   const projectStore = new ProjectStore(options.dataDir)
   const projectBookmarks = new ProjectBookmarkStore(options.dataDir)
+  const workspaceStore = new WorkspaceStore(options.dataDir)
   const metadata = new SessionMetadataStore(options.dataDir)
   const sessionBookmarks = new SessionBookmarkStore(options.dataDir)
   const sessionDefaults = options.sessionDefaults ?? new SessionDefaultsStore(options.dataDir)
@@ -715,6 +719,40 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
           sendJson(response, 202, { version: PROTOCOL_VERSION, job: await scheduler.run(job, "run-now") }); return
         }
       }
+      if (request.method === "GET" && url.pathname === "/v2/workspaces") {
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.list() })
+        return
+      }
+      if (request.method === "POST" && url.pathname === "/v2/workspaces") {
+        assertJsonMutation(request)
+        const value = await readJsonBody(request)
+        if (!isWorkspaceCreateMutation(value)) throw new HttpError(400, "Workspace is invalid")
+        sendJson(response, 201, { version: PROTOCOL_VERSION, ...await workspaceStore.create(value) })
+        return
+      }
+      const workspaceActivationRoute = /^\/v2\/workspaces\/([^/]+)\/activate$/u.exec(url.pathname)
+      if (request.method === "POST" && workspaceActivationRoute !== null) {
+        assertJsonMutation(request)
+        await requireEmptyJsonObject(request)
+        const workspaceId = decodeURIComponent(workspaceActivationRoute[1]!)
+        if (!isProtocolId(workspaceId)) throw new HttpError(404, "Not found")
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.select(workspaceId) })
+        return
+      }
+      const workspaceRoute = /^\/v2\/workspaces\/([^/]+)$/u.exec(url.pathname)
+      if (workspaceRoute !== null && (request.method === "PUT" || request.method === "DELETE")) {
+        const workspaceId = decodeURIComponent(workspaceRoute[1]!)
+        if (!isProtocolId(workspaceId)) throw new HttpError(404, "Not found")
+        if (request.method === "PUT") {
+          assertJsonMutation(request)
+          const value = await readJsonBody(request)
+          if (!isWorkspaceUpdateMutation(value)) throw new HttpError(400, "Workspace is invalid")
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.update(workspaceId, value, await projectStore.read()) })
+        } else {
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.remove(workspaceId) })
+        }
+        return
+      }
       if (request.method === "GET" && url.pathname === "/v2/projects") {
         const projects = await projectStore.read()
         sendJson(response, 200, { version: PROTOCOL_VERSION, projects, bookmarks: await projectBookmarks.list(projects) })
@@ -788,6 +826,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
           sessionBookmarks.removeProject(projectId),
           metadata.removeProject(projectId),
           scheduledJobs.disableProject(projectId),
+          workspaceStore.removeProject(projectId),
         ])
         // Delegation records are intentionally retained. A working child still
         // needs its routing context to finish and report to its parent safely.
@@ -1301,6 +1340,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       throw new HttpError(404, "Not found")
     } catch (error) {
       if (error instanceof ScheduledJobError) sendError(response, new HttpError(error.code === "not-found" ? 404 : error.code === "limit" ? 409 : 400, error.message))
+      else if (error instanceof WorkspaceStoreError) sendError(response, new HttpError(error.code === "not-found" ? 404 : error.code === "limit" ? 409 : 400, error.message))
       else sendError(response, error)
     }
   })

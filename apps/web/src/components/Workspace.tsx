@@ -52,6 +52,7 @@ import { Modal } from "./Modal";
 import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { NotificationSettingsPage } from "./NotificationSettings";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -692,6 +693,7 @@ function Sidebar({
   activeProjectId,
   shortcutsVisible,
   onCollapse,
+  client,
 }: {
   state: ApplicationState;
   onSelect: (key: SessionKey) => void;
@@ -707,6 +709,7 @@ function Sidebar({
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
   onCollapse: () => void;
+  client?: ApplicationClient | undefined;
 }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
     readCollapsedProjects,
@@ -854,6 +857,14 @@ function Sidebar({
           <PanelLeftClose aria-hidden="true" size={17} />
         </button>
       </header>
+      {state.workspaces !== undefined && client !== undefined && <WorkspaceSwitcher
+        workspaces={state.workspaces}
+        activeWorkspaceId={state.activeWorkspaceId}
+        onActivate={(id) => client.activateWorkspace(id)}
+        onCreate={(name) => client.createWorkspace(name)}
+        onRename={(id, name) => client.renameWorkspace(id, name)}
+        onDelete={(id) => client.deleteWorkspace(id)}
+      />}
       <nav className="sidebar-primary-actions" aria-label="Primary navigation">
         <div className="sidebar-session-actions">
           <Button type="button" variant="outline" title="Quick Session" aria-label="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
@@ -1243,9 +1254,16 @@ export function Workspace({
   onOpenQuickSession,
   embeddedSession = false,
 }: WorkspaceProps) {
+  const activeWorkspace = applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
+    ?? applicationState.workspaces?.[0];
+  const workspaceProjectIds = activeWorkspace === undefined ? undefined : new Set(activeWorkspace.projectIds);
   const state = embeddedSession
     ? applicationState
-    : { ...applicationState, sessions: sessionsVisibleInWorkspace(applicationState.sessions) };
+    : {
+      ...applicationState,
+      projects: workspaceProjectIds === undefined ? applicationState.projects : applicationState.projects.filter(({ projectId }) => workspaceProjectIds.has(projectId)),
+      sessions: sessionsVisibleInWorkspace(applicationState.sessions).filter(({ projectId }) => projectId === undefined || workspaceProjectIds === undefined || workspaceProjectIds.has(projectId)),
+    };
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteInitialFlow, setPaletteInitialFlow] = useState<CommandPaletteInitialFlow>("actions");
   const { toast } = useToast();
@@ -2887,6 +2905,7 @@ export function Workspace({
   const sidebar = (
     <Sidebar
       state={state}
+      client={client}
       onSelect={openSession}
       onDashboard={() => setRoute("dashboard")}
       onGeneralNewSession={() => setRoute("new-session")}
@@ -3103,7 +3122,9 @@ export function Workspace({
   if (route === "projects") {
     return renderPage(
       <ProjectsPage
-        state={state}
+        state={applicationState}
+        activeWorkspace={activeWorkspace}
+        onSetWorkspaceProjects={(projectIds) => activeWorkspace === undefined || client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.setWorkspaceProjects(activeWorkspace.id, projectIds)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
@@ -3122,7 +3143,7 @@ export function Workspace({
   }
 
   if (route === "project") {
-    const project = state.projects.find(
+    const project = applicationState.projects.find(
       (candidate) => candidate.projectId === selectedProjectId,
     );
     if (project !== undefined) {
@@ -3170,7 +3191,9 @@ export function Workspace({
     }
     return renderPage(
       <ProjectsPage
-        state={state}
+        state={applicationState}
+        activeWorkspace={activeWorkspace}
+        onSetWorkspaceProjects={(projectIds) => activeWorkspace === undefined || client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.setWorkspaceProjects(activeWorkspace.id, projectIds)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");

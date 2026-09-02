@@ -27,6 +27,7 @@ import type {
   ProjectSummary,
   SessionKey,
   SessionSummary,
+  WorkspaceCollection,
 } from "./workspace-model";
 
 type ApplicationTimelineItem = ApplicationState["selected"]["timeline"][number];
@@ -76,6 +77,8 @@ function emptyState(): ApplicationState {
     projectBookmarks: [],
     sessionBookmarks: [],
     projects: [],
+    workspaces: [],
+    activeWorkspaceId: undefined,
     developmentServers: [],
     sessions: [],
     selected: { timeline: [], hasEarlierHistory: false },
@@ -382,6 +385,30 @@ export class ApplicationClient extends ApplicationClientBase {
     if (this.rpcState.connection !== "ready") throw new Error("Pi Station is not connected");
     const response = await mutate(`/v2/projects/${encodeURIComponent(projectId)}`, "PUT", { name }) as { projects: readonly Project[] };
     this.updateRpcState({ projects: response.projects.map(projectSummary) });
+  }
+
+  private applyWorkspaceCollection(collection: WorkspaceCollection): void {
+    this.updateRpcState({ workspaces: collection.workspaces, activeWorkspaceId: collection.activeWorkspaceId });
+  }
+
+  override async createWorkspace(name: string): Promise<void> {
+    this.applyWorkspaceCollection(await mutate("/v2/workspaces", "POST", { name }) as WorkspaceCollection);
+  }
+
+  override async renameWorkspace(id: string, name: string): Promise<void> {
+    this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}`, "PUT", { name }) as WorkspaceCollection);
+  }
+
+  override async deleteWorkspace(id: string): Promise<void> {
+    this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}`, "DELETE") as WorkspaceCollection);
+  }
+
+  override async activateWorkspace(id: string): Promise<void> {
+    this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}/activate`, "POST", {}) as WorkspaceCollection);
+  }
+
+  override async setWorkspaceProjects(id: string, projectIds: readonly ProjectId[]): Promise<void> {
+    this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}`, "PUT", { projectIds }) as WorkspaceCollection);
   }
 
   override async setProjectClosed(projectId: ProjectId, closed: boolean): Promise<void> {
@@ -749,13 +776,14 @@ export class ApplicationClient extends ApplicationClientBase {
 
   private async refresh(): Promise<void> {
     const selected = this.rpcState.selectedSessionKey;
-    const [projectResponse, sessionResponse] = await Promise.all([
+    const [projectResponse, sessionResponse, workspaceResponse] = await Promise.all([
       request<ProjectsResponse>("/v2/projects"),
       request<SessionsResponse>("/v2/sessions"),
+      request<WorkspaceCollection>("/v2/workspaces").catch(() => undefined),
     ]);
     const projects = projectResponse.projects.map(projectSummary);
     const sessions = sessionResponse.sessions.map(sessionSummary);
-    this.updateRpcState({ connection: "ready", projects, projectBookmarks: projectResponse.bookmarks, sessions, sessionBookmarks: sessionResponse.bookmarks });
+    this.updateRpcState({ connection: "ready", projects, projectBookmarks: projectResponse.bookmarks, sessions, sessionBookmarks: sessionResponse.bookmarks, ...(workspaceResponse === undefined ? {} : { workspaces: workspaceResponse.workspaces, activeWorkspaceId: workspaceResponse.activeWorkspaceId }) });
     for (const phase of sessionResponse.phases ?? []) this.applySessionPhase(phase);
     this.openSessionUpdates(sessionResponse.sequence);
 

@@ -20,6 +20,7 @@ import type {
   SessionBookmark,
   SessionKey,
   SessionSummary,
+  SavedWorkspace,
 } from "./workspace-model";
 
 function imageUploadFailure(status: number): string {
@@ -105,6 +106,8 @@ export interface ApplicationState {
   readonly projectBookmarks: readonly ProjectBookmark[];
   readonly sessionBookmarks: readonly SessionBookmark[];
   readonly projects: readonly ProjectSummary[];
+  readonly workspaces?: readonly SavedWorkspace[];
+  readonly activeWorkspaceId?: string | undefined;
   readonly developmentServers: readonly DevelopmentServerState[];
   readonly sessions: readonly SessionSummary[];
   readonly selected: SelectedSessionState;
@@ -147,6 +150,11 @@ export class ApplicationClientBase {
   setProjectClosed(_projectId: ProjectId, _closed: boolean): Promise<void> { return Promise.reject(new Error("Project state changes are unavailable")); }
   createProject(_name: string, _directory: string): string | undefined { return undefined; }
   renameProject(_projectId: ProjectId, _name: string): Promise<void> { return Promise.reject(new Error("Project rename is unavailable")); }
+  createWorkspace(_name: string): Promise<void> { return Promise.reject(new Error("Workspace creation is unavailable")); }
+  renameWorkspace(_id: string, _name: string): Promise<void> { return Promise.reject(new Error("Workspace rename is unavailable")); }
+  deleteWorkspace(_id: string): Promise<void> { return Promise.reject(new Error("Workspace deletion is unavailable")); }
+  activateWorkspace(_id: string): Promise<void> { return Promise.reject(new Error("Workspace selection is unavailable")); }
+  setWorkspaceProjects(_id: string, _projectIds: readonly ProjectId[]): Promise<void> { return Promise.reject(new Error("Workspace Projects are unavailable")); }
   configureDevelopmentServer(_projectId: ProjectId, _configuration: unknown): string | undefined { return undefined; }
   startDevelopmentServer(_projectId: ProjectId): string | undefined { return undefined; }
   stopDevelopmentServer(_projectId: ProjectId): string | undefined { return undefined; }

@@ -524,21 +524,21 @@ describe("Pi Station incremental Session summaries", () => {
     }
     vi.stubGlobal("EventSource", FakeEventSource);
     const session = saved("session-with-file", "2026-01-01T00:00:00.000Z");
-    const fetchMock = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ sequence: 0, sessions: [session], bookmarks: [] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        version: 2,
-        session,
-        phase: "idle",
-        timeline: [],
+    const fetchMock = vi.fn<typeof fetch>((input) => {
+      const path = fetchPath(input);
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [session], bookmarks: [] }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [{ id: "workspace", name: "Default", projectIds: ["project"], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }], activeWorkspaceId: "workspace" }));
+      if (path === "/v2/projects/project/sessions/session-with-file/shared-files") return Promise.resolve(Response.json({
+        version: 2, sharedFiles: [{ name: "result.txt", url: "/shared/session-with-file/result.txt", size: 6, modifiedAt: 2 }],
+      }));
+      if (path === "/v2/projects/project/sessions/session-with-file") return Promise.resolve(Response.json({
+        version: 2, session, phase: "idle", timeline: [],
         settings: { modelInventory: [], supportedThinkingLevels: ["off"] },
         sharedFiles: [{ name: "notes.md", url: "/shared/session-with-file/notes.md", size: 12, modifiedAt: 1 }],
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        version: 2,
-        sharedFiles: [{ name: "result.txt", url: "/shared/session-with-file/result.txt", size: 6, modifiedAt: 2 }],
-      }), { status: 200 }));
+      }));
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
     globalThis.fetch = fetchMock;
     const client = new ApplicationClient();
 
