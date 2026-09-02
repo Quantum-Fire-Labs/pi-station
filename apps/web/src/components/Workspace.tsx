@@ -2206,13 +2206,14 @@ export function Workspace({
     const target = focusComposerForSession.current;
     if (
       target === undefined
+      || paletteOpen
       || !commandAvailable
       || state.selectedSessionKey === undefined
       || !sessionKeysEqual(target, state.selectedSessionKey)
     ) return;
     focusComposerForSession.current = undefined;
     composerInput.current?.focus();
-  }, [commandAvailable, route, state.selectedSessionKey]);
+  }, [commandAvailable, paletteOpen, route, state.selectedSessionKey]);
 
   useEffect(() => {
     const desktop = (): boolean => window.matchMedia?.("(min-width: 1100px)").matches
@@ -3932,6 +3933,10 @@ export function Workspace({
           sessionName={selectedSessionName}
           sessionId={selectedSummary?.sessionKey.piSessionId}
           projectName={selectedProject?.name}
+          projectPath={selectedProject?.displayPath}
+          projects={state.projects}
+          directoryLists={state.directoryLists}
+          managedSessionCreates={state.managedSessionCreates}
           bookmarked={selectedSessionBookmarked}
           working={working}
           canCreateSession={state.hostCapabilities.some(
@@ -3963,15 +3968,14 @@ export function Workspace({
           onDashboard={() => setRoute("dashboard")}
           onProjects={() => setRoute("projects")}
           onAddProject={() => setRoute("add-project")}
-          onNewSession={() => setRoute("new-session")}
+          onListDirectory={(path, showHidden) => onListDirectory?.(path, showHidden)}
+          onCreateSession={(workingDirectory, optionalName) => onCreateManagedSession?.(workingDirectory, optionalName)}
+          onSessionStarted={(sessionKey) => {
+            focusComposerForSession.current = isDesktopViewport() ? sessionKey : undefined;
+          }}
           onOpenProject={selectedProject === undefined ? undefined : () => {
             setSelectedProjectId(selectedProject.projectId);
             setRoute("project");
-          }}
-          onNewProjectSession={selectedProject === undefined ? undefined : () => {
-            setNewSessionName("");
-            setNewSessionRequestId(undefined);
-            setNewSessionProject(selectedProject);
           }}
           onSessionDetails={() => setDetailsOpen(true)}
           onRename={(name) => {
