@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from "react";
 import { ArrowDown, ArrowUp, Folder, Plus, Search } from "lucide-react";
-import type { ProjectId } from "../application/workspace-model";
+import type { ProjectId, SavedWorkspace } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
 import { Badge } from "./ui/badge";
@@ -18,6 +18,9 @@ export function ProjectsPage({
   onSettings,
   onReorderBookmark,
   onSetProjectClosed = () => Promise.reject(new Error("Project state changes are unavailable")),
+  activeWorkspace,
+  onOpenInWorkspace,
+  onRemoveFromWorkspace,
 }: {
   state: ApplicationState;
   onOpen: (projectId: ProjectId) => void;
@@ -28,6 +31,9 @@ export function ProjectsPage({
   onSettings: () => void;
   onReorderBookmark: (projectId: ProjectId, direction: "up" | "down") => string | undefined;
   onSetProjectClosed?: (projectId: ProjectId, closed: boolean) => Promise<void>;
+  activeWorkspace?: SavedWorkspace | undefined;
+  onOpenInWorkspace?: ((projectId: ProjectId) => Promise<void>) | undefined;
+  onRemoveFromWorkspace?: ((projectId: ProjectId) => Promise<void>) | undefined;
 }) {
   const [query, setQuery] = useState("");
   const [mutationRequestId, setMutationRequestId] = useState<string>();
@@ -38,7 +44,10 @@ export function ProjectsPage({
   const error = mutation?.result?.status === "rejected" || mutation?.result?.status === "retryable"
     ? mutation.result.error.message
     : undefined;
-  const positions = new Map(state.projectBookmarks.map((bookmark) => [bookmark.projectId, bookmark.position]));
+  const workspaceProjectIds = new Set(activeWorkspace?.projectIds ?? state.projects.map(({ projectId }) => projectId));
+  const positions = new Map(state.projectBookmarks
+    .filter(({ projectId }) => workspaceProjectIds.has(projectId))
+    .map((bookmark) => [bookmark.projectId, bookmark.position]));
   const matchesQuery = (project: ApplicationState["projects"][number]): boolean => {
     const search = query.trim().toLocaleLowerCase();
     return search.length === 0
@@ -57,6 +66,15 @@ export function ProjectsPage({
     setProjectError(undefined);
     void onSetProjectClosed(projectId, value)
       .catch((reason: unknown) => setProjectError(reason instanceof Error ? reason.message : "Project state could not be changed"))
+      .finally(() => setProjectSaving(undefined));
+  };
+  const changeMembership = (projectId: ProjectId, member: boolean): void => {
+    const action = member ? onRemoveFromWorkspace : onOpenInWorkspace;
+    if (action === undefined) return;
+    setProjectSaving(projectId);
+    setProjectError(undefined);
+    void action(projectId)
+      .catch((reason: unknown) => setProjectError(reason instanceof Error ? reason.message : "Workspace membership could not be changed"))
       .finally(() => setProjectSaving(undefined));
   };
 
@@ -89,11 +107,11 @@ export function ProjectsPage({
             </div>
             {hasResults ? (
               <>
-                {bookmarked.length > 0 && <ProjectGroup title="Bookmarked" projects={bookmarked} onOpen={onOpen} saving={saving} onReorder={(projectId, direction) => {
+                {bookmarked.length > 0 && <ProjectGroup title="Bookmarked" projects={bookmarked} onOpen={onOpen} saving={saving} workspaceProjectIds={workspaceProjectIds} onChangeMembership={changeMembership} onReorder={(projectId, direction) => {
                   const requestId = onReorderBookmark(projectId, direction);
                   if (requestId !== undefined) setMutationRequestId(requestId);
-                }} />}
-                {other.length > 0 && <ProjectGroup title="Other Projects" projects={other} onOpen={onOpen} saving={saving} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
+                }} {...(projectSaving === undefined ? {} : { projectSaving })} />}
+                {other.length > 0 && <ProjectGroup title="Other Projects" projects={other} onOpen={onOpen} saving={saving} workspaceProjectIds={workspaceProjectIds} onChangeMembership={changeMembership} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
               </>
             ) : (
               <div className="projects-page-no-results"><Search aria-hidden="true" /><strong>No matching Projects</strong><span>Try a different name or path.</span></div>
@@ -110,7 +128,7 @@ const compareProjects = (left: ApplicationState["projects"][number], right: Appl
   left.name.localeCompare(right.name, undefined, { sensitivity: "base" }) || left.projectId.localeCompare(right.projectId)
 );
 
-function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSaving, onSetClosed }: {
+function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSaving, onSetClosed, workspaceProjectIds, onChangeMembership }: {
   title: string;
   projects: ApplicationState["projects"];
   onOpen: (projectId: ProjectId) => void;
@@ -118,6 +136,8 @@ function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSavin
   onReorder?: (projectId: ProjectId, direction: "up" | "down") => void;
   projectSaving?: ProjectId;
   onSetClosed?: (projectId: ProjectId, closed: boolean) => void;
+  workspaceProjectIds: ReadonlySet<ProjectId>;
+  onChangeMembership?: ((projectId: ProjectId, member: boolean) => void) | undefined;
 }) {
   const headingId = `projects-${title.toLowerCase().replaceAll(" ", "-")}`;
   return (
@@ -136,7 +156,10 @@ function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSavin
             </div>
             <div className="projects-page-row-status">{project.available ? <Badge variant="outline">Available</Badge> : <Badge variant="outline">Unavailable</Badge>}</div>
             <div className="projects-page-row-actions">
-              {project.closed === true && onSetClosed !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button>}
+              {onChangeMembership !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onChangeMembership(project.projectId, workspaceProjectIds.has(project.projectId))}>
+                {projectSaving === project.projectId ? "Saving…" : workspaceProjectIds.has(project.projectId) ? "Remove from Workspace" : "Open in this Workspace"}
+              </Button>}
+              {workspaceProjectIds.has(project.projectId) && project.closed === true && onSetClosed !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button>}
               {onReorder !== undefined && <span className="projects-page-order" role="group" aria-label={`Change ${project.name} order`}>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} up`} disabled={saving || index === 0} onClick={() => onReorder(project.projectId, "up")}><ArrowUp aria-hidden="true" /></Button>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} down`} disabled={saving || index === projects.length - 1} onClick={() => onReorder(project.projectId, "down")}><ArrowDown aria-hidden="true" /></Button>

@@ -64,6 +64,23 @@ const swipe = (
 };
 
 describe("Workspace", () => {
+  it("lets a user create the first saved Workspace", async () => {
+    enableDesktopViewport();
+    const user = userEvent.setup();
+    const createWorkspace = vi.fn(() => Promise.resolve());
+    const client = { createWorkspace } as unknown as ApplicationClient;
+    render(<Workspace state={{ ...fixtureState, workspaces: [], activeWorkspaceId: undefined }} client={client} onSelect={vi.fn()} />);
+
+    const switcher = screen.getByRole("button", { name: "Switch Workspace" });
+    expect(switcher).toHaveTextContent("All Projects");
+    await user.click(switcher);
+    await user.click(await screen.findByRole("menuitem", { name: "New Workspace" }));
+    await user.type(screen.getByRole("textbox", { name: "Workspace name" }), "Client work");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(createWorkspace).toHaveBeenCalledWith("Client work");
+  });
+
   it("opens Quick Session without selecting it or showing actions outside the modal", async () => {
     enableDesktopViewport();
     const onOpenQuickSession = vi.fn();

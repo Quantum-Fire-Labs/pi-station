@@ -14,6 +14,17 @@ export {
 } from "./projects.js"
 export type { Project } from "./projects.js"
 
+export {
+  isWorkspace,
+  isWorkspaceCreateMutation,
+  isWorkspaceUpdateMutation,
+  isWorkspaceName,
+  isWorkspaceState,
+  MAX_WORKSPACE_PROJECTS,
+  MAX_WORKSPACES,
+} from "./workspaces.js"
+export type { Workspace, WorkspaceCreateMutation, WorkspaceUpdateMutation, WorkspaceState } from "./workspaces.js"
+
 export { isSystemTheme } from "./system-theme.js"
 export type { SystemTheme, SystemThemeColors, SystemThemeStyle } from "./system-theme.js"
 

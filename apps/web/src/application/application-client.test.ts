@@ -524,21 +524,21 @@ describe("Pi Station incremental Session summaries", () => {
     }
     vi.stubGlobal("EventSource", FakeEventSource);
     const session = saved("session-with-file", "2026-01-01T00:00:00.000Z");
-    const fetchMock = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ sequence: 0, sessions: [session], bookmarks: [] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        version: 2,
-        session,
-        phase: "idle",
-        timeline: [],
+    const fetchMock = vi.fn<typeof fetch>((input) => {
+      const path = fetchPath(input);
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [session], bookmarks: [] }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [{ id: "workspace", name: "Default", projectIds: ["project"], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }], activeWorkspaceId: "workspace" }));
+      if (path === "/v2/projects/project/sessions/session-with-file/shared-files") return Promise.resolve(Response.json({
+        version: 2, sharedFiles: [{ name: "result.txt", url: "/shared/session-with-file/result.txt", size: 6, modifiedAt: 2 }],
+      }));
+      if (path === "/v2/projects/project/sessions/session-with-file") return Promise.resolve(Response.json({
+        version: 2, session, phase: "idle", timeline: [],
         settings: { modelInventory: [], supportedThinkingLevels: ["off"] },
         sharedFiles: [{ name: "notes.md", url: "/shared/session-with-file/notes.md", size: 12, modifiedAt: 1 }],
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        version: 2,
-        sharedFiles: [{ name: "result.txt", url: "/shared/session-with-file/result.txt", size: 6, modifiedAt: 2 }],
-      }), { status: 200 }));
+      }));
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
     globalThis.fetch = fetchMock;
     const client = new ApplicationClient();
 
@@ -576,6 +576,33 @@ describe("Pi Station incremental Session summaries", () => {
     await client.setProjectClosed("project", false);
     expect(client.snapshot.projects[0]?.closed).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith("/v2/projects/project/close", expect.objectContaining({ method: "POST", body: "{}" }));
+  });
+
+  it("opens and removes a Project through Workspace membership endpoints", async () => {
+    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    const openCollection = { workspaces: [{ id: "workspace-two", name: "Two", projectIds: ["project"] }], activeWorkspaceId: "workspace-two" };
+    const removedCollection = { workspaces: [{ id: "workspace-two", name: "Two", projectIds: [] }], activeWorkspaceId: "workspace-two" };
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const path = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [], bookmarks: [] }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [], activeWorkspaceId: undefined }));
+      if (path === "/v2/workspaces/workspace-two/projects/project/open" && init?.method === "POST") return Promise.resolve(Response.json(openCollection));
+      if (path === "/v2/workspaces/workspace-two/projects/project/open" && init?.method === "DELETE") return Promise.resolve(Response.json(removedCollection));
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    globalThis.fetch = fetchMock;
+    const client = new ApplicationClient();
+    client.connect();
+    await vi.waitFor(() => expect(client.snapshot.connection).toBe("ready"));
+
+    await client.openProjectInWorkspace("workspace-two", "project");
+    expect(fetchMock).toHaveBeenCalledWith("/v2/workspaces/workspace-two/projects/project/open", expect.objectContaining({ method: "POST", body: "{}" }));
+    expect(client.snapshot.workspaces).toEqual(openCollection.workspaces);
+
+    await client.removeProjectFromWorkspace("workspace-two", "project");
+    expect(fetchMock).toHaveBeenCalledWith("/v2/workspaces/workspace-two/projects/project/open", { method: "DELETE" });
+    expect(client.snapshot.workspaces).toEqual(removedCollection.workspaces);
   });
 
   it("removes a Project and all of its current client views", async () => {

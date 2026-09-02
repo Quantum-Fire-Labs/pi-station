@@ -26,6 +26,8 @@ import {
   isScheduledJobMutation,
   isThinkingSettingRequest,
   isUpdateChannelMutation,
+  isWorkspaceCreateMutation,
+  isWorkspaceUpdateMutation,
   PROTOCOL_VERSION,
 } from "@pi-station/application-protocol"
 import type { CommandSummary, ModelChoice, Project, SavedSession, ScheduledJob, SessionKey, SessionSettings, ThinkingLevel } from "@pi-station/application-protocol"
@@ -47,6 +49,7 @@ import {
 } from "./http.js"
 import { ProjectBookmarkStore } from "./project-bookmarks.js"
 import { ProjectStore } from "./project-store.js"
+import { WorkspaceStore, WorkspaceStoreError } from "./workspace-store.js"
 import { SessionBookmarkStore } from "./session-bookmarks.js"
 import { isSessionDefaults, normalizeSessionDefaults, SessionDefaultsStore } from "./session-defaults.js"
 import { SessionMetadataStore } from "./session-metadata.js"
@@ -119,6 +122,12 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   })
   const projectStore = new ProjectStore(options.dataDir)
   const projectBookmarks = new ProjectBookmarkStore(options.dataDir)
+  const workspaceStore = new WorkspaceStore(options.dataDir)
+  const ensureProjectOpen = async (projectId: string): Promise<void> => {
+    await projectStore.ensureOpen(projectId)
+    const projects = await projectStore.read()
+    await workspaceStore.ensureOpen(projectId, projects)
+  }
   const metadata = new SessionMetadataStore(options.dataDir)
   const sessionBookmarks = new SessionBookmarkStore(options.dataDir)
   const sessionDefaults = options.sessionDefaults ?? new SessionDefaultsStore(options.dataDir)
@@ -305,7 +314,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
 
     const sessionId = randomUUID()
     const key = { projectId: project.id, sessionId }
-    await projectStore.ensureOpen(project.id)
+    await ensureProjectOpen(project.id)
     project = (await projectStore.read()).find((item) => item.id === input.projectId) ?? project
     initializeSession(project.root, sessionId, input.name)
     const indexed = await options.index.refreshSession(key, project)
@@ -368,7 +377,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const scheduledTurn = async (job: ScheduledJob) => {
     const project = (await projectStore.read()).find((item) => item.id === job.projectId)
     if (project === undefined) return { status: "failed" as const, message: "Project is missing" }
-    await projectStore.ensureOpen(project.id)
+    await ensureProjectOpen(project.id)
     const sessionId = job.target.type === "new-session" ? randomUUID() : job.target.sessionId
     const key = { projectId: project.id, sessionId }
     const saved = job.target.type === "new-session" ? undefined : await findSession(key)
@@ -419,7 +428,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const unsubscribeDelegations = options.delegationEvents?.subscribe((event) => {
     void (async () => {
       await delegationStore.put(event.record)
-      if (event.type === "started") await projectStore.ensureOpen(event.record.projectId)
+      if (event.type === "started") await ensureProjectOpen(event.record.projectId)
       const project = (await projectStore.read()).find((item) => item.id === event.record.projectId)
       if (project === undefined) return
       const indexed = await options.index.indexSession({
@@ -715,9 +724,67 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
           sendJson(response, 202, { version: PROTOCOL_VERSION, job: await scheduler.run(job, "run-now") }); return
         }
       }
+      if (request.method === "GET" && url.pathname === "/v2/workspaces") {
+        const projects = await projectStore.read()
+        const legacyBookmarks = (await projectBookmarks.list(projects)).map(({ projectId }) => projectId)
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.list(projects, legacyBookmarks) })
+        return
+      }
+      if (request.method === "POST" && url.pathname === "/v2/workspaces") {
+        assertJsonMutation(request)
+        const value = await readJsonBody(request)
+        if (!isWorkspaceCreateMutation(value)) throw new HttpError(400, "Workspace is invalid")
+        const projects = await projectStore.read()
+        sendJson(response, 201, { version: PROTOCOL_VERSION, ...await workspaceStore.create(value, projects) })
+        return
+      }
+      const workspaceActivationRoute = /^\/v2\/workspaces\/([^/]+)\/activate$/u.exec(url.pathname)
+      if (request.method === "POST" && workspaceActivationRoute !== null) {
+        assertJsonMutation(request)
+        await requireEmptyJsonObject(request)
+        const workspaceId = decodeURIComponent(workspaceActivationRoute[1]!)
+        if (!isProtocolId(workspaceId)) throw new HttpError(404, "Not found")
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.select(workspaceId, await projectStore.read()) })
+        return
+      }
+      const workspaceProjectRoute = /^\/v2\/workspaces\/([^/]+)\/projects\/([^/]+)(?:\/(open))?$/u.exec(url.pathname)
+      if (workspaceProjectRoute !== null && ((request.method === "POST" && workspaceProjectRoute[3] === "open") || (request.method === "DELETE" && workspaceProjectRoute[3] === undefined))) {
+        const workspaceId = decodeURIComponent(workspaceProjectRoute[1]!)
+        const projectId = decodeURIComponent(workspaceProjectRoute[2]!)
+        if (!isProtocolId(workspaceId) || !isProtocolId(projectId)) throw new HttpError(404, "Not found")
+        const projects = await projectStore.read()
+        if (request.method === "POST") {
+          assertJsonMutation(request)
+          await requireEmptyJsonObject(request)
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.openProject(workspaceId, projectId, projects) })
+        } else {
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.removeWorkspaceProject(workspaceId, projectId, projects) })
+        }
+        return
+      }
+      const workspaceRoute = /^\/v2\/workspaces\/([^/]+)$/u.exec(url.pathname)
+      if (workspaceRoute !== null && (request.method === "PUT" || request.method === "DELETE")) {
+        const workspaceId = decodeURIComponent(workspaceRoute[1]!)
+        if (!isProtocolId(workspaceId)) throw new HttpError(404, "Not found")
+        if (request.method === "PUT") {
+          assertJsonMutation(request)
+          const value = await readJsonBody(request)
+          if (!isWorkspaceUpdateMutation(value)) throw new HttpError(400, "Workspace is invalid")
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.update(workspaceId, value, await projectStore.read()) })
+        } else {
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.remove(workspaceId, await projectStore.read()) })
+        }
+        return
+      }
       if (request.method === "GET" && url.pathname === "/v2/projects") {
         const projects = await projectStore.read()
-        sendJson(response, 200, { version: PROTOCOL_VERSION, projects, bookmarks: await projectBookmarks.list(projects) })
+        const state = await workspaceStore.list(projects, (await projectBookmarks.list(projects)).map(({ projectId }) => projectId))
+        const active = state.workspaces.find(({ id }) => id === state.activeWorkspaceId)!
+        sendJson(response, 200, {
+          version: PROTOCOL_VERSION,
+          projects: projects.map((project) => ({ ...project, closed: active.closedProjectIds.includes(project.id) || undefined })),
+          bookmarks: active.bookmarkedProjectIds.map((projectId, position) => ({ projectId, position })),
+        })
         return
       }
       if (request.method === "PUT" && url.pathname === "/v2/project-bookmarks") {
@@ -725,17 +792,26 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const value = await readJsonBody(request)
         if (!isProjectBookmarkMutation(value)) throw new HttpError(400, "Project Bookmark mutation is invalid")
         const projects = await projectStore.read()
-        const bookmarks = value.action === "set"
+        const legacyBookmarks = value.action === "set"
           ? await projectBookmarks.set(value.projectId, value.bookmarked, projects)
           : await projectBookmarks.reorder(value.projectId, value.direction, projects)
-        sendJson(response, 200, { version: PROTOCOL_VERSION, bookmarks })
+        await workspaceStore.list(projects, legacyBookmarks.map(({ projectId }) => projectId))
+        const state = value.action === "set"
+          ? await workspaceStore.setBookmarked(value.projectId, value.bookmarked, projects)
+          : await workspaceStore.reorderBookmark(value.projectId, value.direction, projects)
+        const active = state.workspaces.find(({ id }) => id === state.activeWorkspaceId)!
+        sendJson(response, 200, { version: PROTOCOL_VERSION, bookmarks: active.bookmarkedProjectIds.map((projectId, position) => ({ projectId, position })) })
         return
       }
       if (request.method === "POST" && url.pathname === "/v2/projects") {
         assertJsonMutation(request)
         const value = await readJsonBody(request)
         if (!isProjectCreate(value)) throw new HttpError(400, "Project is invalid")
-        sendJson(response, 201, { version: PROTOCOL_VERSION, projects: await projectStore.add(value.root, value.name ?? basename(value.root)) })
+        const before = await projectStore.read()
+        const projects = await projectStore.add(value.root, value.name ?? basename(value.root))
+        const added = projects.find(({ id }) => !before.some((project) => project.id === id))!
+        await workspaceStore.addProject(added.id, projects)
+        sendJson(response, 201, { version: PROTOCOL_VERSION, projects })
         return
       }
       if (request.method === "POST" && url.pathname === "/v2/session-hosts") {
@@ -750,10 +826,9 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         assertJsonMutation(request)
         const value = await readJsonBody(request)
         if (!isProjectRootsRequest(value)) throw new HttpError(400, "Project roots are invalid")
-        sendJson(response, 200, {
-          version: PROTOCOL_VERSION,
-          projects: await projectStore.configure(value.roots),
-        })
+        const projects = await projectStore.configure(value.roots)
+        await workspaceStore.list(projects)
+        sendJson(response, 200, { version: PROTOCOL_VERSION, projects })
         return
       }
       const projectStateRoute = /^\/v2\/projects\/([^/]+)\/(close|open)$/u.exec(url.pathname)
@@ -762,8 +837,11 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         await requireEmptyJsonObject(request)
         const projectId = decodeURIComponent(projectStateRoute[1]!)
         if (!isProtocolId(projectId)) throw new HttpError(404, "Not found")
-        const projects = await projectStore.setClosed(projectId, projectStateRoute[2] === "close")
-        sendJson(response, 200, { version: PROTOCOL_VERSION, projects, bookmarks: await projectBookmarks.list(projects) })
+        const projects = await projectStore.read()
+        await workspaceStore.list(projects, (await projectBookmarks.list(projects)).map(({ projectId: id }) => id))
+        const state = await workspaceStore.setClosed(projectId, projectStateRoute[2] === "close", projects)
+        const active = state.workspaces.find(({ id }) => id === state.activeWorkspaceId)!
+        sendJson(response, 200, { version: PROTOCOL_VERSION, projects: projects.map((project) => ({ ...project, closed: active.closedProjectIds.includes(project.id) || undefined })), bookmarks: active.bookmarkedProjectIds.map((id, position) => ({ projectId: id, position })) })
         return
       }
       const projectRoute = /^\/v2\/projects\/([^/]+)$/u.exec(url.pathname)
@@ -788,6 +866,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
           sessionBookmarks.removeProject(projectId),
           metadata.removeProject(projectId),
           scheduledJobs.disableProject(projectId),
+          workspaceStore.removeProject(projectId, await projectStore.read()),
         ])
         // Delegation records are intentionally retained. A working child still
         // needs its routing context to finish and report to its parent safely.
@@ -973,7 +1052,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const value = await readJsonBody(request)
         if (!isSessionCreateRequest(value)) throw new HttpError(400, "Session request is invalid")
         const project = await resolveNewSessionProject(projectStore, { projectId, sessionId: "new" }, value.cwd)
-        await projectStore.ensureOpen(project.id)
+        await ensureProjectOpen(project.id)
         const sessionId = randomUUID()
         initializeSession(project.root, sessionId, value.name)
         const indexed = await options.index.refreshSession({ projectId, sessionId }, project)
@@ -1000,7 +1079,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const project = isNew
           ? await resolveNewSessionProject(projectStore, route.key, (value as typeof value & { readonly cwd?: string }).cwd)
           : await resolveProject(route.key, saved)
-        await projectStore.ensureOpen(project.id)
+        await ensureProjectOpen(project.id)
         if (isNew) await metadata.set(route.key, "open")
 
         const imageIds = value.imageIds ?? []
@@ -1240,7 +1319,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const value = await readJsonBody(request)
         if (!isSessionStateRequest(value)) throw new HttpError(400, "Session state is invalid")
         if (value.state === "closed" && turns.isWorking(route.key)) throw new HttpError(409, "Working Session cannot be closed")
-        if (value.state === "open") await projectStore.ensureOpen(route.key.projectId)
+        if (value.state === "open") await ensureProjectOpen(route.key.projectId)
         await metadata.set(route.key, value.state)
         const changed = { ...saved, state: value.state }
         await publishSession(changed)
@@ -1272,7 +1351,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (request.method === "GET" && route.action === undefined) {
         const eventCursor = journal.cursor()
         const project = await resolveProject(route.key, saved)
-        await projectStore.ensureOpen(project.id)
+        await ensureProjectOpen(project.id)
         const indexed = await options.index.refreshSession(route.key, project) ?? saved
         const refreshed = (await decorateSessions(await metadata.decorate([indexed])))[0]
         if (refreshed === undefined) throw new HttpError(404, "Session not found")
@@ -1301,6 +1380,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       throw new HttpError(404, "Not found")
     } catch (error) {
       if (error instanceof ScheduledJobError) sendError(response, new HttpError(error.code === "not-found" ? 404 : error.code === "limit" ? 409 : 400, error.message))
+      else if (error instanceof WorkspaceStoreError) sendError(response, new HttpError(error.code === "not-found" ? 404 : error.code === "limit" ? 409 : 400, error.message))
       else sendError(response, error)
     }
   })
