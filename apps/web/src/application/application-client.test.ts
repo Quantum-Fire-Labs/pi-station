@@ -578,6 +578,28 @@ describe("Pi Station incremental Session summaries", () => {
     expect(fetchMock).toHaveBeenCalledWith("/v2/projects/project/close", expect.objectContaining({ method: "POST", body: "{}" }));
   });
 
+  it("moves a Project to a Workspace through the Project endpoint", async () => {
+    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    const collection = { workspaces: [{ id: "workspace-two", name: "Two", projectIds: ["project"] }], activeWorkspaceId: "workspace-two" };
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const path = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [], bookmarks: [] }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [], activeWorkspaceId: undefined }));
+      if (path === "/v2/projects/project/workspace" && init?.method === "POST") return Promise.resolve(Response.json(collection));
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    globalThis.fetch = fetchMock;
+    const client = new ApplicationClient();
+    client.connect();
+    await vi.waitFor(() => expect(client.snapshot.connection).toBe("ready"));
+
+    await client.moveProjectToWorkspace("project", "workspace-two");
+
+    expect(fetchMock).toHaveBeenCalledWith("/v2/projects/project/workspace", expect.objectContaining({ method: "POST", body: JSON.stringify({ workspaceId: "workspace-two" }) }));
+    expect(client.snapshot.workspaces).toEqual(collection.workspaces);
+  });
+
   it("removes a Project and all of its current client views", async () => {
     globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
     const fetchMock = vi.fn<typeof fetch>((input, init) => {

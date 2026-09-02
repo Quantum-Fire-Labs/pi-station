@@ -18,8 +18,9 @@ export function ProjectsPage({
   onSettings,
   onReorderBookmark,
   onSetProjectClosed = () => Promise.reject(new Error("Project state changes are unavailable")),
-  activeWorkspace,
-  onSetWorkspaceProjects,
+  workspaces = [],
+  activeWorkspaceId,
+  onMoveToWorkspace,
 }: {
   state: ApplicationState;
   onOpen: (projectId: ProjectId) => void;
@@ -30,8 +31,9 @@ export function ProjectsPage({
   onSettings: () => void;
   onReorderBookmark: (projectId: ProjectId, direction: "up" | "down") => string | undefined;
   onSetProjectClosed?: (projectId: ProjectId, closed: boolean) => Promise<void>;
-  activeWorkspace?: SavedWorkspace | undefined;
-  onSetWorkspaceProjects?: ((projectIds: readonly ProjectId[]) => Promise<void>) | undefined;
+  workspaces?: readonly SavedWorkspace[];
+  activeWorkspaceId?: string | undefined;
+  onMoveToWorkspace?: ((projectId: ProjectId, workspaceId: string) => Promise<void>) | undefined;
 }) {
   const [query, setQuery] = useState("");
   const [mutationRequestId, setMutationRequestId] = useState<string>();
@@ -61,6 +63,14 @@ export function ProjectsPage({
     setProjectError(undefined);
     void onSetProjectClosed(projectId, value)
       .catch((reason: unknown) => setProjectError(reason instanceof Error ? reason.message : "Project state could not be changed"))
+      .finally(() => setProjectSaving(undefined));
+  };
+  const moveProject = (projectId: ProjectId, workspaceId: string): void => {
+    if (onMoveToWorkspace === undefined) return;
+    setProjectSaving(projectId);
+    setProjectError(undefined);
+    void onMoveToWorkspace(projectId, workspaceId)
+      .catch((reason: unknown) => setProjectError(reason instanceof Error ? reason.message : "Project could not be moved"))
       .finally(() => setProjectSaving(undefined));
   };
 
@@ -93,11 +103,11 @@ export function ProjectsPage({
             </div>
             {hasResults ? (
               <>
-                {bookmarked.length > 0 && <ProjectGroup title="Bookmarked" projects={bookmarked} onOpen={onOpen} saving={saving} activeWorkspace={activeWorkspace} onSetWorkspaceProjects={onSetWorkspaceProjects} onReorder={(projectId, direction) => {
+                {bookmarked.length > 0 && <ProjectGroup title="Bookmarked" projects={bookmarked} onOpen={onOpen} saving={saving} workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} onMoveToWorkspace={moveProject} onReorder={(projectId, direction) => {
                   const requestId = onReorderBookmark(projectId, direction);
                   if (requestId !== undefined) setMutationRequestId(requestId);
                 }} />}
-                {other.length > 0 && <ProjectGroup title="Other Projects" projects={other} onOpen={onOpen} saving={saving} activeWorkspace={activeWorkspace} onSetWorkspaceProjects={onSetWorkspaceProjects} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
+                {other.length > 0 && <ProjectGroup title="Other Projects" projects={other} onOpen={onOpen} saving={saving} workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} onMoveToWorkspace={moveProject} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
               </>
             ) : (
               <div className="projects-page-no-results"><Search aria-hidden="true" /><strong>No matching Projects</strong><span>Try a different name or path.</span></div>
@@ -114,7 +124,7 @@ const compareProjects = (left: ApplicationState["projects"][number], right: Appl
   left.name.localeCompare(right.name, undefined, { sensitivity: "base" }) || left.projectId.localeCompare(right.projectId)
 );
 
-function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSaving, onSetClosed, activeWorkspace, onSetWorkspaceProjects }: {
+function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSaving, onSetClosed, workspaces, activeWorkspaceId, onMoveToWorkspace }: {
   title: string;
   projects: ApplicationState["projects"];
   onOpen: (projectId: ProjectId) => void;
@@ -122,8 +132,9 @@ function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSavin
   onReorder?: (projectId: ProjectId, direction: "up" | "down") => void;
   projectSaving?: ProjectId;
   onSetClosed?: (projectId: ProjectId, closed: boolean) => void;
-  activeWorkspace?: SavedWorkspace | undefined;
-  onSetWorkspaceProjects?: ((projectIds: readonly ProjectId[]) => Promise<void>) | undefined;
+  workspaces: readonly SavedWorkspace[];
+  activeWorkspaceId?: string | undefined;
+  onMoveToWorkspace?: ((projectId: ProjectId, workspaceId: string) => void) | undefined;
 }) {
   const headingId = `projects-${title.toLowerCase().replaceAll(" ", "-")}`;
   return (
@@ -142,12 +153,17 @@ function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSavin
             </div>
             <div className="projects-page-row-status">{project.available ? <Badge variant="outline">Available</Badge> : <Badge variant="outline">Unavailable</Badge>}</div>
             <div className="projects-page-row-actions">
-              {activeWorkspace !== undefined && onSetWorkspaceProjects !== undefined && (() => {
-                const included = activeWorkspace.projectIds.includes(project.projectId);
-                return <Button type="button" variant={included ? "ghost" : "outline"} onClick={() => void onSetWorkspaceProjects(included
-                  ? activeWorkspace.projectIds.filter((id) => id !== project.projectId)
-                  : [...activeWorkspace.projectIds, project.projectId])}>{included ? "Remove from Workspace" : "Add to Workspace"}</Button>;
-              })()}
+              {onMoveToWorkspace !== undefined && workspaces.some(({ id }) => id !== activeWorkspaceId) && <form aria-label={`Move ${project.name} to Workspace`} onSubmit={(event) => {
+                event.preventDefault();
+                const workspaceId = new FormData(event.currentTarget).get("workspaceId");
+                if (typeof workspaceId === "string" && workspaceId.length > 0) void onMoveToWorkspace(project.projectId, workspaceId);
+              }}>
+                <select name="workspaceId" aria-label={`Destination Workspace for ${project.name}`} defaultValue="">
+                  <option value="" disabled>Select Workspace</option>
+                  {workspaces.filter(({ id }) => id !== activeWorkspaceId).map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+                </select>
+                <Button type="submit" variant="outline">Move to Workspace</Button>
+              </form>}
               {project.closed === true && onSetClosed !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button>}
               {onReorder !== undefined && <span className="projects-page-order" role="group" aria-label={`Change ${project.name} order`}>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} up`} disabled={saving || index === 0} onClick={() => onReorder(project.projectId, "up")}><ArrowUp aria-hidden="true" /></Button>

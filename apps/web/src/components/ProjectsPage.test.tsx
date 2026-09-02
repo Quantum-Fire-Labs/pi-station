@@ -86,6 +86,24 @@ describe("ProjectsPage", () => {
     expect(onSetProjectClosed).toHaveBeenCalledWith(project.projectId, false);
   });
 
+  it("moves a Project to a different Workspace without membership controls", async () => {
+    const user = userEvent.setup();
+    const project = fixtureState.projects[0]!;
+    const onMoveToWorkspace = vi.fn(() => Promise.resolve());
+    const workspaces = [
+      { id: "workspace-one", name: "One", projectIds: fixtureState.projects.map(({ projectId }) => projectId), createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+      { id: "workspace-two", name: "Two", projectIds: [], createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+    ];
+    render(<ProjectsPage {...pageProps} state={fixtureState} onOpen={vi.fn()} workspaces={workspaces} activeWorkspaceId="workspace-one" onMoveToWorkspace={onMoveToWorkspace} />);
+
+    expect(screen.queryByText("Add to Workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Remove from Workspace")).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: `Destination Workspace for ${project.name}` }), "workspace-two");
+    await user.click(within(screen.getByRole("form", { name: `Move ${project.name} to Workspace` })).getByRole("button", { name: "Move to Workspace" }));
+
+    expect(onMoveToWorkspace).toHaveBeenCalledWith(project.projectId, "workspace-two");
+  });
+
   it("opens a Project from its card area without a visible Open Project button", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();

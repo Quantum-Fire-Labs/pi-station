@@ -3122,9 +3122,10 @@ export function Workspace({
   if (route === "projects") {
     return renderPage(
       <ProjectsPage
-        state={applicationState}
-        activeWorkspace={activeWorkspace}
-        onSetWorkspaceProjects={(projectIds) => activeWorkspace === undefined || client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.setWorkspaceProjects(activeWorkspace.id, projectIds)}
+        state={state}
+        workspaces={applicationState.workspaces ?? []}
+        activeWorkspaceId={activeWorkspace?.id}
+        onMoveToWorkspace={(projectId, workspaceId) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.moveProjectToWorkspace(projectId, workspaceId)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
@@ -3143,7 +3144,7 @@ export function Workspace({
   }
 
   if (route === "project") {
-    const project = applicationState.projects.find(
+    const project = state.projects.find(
       (candidate) => candidate.projectId === selectedProjectId,
     );
     if (project !== undefined) {
@@ -3191,9 +3192,10 @@ export function Workspace({
     }
     return renderPage(
       <ProjectsPage
-        state={applicationState}
-        activeWorkspace={activeWorkspace}
-        onSetWorkspaceProjects={(projectIds) => activeWorkspace === undefined || client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.setWorkspaceProjects(activeWorkspace.id, projectIds)}
+        state={state}
+        workspaces={applicationState.workspaces ?? []}
+        activeWorkspaceId={activeWorkspace?.id}
+        onMoveToWorkspace={(projectId, workspaceId) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.moveProjectToWorkspace(projectId, workspaceId)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");

@@ -407,8 +407,8 @@ export class ApplicationClient extends ApplicationClientBase {
     this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}/activate`, "POST", {}) as WorkspaceCollection);
   }
 
-  override async setWorkspaceProjects(id: string, projectIds: readonly ProjectId[]): Promise<void> {
-    this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}`, "PUT", { projectIds }) as WorkspaceCollection);
+  override async moveProjectToWorkspace(projectId: ProjectId, workspaceId: string): Promise<void> {
+    this.applyWorkspaceCollection(await mutate(`/v2/projects/${encodeURIComponent(projectId)}/workspace`, "POST", { workspaceId }) as WorkspaceCollection);
   }
 
   override async setProjectClosed(projectId: ProjectId, closed: boolean): Promise<void> {
