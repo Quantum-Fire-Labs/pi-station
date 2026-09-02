@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import type { MessageStash } from "@pi-station/application-protocol";
 import type { ApplicationState } from "../application/application-client-base";
-import type { ModelChoice, ProjectSummary, SessionKey, ThinkingLevel } from "../application/workspace-model";
+import type { ModelChoice, ProjectId, ProjectSummary, SessionKey, ThinkingLevel } from "../application/workspace-model";
 
 interface PaletteAction {
   glyph: ReactNode;
@@ -56,8 +56,9 @@ type Flow =
   | { kind: "close" }
   | { kind: "new-location" }
   | { kind: "new-project" }
-  | { kind: "new-directory" }
-  | { kind: "new-name"; location: NewSessionLocation; back: "actions" | "new-project" | "new-directory" };
+  | { kind: "new-directory"; purpose: "session" | "project" }
+  | { kind: "new-name"; location: NewSessionLocation; back: "actions" | "new-project" | "new-directory" }
+  | { kind: "add-project-name"; location: NewSessionLocation };
 
 export interface CommandPaletteProps {
   onClose: () => void;
@@ -69,6 +70,7 @@ export interface CommandPaletteProps {
   projects?: readonly ProjectSummary[] | undefined;
   directoryLists?: ApplicationState["directoryLists"] | undefined;
   managedSessionCreates?: ApplicationState["managedSessionCreates"] | undefined;
+  projectCreates?: ApplicationState["projectCreates"] | undefined;
   bookmarked?: boolean;
   working?: boolean;
   canCreateSession?: boolean;
@@ -89,6 +91,8 @@ export interface CommandPaletteProps {
   onDashboard: () => void;
   onProjects: () => void;
   onAddProject: () => void;
+  onCreateProject?: ((name: string, directory: string) => string | undefined) | undefined;
+  onProjectCreated?: ((projectId: ProjectId) => void) | undefined;
   onListDirectory?: ((path?: string, showHidden?: boolean) => string | undefined) | undefined;
   onCreateSession?: ((workingDirectory: string, optionalName?: string) => string | undefined) | undefined;
   onSessionStarted?: ((sessionKey: SessionKey) => void) | undefined;
@@ -112,7 +116,9 @@ export function CommandPalette(props: CommandPaletteProps) {
   const [directoryRequestId, setDirectoryRequestId] = useState<string>();
   const [showHidden, setShowHidden] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
+  const [projectName, setProjectName] = useState("");
   const [createRequestId, setCreateRequestId] = useState<string>();
+  const [projectCreateRequestId, setProjectCreateRequestId] = useState<string>();
   const [newSessionLaunchError, setNewSessionLaunchError] = useState<string>();
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -131,18 +137,18 @@ export function CommandPalette(props: CommandPaletteProps) {
     if (id === undefined) setNewSessionLaunchError("Pi Station could not load directories.");
     else setDirectoryRequestId(id);
   };
-  const openDirectory = (): void => {
+  const openDirectory = (purpose: "session" | "project" = "session"): void => {
     setDirectoryRequestId(undefined);
     setShowHidden(false);
     setQuery("");
-    setFlow({ kind: "new-directory" });
+    setFlow({ kind: "new-directory", purpose });
     loadDirectory(undefined, false);
   };
   const actions = useMemo<readonly PaletteAction[]>(() => {
     const items: PaletteAction[] = [
       { glyph: <LayoutDashboard aria-hidden="true" size={16} />, name: "Dashboard", run: () => closeAfter(props.onDashboard) },
       { glyph: <FolderKanban aria-hidden="true" size={16} />, name: "Projects", run: () => closeAfter(props.onProjects) },
-      { glyph: <FolderPlus aria-hidden="true" size={16} />, name: "Add Project", run: () => closeAfter(props.onAddProject) },
+      { glyph: <FolderPlus aria-hidden="true" size={16} />, name: "Add Project", run: () => openDirectory("project") },
     ];
     if (props.onOpenSession) items.push({ glyph: <History aria-hidden="true" size={16} />, name: "Sessions", run: () => { setFlow({ kind: "sessions" }); setQuery(""); } });
     if (props.sessionId && props.onRestoreStash) items.push({ glyph: <Archive aria-hidden="true" size={16} />, name: "Stashed messages", run: () => { setFlow({ kind: "stashes" }); setQuery(""); } });
@@ -191,7 +197,9 @@ export function CommandPalette(props: CommandPaletteProps) {
   const directoryChoiceCount = directory === undefined ? 0 : 1 + (directory.parent === undefined ? 0 : 1) + shownDirectories.length;
   const count = flow.kind === "actions" ? shownActions.length : flow.kind === "sessions" ? shownSessions.length : flow.kind === "stashes" ? shownStashes.length : flow.kind === "close" ? closeChoices.length : flow.kind === "new-location" ? locationChoices.length : flow.kind === "new-project" ? shownProjects.length : flow.kind === "new-directory" ? directoryChoiceCount : choices.length;
   const createRequest = createRequestId === undefined ? undefined : props.managedSessionCreates?.[createRequestId];
+  const projectCreateRequest = projectCreateRequestId === undefined ? undefined : props.projectCreates?.[projectCreateRequestId];
   const starting = createRequest?.status === "starting";
+  const savingProject = projectCreateRequest?.status === "saving";
   const newSessionError = createRequest?.result?.status === "outcome-unknown"
     ? "Pi may have started, but Pi Station has not confirmed the Session yet."
     : createRequest?.result?.status === "rejected" || createRequest?.result?.status === "retryable"
@@ -199,6 +207,9 @@ export function CommandPalette(props: CommandPaletteProps) {
       : directoryRequest?.result?.status === "rejected" || directoryRequest?.result?.status === "retryable"
         ? directoryRequest.result.error.message
         : newSessionLaunchError;
+  const projectCreateError = projectCreateRequest?.result?.status === "rejected" || projectCreateRequest?.result?.status === "retryable"
+    ? projectCreateRequest.result.error.message
+    : newSessionLaunchError;
 
   useEffect(() => () => returnFocusRef.current?.focus(), []);
   useEffect(() => {
@@ -211,6 +222,11 @@ export function CommandPalette(props: CommandPaletteProps) {
     props.onSessionStarted?.(createRequest.result.sessionKey);
     props.onClose();
   }, [createRequest?.result, props.onClose, props.onSessionStarted]);
+  useEffect(() => {
+    if (projectCreateRequest?.result?.status !== "succeeded") return;
+    props.onProjectCreated?.(projectCreateRequest.result.project.projectId);
+    props.onClose();
+  }, [projectCreateRequest?.result, props.onClose, props.onProjectCreated]);
   useLayoutEffect(() => {
     setActiveIndex(0);
     (inputRef.current ?? panelRef.current)?.focus();
@@ -224,14 +240,16 @@ export function CommandPalette(props: CommandPaletteProps) {
     activeOption?.scrollIntoView?.({ block: "nearest" });
   }, [activeIndex, flow.kind, query]);
   const back = (): void => {
-    if (props.pending || starting) return;
+    if (props.pending || starting || savingProject) return;
     if (flow.kind === "actions") props.onClose();
-    else if (flow.kind === "new-name") setFlow({ kind: flow.back });
-    else if (flow.kind === "new-directory" || flow.kind === "new-project") { setFlow({ kind: "new-location" }); setQuery(""); }
+    else if (flow.kind === "new-name") setFlow(flow.back === "new-directory" ? { kind: "new-directory", purpose: "session" } : { kind: flow.back });
+    else if (flow.kind === "add-project-name") setFlow({ kind: "new-directory", purpose: "project" });
+    else if (flow.kind === "new-directory") { setFlow(flow.purpose === "project" ? { kind: "actions" } : { kind: "new-location" }); setQuery(""); }
+    else if (flow.kind === "new-project") { setFlow({ kind: "new-location" }); setQuery(""); }
     else { setFlow({ kind: "actions" }); setQuery(""); }
   };
   const select = (): void => {
-    if (props.pending || starting) return;
+    if (props.pending || starting || savingProject) return;
     if (flow.kind === "actions") shownActions[activeIndex]?.run();
     else if (flow.kind === "model") { const model = props.models?.[activeIndex]; if (model) props.onSetModel?.(model.provider, model.modelId); }
     else if (flow.kind === "thinking") { const level = props.thinkingLevels?.[activeIndex]; if (level) props.onSetThinking?.(level); }
@@ -245,7 +263,11 @@ export function CommandPalette(props: CommandPaletteProps) {
       const project = shownProjects[activeIndex];
       if (project !== undefined) startNameFlow({ path: project.displayPath, displayPath: project.displayPath }, "new-project");
     } else if (flow.kind === "new-directory" && directory !== undefined) {
-      if (activeIndex === 0) startNameFlow({ path: directory.current.path, displayPath: directory.current.displayPath }, "new-directory");
+      if (activeIndex === 0) {
+        const location = { path: directory.current.path, displayPath: directory.current.displayPath };
+        if (flow.purpose === "project") { setProjectName(""); setProjectCreateRequestId(undefined); setNewSessionLaunchError(undefined); setFlow({ kind: "add-project-name", location }); }
+        else startNameFlow(location, "new-directory");
+      }
       else if (directory.parent !== undefined && activeIndex === 1) loadDirectory(directory.parent.path);
       else {
         const directoryIndex = activeIndex - 1 - (directory.parent === undefined ? 0 : 1);
@@ -272,17 +294,17 @@ export function CommandPalette(props: CommandPaletteProps) {
     const listFlow = flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "close" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "stashes";
     if (listFlow && (event.key === "ArrowDown" || (event.key === "Tab" && !event.shiftKey))) { event.preventDefault(); if (count) setActiveIndex((i) => (i + 1) % count); return; }
     if (listFlow && (event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey))) { event.preventDefault(); if (count) setActiveIndex((i) => (i - 1 + count) % count); return; }
-    if (event.key === "Enter" && flow.kind !== "rename" && flow.kind !== "new-name") { event.preventDefault(); select(); }
+    if (event.key === "Enter" && flow.kind !== "rename" && flow.kind !== "new-name" && flow.kind !== "add-project-name") { event.preventDefault(); select(); }
   };
   const closeSessionName = props.sessionName?.trim();
-  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : flow.kind === "stashes" ? "Stashed messages" : flow.kind === "close" ? closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?" : flow.kind === "new-location" ? "Choose location" : flow.kind === "new-project" ? "Choose project" : flow.kind === "new-directory" ? "Choose directory" : "Name your Session";
-  const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : flow.kind === "stashes" ? <Archive aria-hidden="true" size={14} /> : flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" ? <Folder aria-hidden="true" size={14} /> : flow.kind === "new-name" ? <Plus aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
+  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : flow.kind === "stashes" ? "Stashed messages" : flow.kind === "close" ? closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?" : flow.kind === "new-location" ? "Choose location" : flow.kind === "new-project" ? "Choose project" : flow.kind === "new-directory" ? "Choose directory" : flow.kind === "add-project-name" ? "Name your Project" : "Name your Session";
+  const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : flow.kind === "stashes" ? <Archive aria-hidden="true" size={14} /> : flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" ? <Folder aria-hidden="true" size={14} /> : flow.kind === "new-name" || flow.kind === "add-project-name" ? <Plus aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
   const listFooter = flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "stashes";
 
   return <div className="palette-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) back(); }}>
     <section ref={panelRef} className="palette" role="dialog" aria-modal="true" aria-labelledby="palette-title" tabIndex={-1} onKeyDown={handleKeyDown}>
       {(flow.kind === "actions" || flow.kind === "sessions") && <label className="palette-search"><Search aria-hidden="true" size={17} /><span id="palette-title" className="sr-only">{title}</span><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "sessions" ? "Search Sessions…" : "Choose an action…"} aria-controls="palette-results" /><kbd>Esc</kbd></label>}
-      {flow.kind !== "actions" && flow.kind !== "sessions" && <header className="palette-flow-header"><button type="button" onClick={back} disabled={props.pending || starting} aria-label="Back">{flowGlyph}</button><h2 id="palette-title">{title}</h2><kbd>Esc</kbd></header>}
+      {flow.kind !== "actions" && flow.kind !== "sessions" && <header className="palette-flow-header"><button type="button" onClick={back} disabled={props.pending || starting || savingProject} aria-label="Back">{flowGlyph}</button><h2 id="palette-title">{title}</h2><kbd>Esc</kbd></header>}
       {(flow.kind === "new-project" || flow.kind === "new-directory") && <div className="palette-search palette-subsearch"><Search aria-hidden="true" size={17} /><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "new-project" ? "Filter projects…" : "Filter directories…"} aria-label={flow.kind === "new-project" ? "Filter projects" : "Filter directories"} aria-controls="palette-results" />{flow.kind === "new-directory" && <button type="button" className={showHidden ? "active" : ""} aria-pressed={showHidden} disabled={directoryRequest?.status === "loading"} onClick={() => { const hidden = !showHidden; setShowHidden(hidden); loadDirectory(directory?.current.path, hidden); }}>Hidden</button>}</div>}
       {flow.kind === "rename" && <form className="palette-form" onSubmit={(event) => { event.preventDefault(); const value = flow.value.trim(); if (value && !props.pending) props.onRename?.(value); }}><label>Session name<input ref={inputRef} value={flow.value} maxLength={120} onChange={(event) => setFlow({ kind: "rename", value: event.target.value })} /></label><button type="submit" disabled={!flow.value.trim() || props.pending}>{props.pending ? "Saving…" : "Save"}</button></form>}
       {(flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking") && <div id="palette-results" className="palette-results" role="listbox">
@@ -310,7 +332,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       </div>}
       {flow.kind === "new-location" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Session locations">
         <button type="button" role="option" aria-selected={activeIndex === 0} className={activeIndex === 0 ? "active" : ""} onClick={() => { setQuery(""); setFlow({ kind: "new-project" }); }}><span className="palette-option-glyph" aria-hidden="true"><FolderKanban size={14} /></span><span className="palette-option-copy"><span className="palette-option-name">Projects</span><small>Choose from available projects</small></span></button>
-        <button type="button" role="option" aria-selected={activeIndex === 1} className={activeIndex === 1 ? "active" : ""} onClick={openDirectory}><span className="palette-option-glyph" aria-hidden="true"><Folder size={14} /></span><span className="palette-option-copy"><span className="palette-option-name">Directories</span><small>Browse from the current directory</small></span></button>
+        <button type="button" role="option" aria-selected={activeIndex === 1} className={activeIndex === 1 ? "active" : ""} onClick={() => openDirectory("session")}><span className="palette-option-glyph" aria-hidden="true"><Folder size={14} /></span><span className="palette-option-copy"><span className="palette-option-name">Directories</span><small>Browse from the current directory</small></span></button>
       </div>}
       {flow.kind === "new-project" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Projects">
         {shownProjects.map((project, index) => <button type="button" key={project.projectId} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => startNameFlow({ path: project.displayPath, displayPath: project.displayPath }, "new-project")}><span className="palette-option-glyph" aria-hidden="true"><FolderKanban size={14} /></span><span className="palette-option-copy"><span className="palette-option-name">{project.name}</span><small>{project.displayPath}</small></span></button>)}
@@ -319,7 +341,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       {flow.kind === "new-directory" && <div className="palette-directory">
         <div className="palette-directory-current"><small>Current</small><strong>{directory?.current.displayPath ?? "Loading…"}</strong></div>
         <div id="palette-results" className="palette-results palette-directory-list" role="listbox" aria-label="Directories">
-          {directory !== undefined && <button type="button" role="option" aria-selected={activeIndex === 0} className={`palette-directory-use${activeIndex === 0 ? " active" : ""}`} onClick={() => { setActiveIndex(0); startNameFlow({ path: directory.current.path, displayPath: directory.current.displayPath }, "new-directory"); }}><Plus aria-hidden="true" size={14} /><span><strong>Use current directory</strong><small>{directory.current.displayPath}</small></span></button>}
+          {directory !== undefined && <button type="button" role="option" aria-selected={activeIndex === 0} className={`palette-directory-use${activeIndex === 0 ? " active" : ""}`} onClick={() => { setActiveIndex(0); select(); }}><Plus aria-hidden="true" size={14} /><span><strong>Use current directory</strong><small>{directory.current.displayPath}</small></span></button>}
           {directory?.parent && <DirectoryButton index={1} activeIndex={activeIndex} name="Parent directory" path={directory.parent.displayPath} onClick={() => { setQuery(""); loadDirectory(directory.parent?.path); }} />}
           {shownDirectories.map((item, index) => { const choiceIndex = index + 1 + (directory?.parent === undefined ? 0 : 1); return <DirectoryButton key={item.path} index={choiceIndex} activeIndex={activeIndex} name={item.name} path={item.displayPath} onClick={() => { setQuery(""); loadDirectory(item.path); }} />; })}
           {directory !== undefined && directoryChoiceCount === 1 + (directory.parent === undefined ? 0 : 1) && query.trim() && <p className="palette-empty" role="status">No child directories match that search.</p>}
@@ -327,9 +349,11 @@ export function CommandPalette(props: CommandPaletteProps) {
         {directoryRequest?.status === "loading" && <p className="palette-state" role="status">Loading directories…</p>}
       </div>}
       {flow.kind === "new-name" && <form className="palette-form palette-new-session-form" onSubmit={(event) => { event.preventDefault(); if (starting) return; setNewSessionLaunchError(undefined); const trimmed = newSessionName.trim(); const id = props.onCreateSession?.(flow.location.path, trimmed === "" ? undefined : trimmed); if (id === undefined) setNewSessionLaunchError("Pi Station could not start the Session."); else setCreateRequestId(id); }}><p className="palette-location"><small>Location</small><strong>{flow.location.displayPath}</strong></p><label>Session name <span>(optional)</span><input ref={inputRef} value={newSessionName} maxLength={120} autoComplete="off" placeholder="e.g. Release planning" disabled={starting} onChange={(event) => setNewSessionName(event.target.value)} /></label><button type="submit" disabled={starting}>{starting ? "Starting…" : "Start Pi"}</button></form>}
+      {flow.kind === "add-project-name" && <form className="palette-form" onSubmit={(event) => { event.preventDefault(); if (savingProject) return; const trimmed = projectName.trim(); if (!trimmed) return; setNewSessionLaunchError(undefined); const id = props.onCreateProject?.(trimmed, flow.location.path); if (id === undefined) setNewSessionLaunchError("Pi Station could not create the Project."); else setProjectCreateRequestId(id); }}><p className="palette-location"><small>Location</small><strong>{flow.location.displayPath}</strong></p><label>Project name<input ref={inputRef} value={projectName} maxLength={120} autoComplete="off" placeholder="e.g. Pi Station" disabled={savingProject} required onChange={(event) => setProjectName(event.target.value)} /></label><button type="submit" disabled={!projectName.trim() || savingProject}>{savingProject ? "Saving…" : "Save Project"}</button></form>}
       {flow.kind === "close" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Close Session confirmation">{closeChoices.map((item, index) => <button type="button" key={item.name} role="option" aria-selected={index === activeIndex} className={`${index === activeIndex ? "active " : ""}${item.danger ? "danger" : ""}`.trim()} onClick={() => { setActiveIndex(index); if (index === 0) back(); else props.onConfirmClose?.(); }} disabled={props.pending}><span className="palette-option-glyph" aria-hidden="true">{item.glyph}</span><span className="palette-option-name">{item.danger && props.pending ? "Closing…" : item.name}</span></button>)}</div>}
       {(flow.kind === "new-directory" || flow.kind === "new-name") && newSessionError && <p className="palette-error" role="alert">{newSessionError}</p>}
-      {flow.kind !== "new-directory" && flow.kind !== "new-name" && props.error && <p className="palette-error" role="alert">{props.error}</p>}
+      {flow.kind === "add-project-name" && projectCreateError && <p className="palette-error" role="alert">{projectCreateError}</p>}
+      {flow.kind !== "new-directory" && flow.kind !== "new-name" && flow.kind !== "add-project-name" && props.error && <p className="palette-error" role="alert">{props.error}</p>}
       <footer>{listFooter ? "↑↓/Tab navigate · Enter select" : "Escape goes back"}</footer>
     </section>
   </div>;
