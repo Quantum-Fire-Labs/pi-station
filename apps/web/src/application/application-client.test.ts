@@ -409,6 +409,7 @@ describe("Pi Station incremental Session summaries", () => {
       historyRevision: "revision",
       hasEarlierHistory: false,
       settings: { modelInventory: [], supportedThinkingLevels: ["off"] },
+      commandInventory: [{ name: "review", description: "Review changes", source: "extension", invocation: "direct" }],
       sharedFiles: [],
       commandApproval: { id: "approval-1", command: "rm -rf build" },
     };
@@ -416,6 +417,7 @@ describe("Pi Station incremental Session summaries", () => {
     const client = new ApplicationClient();
     client.select({ hostId: "project", piSessionId: "session" });
     await vi.waitFor(() => expect(client.snapshot.selected.commandApproval).toEqual(view.commandApproval));
+    expect(client.snapshot.selected.details?.commandInventory).toEqual(view.commandInventory);
     expect(FakeEventSource.instances[0]?.url).toContain("after=4");
     client.stop();
   });

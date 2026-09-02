@@ -27,6 +27,7 @@ export {
   sessionKey,
 } from "./sessions.js"
 export type {
+  CommandSummary,
   ModelChoice,
   SavedSession,
   SessionSettings,

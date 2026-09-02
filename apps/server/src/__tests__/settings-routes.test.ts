@@ -60,6 +60,17 @@ describe("Pi Station Session settings routes", () => {
           reasoning: true,
         }
       if (command.type === "set_thinking_level") thinkingLevel = command.level
+      if (command.type === "get_commands")
+        return Promise.resolve({
+          type: "response",
+          command: command.type,
+          success: true,
+          data: { commands: [
+            { name: "review", description: "Review changes", source: "extension", invocation: "direct" },
+            { name: "x".repeat(121), source: "skill", invocation: "prompt" },
+            { name: "long-description", description: "x".repeat(501), source: "prompt-template", invocation: "prompt" },
+          ] },
+        })
       if (command.type === "get_available_models")
         return Promise.resolve({
           type: "response",
@@ -112,6 +123,7 @@ describe("Pi Station Session settings routes", () => {
           thinkingLevel: string
           supportedThinkingLevels: string[]
         }
+        commandInventory: Array<{ name: string; description?: string; source: string; invocation: string }>
         sharedFiles: Array<{ name: string; url: string; size: number; modifiedAt: number }>
       }
       expect(viewResponse.headers.get("cache-control")).toBe("no-store")
@@ -130,6 +142,10 @@ describe("Pi Station Session settings routes", () => {
         thinkingLevel: "medium",
         supportedThinkingLevels: ["off", "low", "high"],
       })
+      expect(view.commandInventory).toEqual([
+        { name: "review", description: "Review changes", source: "extension", invocation: "direct" },
+        { name: "long-description", source: "prompt-template", invocation: "prompt" },
+      ])
       expect(view.sharedFiles).toEqual([expect.objectContaining({
         name: "review.md",
         url: "/shared/session-1/review.md",

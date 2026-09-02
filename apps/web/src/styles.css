@@ -1372,7 +1372,8 @@ body.sidebar-resizing {
   box-shadow: 0 1px 3px #0006;
 }
 .composer-image.error { border-color: var(--danger); }
-.agent-mention-menu {
+.agent-mention-menu,
+.slash-command-menu {
   position: absolute;
   inset: auto 12px calc(100% - 8px) 12px;
   z-index: 8;
@@ -1384,13 +1385,15 @@ body.sidebar-resizing {
   background: var(--page);
   box-shadow: 0 12px 32px rgb(0 0 0 / 14%);
 }
-.agent-mention-menu > header { padding: 6px 8px 8px; color: var(--muted); font-size: .75rem; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; }
-.agent-mention-menu > p { margin: 0; padding: 12px 8px; color: var(--muted); }
-.agent-mention-menu section + section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-.agent-mention-menu h3 { margin: 0; padding: 3px 8px; color: var(--muted); font-size: .78rem; font-weight: 600; }
-.composer .agent-mention-menu button { display: block; width: 100%; height: auto; padding: 7px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; text-align: left; }
-.agent-mention-menu button:hover, .agent-mention-menu button[aria-selected="true"] { background: var(--input); }
-.agent-mention-menu button span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-mention-menu > header, .slash-command-menu > header { padding: 6px 8px 8px; color: var(--muted); font-size: .75rem; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; }
+.agent-mention-menu > p, .slash-command-menu > p { margin: 0; padding: 12px 8px; color: var(--muted); }
+.agent-mention-menu section + section, .slash-command-menu section + section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.agent-mention-menu h3, .slash-command-menu h3 { margin: 0; padding: 3px 8px; color: var(--muted); font-size: .78rem; font-weight: 600; }
+.composer .agent-mention-menu button, .composer .slash-command-menu button { display: block; width: 100%; height: auto; padding: 7px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; text-align: left; }
+.agent-mention-menu button:hover, .agent-mention-menu button[aria-selected="true"], .slash-command-menu button:hover, .slash-command-menu button[aria-selected="true"] { background: var(--input); }
+.agent-mention-menu button span, .slash-command-menu button span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slash-command-menu button strong { font-weight: 650; }
+.slash-command-menu button small { display: block; overflow: hidden; color: var(--muted); font-size: .75rem; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 
 .composer textarea {
   display: block;

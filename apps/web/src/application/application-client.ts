@@ -869,7 +869,7 @@ export class ApplicationClient extends ApplicationClientBase {
           modelInventory: view.settings.modelInventory,
           thinkingLevel: view.settings.thinkingLevel,
           supportedThinkingLevels: view.settings.supportedThinkingLevels,
-          commandInventory: [],
+          commandInventory: view.commandInventory ?? [],
           sharedFiles: view.sharedFiles,
         },
         queue: { state: "empty", knownItems: [] },

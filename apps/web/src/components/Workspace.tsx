@@ -42,6 +42,7 @@ import type { ApplicationState } from "../application/application-client-base";
 import { sessionKeysEqual } from "../application/application-client-base";
 import type { ApplicationClient } from "../application/application-client";
 import { AgentMentionMenu, agentMentionLabel, filterAgentMentions, type AgentMentionOption } from "./AgentMentionMenu";
+import { filterSlashCommands, SlashCommandMenu, type SlashCommandOption } from "./SlashCommandMenu";
 import { CommandPalette, type CommandPaletteInitialFlow } from "./CommandPalette";
 import { useToast } from "./Toast";
 import { ComposerControls } from "./ComposerControls";
@@ -1384,6 +1385,8 @@ export function Workspace({
   const [draft, setDraft] = useState(() => readComposerDraft(selectedSessionIdentity));
   const [agentMention, setAgentMention] = useState<{ readonly start: number; readonly query: string }>();
   const [agentMentionIndex, setAgentMentionIndex] = useState(0);
+  const [slashCommandQuery, setSlashCommandQuery] = useState<string>();
+  const [slashCommandIndex, setSlashCommandIndex] = useState(0);
   const [selectedAgentMentions, setSelectedAgentMentions] = useState<readonly { readonly sessionId: string; readonly label: string; readonly token: string }[]>([]);
   const [images, setImages] = useState<readonly {
     readonly localId: string
@@ -1449,6 +1452,7 @@ export function Workspace({
   useEffect(() => {
     setDraft(readComposerDraft(selectedSessionIdentity));
     setAgentMention(undefined);
+    setSlashCommandQuery(undefined);
     setSelectedAgentMentions([]);
     const key = state.selectedSessionKey;
     if (key === undefined || client === undefined || typeof client.listMessageStashes !== "function") { setStashes([]); return; }
@@ -2702,6 +2706,25 @@ export function Workspace({
       return left.projectName.localeCompare(right.projectName) || left.sessionName.localeCompare(right.sessionName);
     });
   const filteredAgentMentions = filterAgentMentions(agentMentionOptions, agentMention?.query ?? "");
+  const slashCommands: readonly SlashCommandOption[] = state.selected.details?.commandInventory ?? [];
+  const filteredSlashCommands = filterSlashCommands(slashCommands, slashCommandQuery ?? "");
+
+  const selectSlashCommand = (option: SlashCommandOption): void => {
+    const input = composerInput.current;
+    const cursor = input?.selectionStart ?? draft.length;
+    const suffix = draft.slice(cursor);
+    const separator = suffix.length === 0 || !/^\s/u.test(suffix) ? " " : "";
+    const command = `/${option.name}`;
+    const next = `${command}${separator}${suffix}`;
+    setDraft(next);
+    writeComposerDraft(selectedSessionIdentity, next);
+    setSlashCommandQuery(undefined);
+    requestAnimationFrame(() => {
+      const position = command.length + separator.length;
+      input?.focus();
+      input?.setSelectionRange(position, position);
+    });
+  };
 
   const selectAgentMention = (option: AgentMentionOption): void => {
     if (agentMention === undefined) return;
@@ -3547,6 +3570,15 @@ export function Workspace({
                 ))}
               </div>
             )}
+            {slashCommandQuery !== undefined && (
+              <SlashCommandMenu
+                options={filteredSlashCommands}
+                query={slashCommandQuery}
+                activeIndex={slashCommandIndex}
+                onActiveIndexChange={setSlashCommandIndex}
+                onSelect={selectSlashCommand}
+              />
+            )}
             {agentMention !== undefined && (
               <AgentMentionMenu
                 options={filteredAgentMentions}
@@ -3579,10 +3611,35 @@ export function Workspace({
                   setAgentMention({ start, query: match[1] ?? "" });
                   setAgentMentionIndex(0);
                 }
+                const slashMatch = next.slice(0, cursor).match(/^\/([^\s/]*)$/u);
+                if (slashMatch === null) setSlashCommandQuery(undefined);
+                else {
+                  setSlashCommandQuery(slashMatch[1] ?? "");
+                  setSlashCommandIndex(0);
+                  setAgentMention(undefined);
+                }
               }}
               placeholder="Message your agent..."
               disabled={!commandAvailable || commandPending || voiceState !== "idle"}
               onKeyDown={(event) => {
+                if (slashCommandQuery !== undefined) {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    const direction = event.key === "ArrowDown" ? 1 : -1;
+                    setSlashCommandIndex((current) => filteredSlashCommands.length === 0 ? 0 : (current + direction + filteredSlashCommands.length) % filteredSlashCommands.length);
+                    return;
+                  }
+                  if ((event.key === "Enter" || event.key === "Tab") && filteredSlashCommands[slashCommandIndex] !== undefined) {
+                    event.preventDefault();
+                    selectSlashCommand(filteredSlashCommands[slashCommandIndex]);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setSlashCommandQuery(undefined);
+                    return;
+                  }
+                }
                 if (agentMention !== undefined) {
                   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();

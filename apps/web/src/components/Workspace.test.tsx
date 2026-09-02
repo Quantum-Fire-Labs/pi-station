@@ -1843,6 +1843,36 @@ describe("Workspace", () => {
     expect(screen.queryByRole("listbox", { name: "Open Sessions" })).not.toBeInTheDocument();
   });
 
+  it("discovers slash commands and inserts one without submitting it", async () => {
+    const user = userEvent.setup();
+    const onCommand = vi.fn();
+    const state: ApplicationState = {
+      ...fixtureState,
+      selected: {
+        ...fixtureState.selected,
+        details: {
+          ...fixtureState.selected.details!,
+          commandInventory: [
+            { name: "deploy", description: "Deploy the application", source: "extension", invocation: "direct" },
+            { name: "review", description: "Review the current changes", source: "prompt-template", invocation: "prompt" },
+            { name: "skill:diagnose-crash", description: "Diagnose a core dump", source: "skill", invocation: "prompt" },
+          ],
+        },
+      },
+    };
+    render(<Workspace state={state} onSelect={vi.fn()} onCommand={onCommand} />);
+
+    const composer = screen.getByLabelText("Message Pi");
+    await user.type(composer, "/rev");
+    expect(screen.getByRole("listbox", { name: "Slash commands" })).toBeVisible();
+    expect(screen.getByRole("option", { name: /review/i })).toBeVisible();
+    await user.keyboard("{Enter}");
+
+    expect(composer).toHaveValue("/review ");
+    expect(screen.queryByRole("listbox", { name: "Slash commands" })).not.toBeInTheDocument();
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
   it("restores an undone user message to the composer", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const onCommand = vi.fn();
