@@ -125,15 +125,19 @@ function reconcile(stored: StoredData, projects: readonly Project[], legacyBookm
   const activeWorkspaceId = stored.activeWorkspaceId !== undefined && workspaces.some(({ id }) => id === stored.activeWorkspaceId)
     ? stored.activeWorkspaceId
     : workspaces[0]!.id
-  const assigned = new Set(workspaces.flatMap(({ projectIds }) => projectIds))
-  const missing = projects.filter(({ id }) => !assigned.has(id)).map(({ id }) => id)
-  const active = workspaces.find(({ id }) => id === activeWorkspaceId)!
-  const activeIndex = workspaces.indexOf(active)
-  workspaces[activeIndex] = {
-    ...active,
-    projectIds: [...active.projectIds, ...missing],
-    closedProjectIds: [...active.closedProjectIds, ...projects.filter(({ id, closed }) => missing.includes(id) && closed === true).map(({ id }) => id)],
-    bookmarkedProjectIds: [...active.bookmarkedProjectIds, ...legacyBookmarks.filter((id) => missing.includes(id))],
+  if (stored.workspaces.length === 0) {
+    const bookmarked = new Set(legacyBookmarks)
+    const migratedProjectIds = projects
+      .filter(({ id, closed }) => closed !== true || bookmarked.has(id))
+      .map(({ id }) => id)
+    workspaces[0] = {
+      ...workspaces[0]!,
+      projectIds: migratedProjectIds,
+      closedProjectIds: projects
+        .filter(({ id, closed }) => closed === true && bookmarked.has(id))
+        .map(({ id }) => id),
+      bookmarkedProjectIds: legacyBookmarks.filter((id) => migratedProjectIds.includes(id)),
+    }
   }
   return { version: 2, workspaces, activeWorkspaceId }
 }
