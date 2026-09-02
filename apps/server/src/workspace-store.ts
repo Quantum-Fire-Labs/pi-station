@@ -76,6 +76,15 @@ export class WorkspaceStore {
       : workspace.closedProjectIds.filter((id) => id !== projectId) }))
   }
 
+  ensureOpen(projectId: string, projects: readonly Project[]): Promise<WorkspaceState> {
+    return this.#update(projects, [], (current) => ({
+      ...current,
+      workspaces: current.workspaces.map((workspace) => workspace.projectIds.includes(projectId)
+        ? { ...workspace, closedProjectIds: workspace.closedProjectIds.filter((id) => id !== projectId) }
+        : workspace),
+    }))
+  }
+
   setBookmarked(projectId: string, bookmarked: boolean, projects: readonly Project[]): Promise<WorkspaceState> {
     return this.#projectUpdate(projectId, projects, (workspace) => ({ ...workspace, bookmarkedProjectIds: bookmarked
       ? workspace.bookmarkedProjectIds.includes(projectId) ? workspace.bookmarkedProjectIds : [...workspace.bookmarkedProjectIds, projectId]

@@ -38,6 +38,7 @@ describe("WorkspaceStore", () => {
     expect(removed.workspaces[0]).toMatchObject({ projectIds: ["project-2"], closedProjectIds: [] })
     expect(removed.workspaces[1]).toMatchObject({ projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] })
     expect((await store.list(projects)).workspaces[1]?.projectIds).toEqual([])
+    await expect(store.ensureOpen("project-1", projects)).resolves.toBeDefined()
     await expect(store.remove(initial.workspaces[0]!.id, projects)).rejects.toBeInstanceOf(WorkspaceStoreError)
   })
 })

@@ -126,7 +126,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
   const ensureProjectOpen = async (projectId: string): Promise<void> => {
     await projectStore.ensureOpen(projectId)
     const projects = await projectStore.read()
-    await workspaceStore.setClosed(projectId, false, projects)
+    await workspaceStore.ensureOpen(projectId, projects)
   }
   const metadata = new SessionMetadataStore(options.dataDir)
   const sessionBookmarks = new SessionBookmarkStore(options.dataDir)
