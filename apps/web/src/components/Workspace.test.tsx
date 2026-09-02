@@ -2333,6 +2333,59 @@ describe("Workspace", () => {
     expect(onCreateManagedSession).toHaveBeenCalledWith("/home/pi/workspace", undefined);
   });
 
+  it("creates and opens a Project from the command palette", async () => {
+    const user = userEvent.setup();
+    const onListDirectory = vi.fn(() => "project-directory");
+    const onCreateProject = vi.fn(() => "project-create");
+    const state = { ...fixtureState, directoryLists: {}, projectCreates: {} };
+    const view = render(<Workspace state={state} onSelect={vi.fn()} onListDirectory={onListDirectory} onCreateProject={onCreateProject} />);
+
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
+    await user.click(screen.getByRole("option", { name: /^Add Project$/ }));
+    expect(onListDirectory).toHaveBeenCalledWith(undefined, false);
+
+    view.rerender(<Workspace state={{
+      ...state,
+      directoryLists: {
+        "project-directory": {
+          requestId: "project-directory",
+          status: "succeeded",
+          result: {
+            status: "succeeded",
+            current: { name: "workspace", path: "/home/pi/workspace", displayPath: "~/workspace" },
+            parent: { name: "pi", path: "/home/pi", displayPath: "~" },
+            directories: [],
+          },
+        },
+      },
+    }} onSelect={vi.fn()} onListDirectory={onListDirectory} onCreateProject={onCreateProject} />);
+
+    await user.keyboard("{Enter}");
+    const name = screen.getByLabelText("Project name");
+    expect(name).toHaveFocus();
+    await user.type(name, "   {Enter}");
+    expect(onCreateProject).not.toHaveBeenCalled();
+    await user.clear(name);
+    await user.type(name, "Palette Project{Enter}");
+    expect(onCreateProject).toHaveBeenCalledWith("Palette Project", "/home/pi/workspace");
+
+    view.rerender(<Workspace state={{
+      ...state,
+      projectCreates: { "project-create": { requestId: "project-create", status: "saving" } },
+    }} onSelect={vi.fn()} onListDirectory={onListDirectory} onCreateProject={onCreateProject} />);
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+
+    const project = { ...fixtureState.projects[0]!, projectId: "palette-project", name: "Palette Project" };
+    view.rerender(<Workspace state={{
+      ...state,
+      projects: [...state.projects, project],
+      projectCreates: { "project-create": { requestId: "project-create", status: "succeeded", result: { status: "succeeded", project } } },
+    }} onSelect={vi.fn()} onListDirectory={onListDirectory} onCreateProject={onCreateProject} />);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByRole("heading", { name: "Palette Project" })).toBeVisible();
+  });
+
   it("skips location for contextual palette creation and goes back one step on Escape", async () => {
     const user = userEvent.setup();
     const onCreateManagedSession = vi.fn(() => "palette-contextual-create");

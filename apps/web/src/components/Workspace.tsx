@@ -3937,6 +3937,7 @@ export function Workspace({
           projects={state.projects}
           directoryLists={state.directoryLists}
           managedSessionCreates={state.managedSessionCreates}
+          projectCreates={state.projectCreates}
           bookmarked={selectedSessionBookmarked}
           working={working}
           canCreateSession={state.hostCapabilities.some(
@@ -3968,6 +3969,11 @@ export function Workspace({
           onDashboard={() => setRoute("dashboard")}
           onProjects={() => setRoute("projects")}
           onAddProject={() => setRoute("add-project")}
+          onCreateProject={(name, directory) => onCreateProject?.(name, directory)}
+          onProjectCreated={(projectId) => {
+            setSelectedProjectId(projectId);
+            setRoute("project");
+          }}
           onListDirectory={(path, showHidden) => onListDirectory?.(path, showHidden)}
           onCreateSession={(workingDirectory, optionalName) => onCreateManagedSession?.(workingDirectory, optionalName)}
           onSessionStarted={(sessionKey) => {
