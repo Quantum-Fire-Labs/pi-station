@@ -11,6 +11,9 @@ function fakeSession(entries: readonly Record<string, unknown>[] = []) {
     dispose: vi.fn(),
     followUp: vi.fn(() => Promise.resolve()),
     getAvailableThinkingLevels: vi.fn(() => ["off", "low", "medium", "high"]),
+    extensionRunner: { getRegisteredCommands: vi.fn(() => [{ name: "review", invocationName: "review", description: "Review changes" }]) },
+    promptTemplates: [{ name: "release", description: "Prepare release" }],
+    resourceLoader: { getSkills: vi.fn(() => ({ skills: [{ name: "diagnose", description: "Diagnose a problem" }], diagnostics: [] })) },
     get isStreaming() { return false },
     get model() { return model },
     messages: [],
@@ -117,6 +120,19 @@ describe("SDK Session runtime", () => {
     expect(events).toEqual([expect.objectContaining({ type: "message_update" })])
     runtime.dispose()
     await vi.waitFor(() => expect(session.dispose).toHaveBeenCalledOnce())
+  })
+
+  it("returns command summaries from public SDK Session getters", async () => {
+    const session = fakeSession()
+    const runtime = createSdkSessionRuntime(() => Promise.resolve(session))
+
+    const response = await runtime.control({ projectId: "p1", sessionId: "s1", sessionPath: "/sessions/s1.jsonl", cwd: "/project", command: { type: "get_commands" } })
+
+    expect(response.data).toEqual({ commands: [
+      { name: "review", description: "Review changes", source: "extension", invocation: "direct" },
+      { name: "release", description: "Prepare release", source: "prompt-template", invocation: "prompt" },
+      { name: "skill:diagnose", description: "Diagnose a problem", source: "skill", invocation: "prompt" },
+    ] })
   })
 
   it("owns an accepted prompt before streaming starts and through model and tool pauses", async () => {

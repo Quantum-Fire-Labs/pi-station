@@ -28,7 +28,7 @@ import {
   isUpdateChannelMutation,
   PROTOCOL_VERSION,
 } from "@pi-station/application-protocol"
-import type { ModelChoice, Project, SavedSession, ScheduledJob, SessionKey, SessionSettings, ThinkingLevel } from "@pi-station/application-protocol"
+import type { CommandSummary, ModelChoice, Project, SavedSession, ScheduledJob, SessionKey, SessionSettings, ThinkingLevel } from "@pi-station/application-protocol"
 import { projectId as stableProjectId, StaleHistoryCursorError, type SessionIndex } from "./domain.js"
 import { DelegationStore } from "./delegations.js"
 import type { DelegationEvents } from "./delegations.js"
@@ -1289,6 +1289,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
           ...(history.before === undefined ? {} : { historyBefore: history.before }),
           hasEarlierHistory: history.hasEarlier,
           settings: await readSessionSettings(turns, route.key, indexed.path, project.root),
+          commandInventory: await readCommandInventory(turns, route.key, indexed.path, project.root),
           sharedFiles: await options.sharedFiles?.list(route.key.sessionId) ?? [],
           ...(() => {
             const approval = options.commandApprovals?.current(route.key)
@@ -1508,6 +1509,20 @@ function parseSessionRoute(pathname: string): SessionRoute | undefined {
 }
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const
+
+async function readCommandInventory(turns: TurnService, key: SessionKey, sessionPath: string, cwd: string): Promise<readonly CommandSummary[]> {
+  const response = await turns.control(key, sessionPath, cwd, { type: "get_commands" })
+  const data = asRecord(response.data)
+  const commands: readonly unknown[] = Array.isArray(data?.commands) ? data.commands as unknown[] : []
+  return commands.flatMap((value): CommandSummary[] => {
+    const command = asRecord(value)
+    if (typeof command?.name !== "string" || command.name.length === 0 || command.name.length > 120) return []
+    if (command.source !== "extension" && command.source !== "prompt-template" && command.source !== "skill") return []
+    if (command.invocation !== "prompt" && command.invocation !== "direct") return []
+    const description = typeof command.description === "string" && command.description.length <= 500 ? command.description : undefined
+    return [{ name: command.name, ...(description === undefined ? {} : { description }), source: command.source, invocation: command.invocation }]
+  }).slice(0, 1_000)
+}
 
 async function readSessionSettings(turns: TurnService, key: SessionKey, sessionPath: string, cwd: string): Promise<SessionSettings> {
   const [stateResponse, modelsResponse, thinkingLevelsResponse] = await Promise.all([

@@ -47,6 +47,7 @@ export interface RuntimeResponse {
 
 export type RuntimeControlCommand =
   | { readonly type: "get_state" }
+  | { readonly type: "get_commands" }
   | { readonly type: "get_available_models" }
   | { readonly type: "get_available_thinking_levels" }
   | { readonly type: "reload" }
@@ -121,6 +122,9 @@ export type RuntimeSession = Pick<AgentSession,
   | "dispose"
   | "followUp"
   | "getAvailableThinkingLevels"
+  | "extensionRunner"
+  | "promptTemplates"
+  | "resourceLoader"
   | "isStreaming"
   | "model"
   | "messages"
@@ -330,6 +334,17 @@ export function createSdkSessionRuntime(factory?: RuntimeSessionFactory, options
       throw new Error("Reload must replace the SDK Session runtime")
     }
 
+    if (command.type === "get_commands") {
+      const extensions = session.extensionRunner.getRegisteredCommands().map((item) => ({
+        name: item.invocationName,
+        ...(item.description === undefined ? {} : { description: item.description }),
+        source: "extension" as const,
+        invocation: "direct" as const,
+      }))
+      const prompts = session.promptTemplates.map((item) => ({ name: item.name, description: item.description, source: "prompt-template" as const, invocation: "prompt" as const }))
+      const skills = session.resourceLoader.getSkills().skills.map((item) => ({ name: `skill:${item.name}`, description: item.description, source: "skill" as const, invocation: "prompt" as const }))
+      return { type: "response", command: command.type, success: true, data: { commands: [...extensions, ...prompts, ...skills] } }
+    }
     if (command.type === "get_available_models") {
       return { type: "response", command: command.type, success: true, data: { models: session.modelRuntime.getAvailableSnapshot() } }
     }

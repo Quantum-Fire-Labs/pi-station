@@ -10,6 +10,13 @@ export interface ModelChoice {
   readonly displayName?: string
 }
 
+export interface CommandSummary {
+  readonly name: string
+  readonly description?: string
+  readonly source: "extension" | "prompt-template" | "skill"
+  readonly invocation: "prompt" | "direct"
+}
+
 export interface SessionSettings {
   readonly model?: ModelChoice
   readonly modelInventory: readonly ModelChoice[]
@@ -96,6 +103,7 @@ export interface SessionView {
   readonly historyBefore?: string
   readonly hasEarlierHistory: boolean
   readonly settings: SessionSettings
+  readonly commandInventory: readonly CommandSummary[]
   readonly sharedFiles: readonly SharedFileInfo[]
   readonly commandApproval?: { readonly id: string; readonly command: string }
 }
