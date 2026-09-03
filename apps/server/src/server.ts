@@ -1351,7 +1351,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (request.method === "GET" && route.action === undefined) {
         const eventCursor = journal.cursor()
         const project = await resolveProject(route.key, saved)
-        await ensureProjectOpen(project.id)
+        await projectStore.ensureOpen(project.id)
         const indexed = await options.index.refreshSession(route.key, project) ?? saved
         const refreshed = (await decorateSessions(await metadata.decorate([indexed])))[0]
         if (refreshed === undefined) throw new HttpError(404, "Session not found")
