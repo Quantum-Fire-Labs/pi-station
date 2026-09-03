@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Check, MoreHorizontal, PanelsTopLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, MoreHorizontal, PanelsTopLeft, Pencil, Plus, Trash2, Zap } from "lucide-react";
 import type { SavedWorkspace } from "../application/workspace-model";
 import { Button } from "./ui/button";
 import {
@@ -7,13 +7,15 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
-export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, onActivate, onCreate, onRename, onDelete, children }: {
+export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, onActivate, onCreate, onRename, onDelete, onOpenQuickSession, onNewSession, children }: {
   workspaces: readonly SavedWorkspace[];
   activeWorkspaceId?: string | undefined;
   onActivate: (id: string) => Promise<void>;
   onCreate: (name: string) => Promise<void>;
   onRename: (id: string, name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onOpenQuickSession: () => void;
+  onNewSession: () => void;
   children: ReactNode;
 }) {
   const active = workspaces.find(({ id }) => id === activeWorkspaceId) ?? workspaces[0];
@@ -56,6 +58,8 @@ export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, onActivate, o
             <MoreHorizontal aria-hidden="true" size={16} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onOpenQuickSession}><Zap aria-hidden="true" />Quick Session</DropdownMenuItem>
+            <DropdownMenuItem onClick={onNewSession}><Plus aria-hidden="true" />New Session</DropdownMenuItem>
             <DropdownMenuItem onClick={() => {
               const value = window.prompt("Rename Workspace", active.name)?.trim();
               if (value) void run(() => onRename(active.id, value));
