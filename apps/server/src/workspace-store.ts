@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { join } from "node:path"
-import { isWorkspaceState, MAX_WORKSPACE_PROJECTS, MAX_WORKSPACES, type Project, type Workspace, type WorkspaceCreateMutation, type WorkspaceUpdateMutation, type WorkspaceState } from "@pi-station/application-protocol"
+import { isWorkspaceState, MAX_WORKSPACE_PROJECTS, MAX_WORKSPACES, type Project, type Workspace, type WorkspaceCreateMutation, type WorkspaceSession, type WorkspaceUpdateMutation, type WorkspaceState } from "@pi-station/application-protocol"
 import { AtomicJsonStore } from "./atomic-json-store.js"
 
 interface StoredWorkspaceData extends WorkspaceState { readonly version: 2 }
@@ -48,6 +48,14 @@ export class WorkspaceStore {
 
   select(id: string, projects: readonly Project[]): Promise<WorkspaceState> {
     return this.#update(projects, [], (current) => { requireWorkspace(current, id); return { ...current, activeWorkspaceId: id } })
+  }
+
+  setLastSession(id: string, session: WorkspaceSession, projects: readonly Project[]): Promise<WorkspaceState> {
+    return this.#update(projects, [], (current) => {
+      const workspace = requireWorkspace(current, id)
+      if (!workspace.projectIds.includes(session.projectId)) throw new WorkspaceStoreError("not-found", "Session Project is not in this Workspace")
+      return mapWorkspace(current, id, (value) => ({ ...value, lastSession: session }))
+    })
   }
 
   addProject(projectId: string, projects: readonly Project[]): Promise<WorkspaceState> {
@@ -132,7 +140,8 @@ function reconcile(stored: StoredData, projects: readonly Project[], legacyBookm
   const workspaces = source.map((workspace) => {
     const projectIds = workspace.projectIds.filter((id) => configured.has(id))
     const bookmarkedProjectIds = workspace.bookmarkedProjectIds.filter((id) => projectIds.includes(id))
-    return { ...workspace, projectIds, closedProjectIds: workspace.closedProjectIds.filter((id) => projectIds.includes(id)), bookmarkedProjectIds: [...bookmarkedProjectIds, ...legacyBookmarks.filter((id) => projectIds.includes(id) && !bookmarkedProjectIds.includes(id))] }
+    const reconciled = { ...workspace, projectIds, closedProjectIds: workspace.closedProjectIds.filter((id) => projectIds.includes(id)), bookmarkedProjectIds: [...bookmarkedProjectIds, ...legacyBookmarks.filter((id) => projectIds.includes(id) && !bookmarkedProjectIds.includes(id))] }
+    return workspace.lastSession !== undefined && projectIds.includes(workspace.lastSession.projectId) ? reconciled : clearLastSession(reconciled)
   })
   const activeWorkspaceId = stored.activeWorkspaceId !== undefined && workspaces.some(({ id }) => id === stored.activeWorkspaceId)
     ? stored.activeWorkspaceId
@@ -164,7 +173,11 @@ function addToWorkspace(state: StoredWorkspaceData, workspaceId: string, project
   if (workspace.projectIds.length >= MAX_WORKSPACE_PROJECTS) throw new WorkspaceStoreError("limit", "A maximum of 100 Projects per Workspace is allowed")
   return mapWorkspace(state, workspaceId, (value) => ({ ...value, projectIds: [...value.projectIds, projectId] }))
 }
-function removeFromWorkspace(workspace: Workspace, id: string): Workspace { return { ...workspace, projectIds: workspace.projectIds.filter((item) => item !== id), closedProjectIds: workspace.closedProjectIds.filter((item) => item !== id), bookmarkedProjectIds: workspace.bookmarkedProjectIds.filter((item) => item !== id) } }
+function removeFromWorkspace(workspace: Workspace, id: string): Workspace {
+  const next = { ...workspace, projectIds: workspace.projectIds.filter((item) => item !== id), closedProjectIds: workspace.closedProjectIds.filter((item) => item !== id), bookmarkedProjectIds: workspace.bookmarkedProjectIds.filter((item) => item !== id) }
+  return workspace.lastSession?.projectId === id ? clearLastSession(next) : next
+}
+function clearLastSession(workspace: Workspace): Workspace { const { lastSession, ...rest } = workspace; void lastSession; return rest }
 function publicState({ workspaces, activeWorkspaceId }: StoredWorkspaceData): WorkspaceState { return { workspaces, activeWorkspaceId } }
 function isStoredData(value: unknown): value is StoredData {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false

@@ -60,6 +60,9 @@ describe("Workspace routes", () => {
       const project2 = ((await request(base, "/v2/projects", "POST", { root: root2 })).body.projects as Array<{ id: string }>)[1]!
       expect((await request(base, "/v2/projects")).body).toMatchObject({ projects: [{ id: project1.id }, { id: project2.id }] })
       expect((await request(base, `/v2/workspaces/${mainId}/projects/${project1.id}/open`, "POST", {})).status).toBe(200)
+      const remembered = await fetch(`${base}/v2/workspaces/${mainId}/last-session`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: project1.id, sessionId: "session-1" }) })
+      expect(remembered.status).toBe(204)
+      expect((await request(base, "/v2/workspaces")).body).toMatchObject({ workspaces: [{ id: defaultId }, { id: mainId, lastSession: { projectId: project1.id, sessionId: "session-1" } }] })
       await request(base, `/v2/projects/${project1.id}/close`, "POST", {})
       let state = (await request(base, "/v2/workspaces")).body
       expect(state).toMatchObject({ activeWorkspaceId: mainId, workspaces: [{ id: defaultId, projectIds: [project1.id] }, { id: mainId, projectIds: [project2.id, project1.id], closedProjectIds: [project1.id] }] })

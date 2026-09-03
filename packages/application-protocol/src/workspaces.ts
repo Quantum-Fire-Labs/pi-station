@@ -11,7 +11,10 @@ export interface Workspace {
   readonly closedProjectIds: readonly string[]
   /** Bookmarked Projects, in bookmark order. */
   readonly bookmarkedProjectIds: readonly string[]
+  readonly lastSession?: WorkspaceSession
 }
+
+export interface WorkspaceSession { readonly projectId: string; readonly sessionId: string }
 
 export interface WorkspaceState {
   readonly workspaces: readonly Workspace[]
@@ -20,6 +23,7 @@ export interface WorkspaceState {
 
 export interface WorkspaceCreateMutation { readonly name: string }
 export interface WorkspaceUpdateMutation { readonly name: string }
+export interface WorkspaceSessionMutation { readonly projectId: string; readonly sessionId: string }
 
 export function isWorkspaceName(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= 120 && value.trim() === value
@@ -34,12 +38,20 @@ export function isWorkspaceUpdateMutation(value: unknown): value is WorkspaceUpd
   return isExactRecord(value, ["name"]) && Object.keys(value).length === 1 && isWorkspaceName(value.name)
 }
 
+export function isWorkspaceSessionMutation(value: unknown): value is WorkspaceSessionMutation {
+  return isExactRecord(value, ["projectId", "sessionId"])
+    && typeof value.projectId === "string" && isProtocolId(value.projectId)
+    && typeof value.sessionId === "string" && isProtocolId(value.sessionId)
+}
+
 export function isWorkspace(value: unknown): value is Workspace {
-  if (!isExactRecord(value, ["id", "name", "projectIds", "closedProjectIds", "bookmarkedProjectIds"])) return false
+  if (!isExactRecord(value, ["id", "name", "projectIds", "closedProjectIds", "bookmarkedProjectIds", "lastSession"])) return false
   if (typeof value.id !== "string" || !isProtocolId(value.id) || !isWorkspaceName(value.name)) return false
   if (!isProjectIds(value.projectIds) || !isProjectIds(value.closedProjectIds) || !isProjectIds(value.bookmarkedProjectIds)) return false
   const projects = new Set(value.projectIds)
+  if (value.lastSession !== undefined && !isWorkspaceSessionMutation(value.lastSession)) return false
   return value.closedProjectIds.every((id) => projects.has(id)) && value.bookmarkedProjectIds.every((id) => projects.has(id))
+    && (value.lastSession === undefined || projects.has(value.lastSession.projectId))
 }
 
 export function isWorkspaceState(value: unknown): value is WorkspaceState {

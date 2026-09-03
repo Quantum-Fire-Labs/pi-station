@@ -174,7 +174,17 @@ export class ApplicationClient extends ApplicationClientBase {
     const generation = ++this.selectionGeneration;
     this.eventSource?.close();
     this.eventSource = undefined;
-    this.updateRpcState({ selectedSessionKey: key });
+    const activeWorkspace = this.rpcState.workspaces?.find(({ id }) => id === this.rpcState.activeWorkspaceId);
+    const remembersSession = activeWorkspace?.projectIds.includes(key.hostId) === true;
+    this.updateRpcState({
+      selectedSessionKey: key,
+      ...(remembersSession ? { workspaces: this.rpcState.workspaces!.map((workspace) => workspace.id === activeWorkspace.id
+        ? { ...workspace, lastSession: { projectId: key.hostId, sessionId: key.piSessionId } }
+        : workspace) } : {}),
+    });
+    if (remembersSession) {
+      void mutate(`/v2/workspaces/${encodeURIComponent(activeWorkspace.id)}/last-session`, "PUT", { projectId: key.hostId, sessionId: key.piSessionId }).catch(() => undefined);
+    }
 
     void request<SessionView>(sessionPath(target)).then((view) => {
       if (generation !== this.selectionGeneration) return;

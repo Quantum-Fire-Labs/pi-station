@@ -34,6 +34,7 @@ import type {
   DevelopmentServerConfiguration,
   ProjectId,
   ProjectSummary,
+  SavedWorkspace,
   SessionKey,
   SessionSummary,
 } from "../application/workspace-model";
@@ -1371,13 +1372,22 @@ export function Workspace({
     else action();
   };
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
+  const sessionToOpenInWorkspace = (workspace: SavedWorkspace | undefined) => {
+    if (workspace === undefined) return undefined;
+    const closedProjectIds = new Set(workspace.closedProjectIds ?? []);
+    const visibleSessions = sessionsVisibleInWorkspace(applicationState.sessions);
+    const remembered = workspace.lastSession;
+    if (remembered !== undefined && !closedProjectIds.has(remembered.projectId)) {
+      const session = visibleSessions.find(({ projectId, sessionKey }) => projectId === remembered.projectId && sessionKey.piSessionId === remembered.sessionId);
+      if (session !== undefined) return session;
+    }
+    const firstProjectId = workspace.projectIds.find((projectId) => !closedProjectIds.has(projectId));
+    return firstProjectId === undefined ? undefined : visibleSessions.find((session) => session.projectId === firstProjectId);
+  };
   const activateWorkspace = async (id: string): Promise<void> => {
     if (client === undefined || id === state.activeWorkspaceId) return;
     const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
-    const firstProjectId = targetWorkspace?.projectIds.find((projectId) => !(targetWorkspace.closedProjectIds ?? []).includes(projectId));
-    const firstSession = firstProjectId === undefined
-      ? undefined
-      : sessionsVisibleInWorkspace(applicationState.sessions).find((session) => session.projectId === firstProjectId);
+    const firstSession = sessionToOpenInWorkspace(targetWorkspace);
     await client.activateWorkspace(id);
     setDetailsOpen(false);
     setSelectedProjectId(undefined);
@@ -1415,10 +1425,7 @@ export function Workspace({
       const target = workspaces[(current + offset + workspaces.length) % workspaces.length];
       if (target === undefined) return;
       event.preventDefault();
-      const firstProjectId = target.projectIds.find((projectId) => !(target.closedProjectIds ?? []).includes(projectId));
-      const firstSession = firstProjectId === undefined
-        ? undefined
-        : sessionsVisibleInWorkspace(applicationState.sessions).find((session) => session.projectId === firstProjectId);
+      const firstSession = sessionToOpenInWorkspace(target);
       void client.activateWorkspace(target.id).then(() => {
         setDetailsOpen(false);
         setSelectedProjectId(undefined);
