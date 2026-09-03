@@ -2465,9 +2465,12 @@ describe("Workspace", () => {
     expect(screen.getByRole("textbox", { name: "Filter directories" })).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "Hidden" }));
     expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi/workspace", true);
+    const directoryFilter = screen.getByRole("textbox", { name: "Filter directories" });
+    await user.type(directoryFilter, "parent");
     expect(screen.getByRole("option", { name: /Use current directory/ })).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{ArrowDown}{Enter}");
     expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi", true);
+    expect(directoryFilter).toHaveValue("");
     await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
     expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi/workspace/.hidden-project", true);
     await user.click(screen.getByRole("option", { name: /Use current directory/ }));
@@ -2775,7 +2778,8 @@ describe("Workspace", () => {
     expect(screen.queryByRole("option", { name: /Close Session/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /^Abort$/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("option", { name: /^Projects$/ }));
-    expect(screen.getByRole("heading", { name: "Projects" })).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Projects" })).toBeVisible();
+    expect(screen.getByPlaceholderText("Search Projects…")).toHaveFocus();
   });
 
   it("clones an idle Session from Session details", async () => {
