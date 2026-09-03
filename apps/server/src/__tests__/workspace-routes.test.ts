@@ -48,7 +48,7 @@ describe("Workspace routes", () => {
     }
   })
 
-  it("manages shared Project membership through explicit Workspace APIs", async () => {
+  it("moves exclusive Project ownership through explicit Workspace APIs", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pi-workspace-routes-")); const root1 = join(dataDir, "one"); const root2 = join(dataDir, "two"); await mkdir(root1); await mkdir(root2)
     const server = createPiStationServer({ dataDir, index, runner: { run: vi.fn(), control: vi.fn(), dispose: vi.fn() } as unknown as SessionRuntime })
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve)); const address = server.address(); if (!address || typeof address === "string") throw new Error("No address"); const base = `http://127.0.0.1:${address.port}`
@@ -65,11 +65,11 @@ describe("Workspace routes", () => {
       expect((await request(base, "/v2/workspaces")).body).toMatchObject({ workspaces: [{ id: defaultId }, { id: mainId, lastSession: { projectId: project1.id, sessionId: "session-1" } }] })
       await request(base, `/v2/projects/${project1.id}/close`, "POST", {})
       let state = (await request(base, "/v2/workspaces")).body
-      expect(state).toMatchObject({ activeWorkspaceId: mainId, workspaces: [{ id: defaultId, projectIds: [project1.id] }, { id: mainId, projectIds: [project2.id, project1.id], closedProjectIds: [project1.id] }] })
+      expect(state).toMatchObject({ activeWorkspaceId: mainId, workspaces: [{ id: defaultId, projectIds: [] }, { id: mainId, projectIds: [project2.id, project1.id], closedProjectIds: [project1.id] }] })
       expect((await request(base, `/v2/projects/${project1.id}/workspace`, "POST", { workspaceId: mainId })).status).toBe(404)
       expect((await request(base, `/v2/workspaces/${mainId}/projects/${project1.id}`, "DELETE")).status).toBe(200)
       state = (await request(base, "/v2/workspaces")).body
-      expect(state).toMatchObject({ workspaces: [{ id: defaultId, projectIds: [project1.id] }, { id: mainId, projectIds: [project2.id], closedProjectIds: [] }] })
+      expect(state).toMatchObject({ workspaces: [{ id: defaultId, projectIds: [] }, { id: mainId, projectIds: [project2.id], closedProjectIds: [] }] })
       expect((await request(base, "/v2/projects")).body).toMatchObject({ projects: [{ id: project1.id }, { id: project2.id }] })
     } finally { await new Promise<void>((resolve) => server.close(() => resolve())) }
   })

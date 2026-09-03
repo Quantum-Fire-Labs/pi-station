@@ -58,7 +58,8 @@ export function isWorkspaceState(value: unknown): value is WorkspaceState {
   if (!isExactRecord(value, ["workspaces", "activeWorkspaceId"]) || !Array.isArray(value.workspaces)) return false
   if (value.workspaces.length === 0 || value.workspaces.length > MAX_WORKSPACES || !value.workspaces.every(isWorkspace)) return false
   const ids = value.workspaces.map(({ id }) => id)
-  return new Set(ids).size === ids.length
+  const projectIds = value.workspaces.flatMap((workspace) => workspace.projectIds)
+  return new Set(ids).size === ids.length && new Set(projectIds).size === projectIds.length
     && typeof value.activeWorkspaceId === "string" && isProtocolId(value.activeWorkspaceId) && ids.includes(value.activeWorkspaceId)
 }
 

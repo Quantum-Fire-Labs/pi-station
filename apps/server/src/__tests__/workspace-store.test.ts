@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { describe, expect, it } from "vitest"
@@ -15,15 +15,22 @@ describe("WorkspaceStore", () => {
     expect(state.activeWorkspaceId).toBe(state.workspaces[0]!.id)
   })
 
-  it("preserves shared membership while it migrates ownership data", async () => {
+  it("migrates shared v2 membership with the last Workspace as owner", async () => {
     const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
-    await writeFile(join(data, "workspaces.json"), JSON.stringify({ version: 1, workspaces: [{ id: "one", name: "One", projectIds: ["project-1"] }, { id: "two", name: "Two", projectIds: ["project-1"] }], activeWorkspaceId: "two" }))
+    const workspace = (id: string, lastSession?: { projectId: string; sessionId: string }) => ({ id, name: id, projectIds: ["project-1"], closedProjectIds: ["project-1"], bookmarkedProjectIds: ["project-1"], ...(lastSession === undefined ? {} : { lastSession }) })
+    await writeFile(join(data, "workspaces.json"), JSON.stringify({ version: 2, workspaces: [workspace("one", { projectId: "project-1", sessionId: "old-session" }), workspace("two")], activeWorkspaceId: "one" }))
+
     const state = await new WorkspaceStore(data).list(projects)
-    expect(state.workspaces.map(({ projectIds }) => projectIds)).toEqual([["project-1"], ["project-1"]])
-    expect(state.activeWorkspaceId).toBe("two")
+
+    expect(state.workspaces.map(({ projectIds }) => projectIds)).toEqual([[], ["project-1"]])
+    expect(state.workspaces[0]?.lastSession).toBeUndefined()
+    expect(state.workspaces[0]?.closedProjectIds).toEqual([])
+    expect(state.workspaces[0]?.bookmarkedProjectIds).toEqual([])
+    expect(state.activeWorkspaceId).toBe("one")
+    expect((JSON.parse(await readFile(join(data, "workspaces.json"), "utf8")) as { version: number }).version).toBe(3)
   })
 
-  it("adds and removes membership without changing another Workspace", async () => {
+  it("moves ownership and removes a Project without changing another Workspace", async () => {
     const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
     const store = new WorkspaceStore(data)
     const initial = await store.list(projects)
@@ -37,6 +44,9 @@ describe("WorkspaceStore", () => {
     const remembered = await store.setLastSession(target, { projectId: "project-1", sessionId: "session-1" }, projects)
     expect(remembered.workspaces[1]?.lastSession).toEqual({ projectId: "project-1", sessionId: "session-1" })
     expect((await new WorkspaceStore(data).list(projects)).workspaces[1]?.lastSession).toEqual({ projectId: "project-1", sessionId: "session-1" })
+    await store.openProject(initial.workspaces[0]!.id, "project-1", projects)
+    const movedBack = await store.openProject(target, "project-1", projects)
+    expect(movedBack.workspaces[0]).toMatchObject({ projectIds: ["project-2"], closedProjectIds: [], bookmarkedProjectIds: [] })
     const removed = await store.removeWorkspaceProject(target, "project-1", projects)
     expect(removed.workspaces[0]).toMatchObject({ projectIds: ["project-2"], closedProjectIds: [] })
     expect(removed.workspaces[1]).toMatchObject({ projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] })
