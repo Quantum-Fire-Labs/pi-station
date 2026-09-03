@@ -220,7 +220,8 @@ describe("Workspace", () => {
     const project = fixtureState.projects[0]!;
     const state = {
       ...fixtureState,
-      projects: fixtureState.projects.map((item) => item.projectId === project.projectId ? { ...item, closed: true } : item),
+      workspaces: [{ id: "workspace", name: "Main", projectIds: fixtureState.projects.map(({ projectId }) => projectId), closedProjectIds: [project.projectId], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+      activeWorkspaceId: "workspace",
     };
     render(<Workspace state={state} onSelect={vi.fn()} />);
 
@@ -777,9 +778,8 @@ describe("Workspace", () => {
       <Workspace
         state={{
           ...fixtureState,
-          projects: fixtureState.projects.map((item) => (
-            item.projectId === project.projectId ? { ...item, closed: true } : item
-          )),
+          workspaces: [{ id: "workspace", name: "Main", projectIds: fixtureState.projects.map(({ projectId }) => projectId), closedProjectIds: [project.projectId], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+          activeWorkspaceId: "workspace",
         }}
         onSelect={vi.fn()}
       />,

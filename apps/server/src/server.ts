@@ -841,7 +841,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         await workspaceStore.list(projects, (await projectBookmarks.list(projects)).map(({ projectId: id }) => id))
         const state = await workspaceStore.setClosed(projectId, projectStateRoute[2] === "close", projects)
         const active = state.workspaces.find(({ id }) => id === state.activeWorkspaceId)!
-        sendJson(response, 200, { version: PROTOCOL_VERSION, projects: projects.map((project) => ({ ...project, closed: active.closedProjectIds.includes(project.id) || undefined })), bookmarks: active.bookmarkedProjectIds.map((id, position) => ({ projectId: id, position })) })
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...state, projects: projects.map((project) => ({ ...project, closed: active.closedProjectIds.includes(project.id) || undefined })), bookmarks: active.bookmarkedProjectIds.map((id, position) => ({ projectId: id, position })) })
         return
       }
       const projectRoute = /^\/v2\/projects\/([^/]+)$/u.exec(url.pathname)
