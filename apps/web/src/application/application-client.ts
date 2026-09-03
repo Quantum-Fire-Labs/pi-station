@@ -410,6 +410,10 @@ export class ApplicationClient extends ApplicationClientBase {
   }
 
   override async activateWorkspace(id: string): Promise<void> {
+    this.selectionGeneration += 1;
+    this.eventSource?.close();
+    this.eventSource = undefined;
+    this.updateRpcState({ selectedSessionKey: undefined, selected: { timeline: [], hasEarlierHistory: false } });
     this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}/activate`, "POST", {}) as WorkspaceCollection);
     await this.refreshActiveWorkspaceProjects();
   }
@@ -426,8 +430,8 @@ export class ApplicationClient extends ApplicationClientBase {
 
   override async setProjectClosed(projectId: ProjectId, closed: boolean): Promise<void> {
     if (this.rpcState.connection !== "ready") throw new Error("Pi Station is not connected");
-    const response = await mutate(`/v2/projects/${encodeURIComponent(projectId)}/${closed ? "close" : "open"}`, "POST", {}) as ProjectsResponse;
-    this.updateRpcState({ projects: response.projects.map(projectSummary), projectBookmarks: response.bookmarks });
+    const response = await mutate(`/v2/projects/${encodeURIComponent(projectId)}/${closed ? "close" : "open"}`, "POST", {}) as ProjectsResponse & WorkspaceCollection;
+    this.updateRpcState({ projects: response.projects.map(projectSummary), projectBookmarks: response.bookmarks, workspaces: response.workspaces, activeWorkspaceId: response.activeWorkspaceId });
   }
 
   override removeProject(projectId: ProjectId): string | undefined {
@@ -916,7 +920,6 @@ export class ApplicationClient extends ApplicationClientBase {
         queue: { state: "empty", knownItems: [] },
         timeline: mapTimeline(view.timeline, key, "saved"),
       },
-      projects: this.rpcState.projects.map((project) => project.projectId === key.hostId ? { ...project, closed: false } : project),
       sessions: upsertSessionSummary(this.rpcState.sessions, view.session).map((session) => session.sessionKey.hostId === key.hostId
         && session.sessionKey.piSessionId === key.piSessionId
         ? { ...session, projection }

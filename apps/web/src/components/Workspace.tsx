@@ -1249,11 +1249,13 @@ export function Workspace({
   const activeWorkspace = applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
     ?? applicationState.workspaces?.[0];
   const workspaceProjectIds = activeWorkspace === undefined ? undefined : new Set(activeWorkspace.projectIds);
+  const closedWorkspaceProjectIds = new Set(activeWorkspace?.closedProjectIds ?? []);
   const state = embeddedSession
     ? applicationState
     : {
       ...applicationState,
-      projects: workspaceProjectIds === undefined ? applicationState.projects : applicationState.projects.filter(({ projectId }) => workspaceProjectIds.has(projectId)),
+      projects: (workspaceProjectIds === undefined ? applicationState.projects : applicationState.projects.filter(({ projectId }) => workspaceProjectIds.has(projectId)))
+        .map((project) => activeWorkspace === undefined ? project : { ...project, closed: closedWorkspaceProjectIds.has(project.projectId) }),
       sessions: sessionsVisibleInWorkspace(applicationState.sessions).filter(({ projectId }) => projectId === undefined || workspaceProjectIds === undefined || workspaceProjectIds.has(projectId)),
     };
   const [paletteOpen, setPaletteOpen] = useState(false);
