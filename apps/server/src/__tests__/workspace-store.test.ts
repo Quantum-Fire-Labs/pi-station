@@ -41,4 +41,21 @@ describe("WorkspaceStore", () => {
     await expect(store.ensureOpen("project-1", projects)).resolves.toBeDefined()
     await expect(store.remove(initial.workspaces[0]!.id, projects)).rejects.toBeInstanceOf(WorkspaceStoreError)
   })
+
+  it("opens a Project in only the active Workspace", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const store = new WorkspaceStore(data)
+    const initial = await store.list(projects, ["project-1"])
+    const first = initial.workspaces[0]!.id
+    const created = await store.create({ name: "Other" }, projects)
+    const second = created.workspaces[1]!.id
+    await store.openProject(second, "project-1", projects)
+    await store.select(second, projects)
+    await store.setClosed("project-1", true, projects)
+    await store.select(first, projects)
+    const opened = await store.ensureOpen("project-1", projects)
+
+    expect(opened.workspaces.find(({ id }) => id === first)?.closedProjectIds).toEqual([])
+    expect(opened.workspaces.find(({ id }) => id === second)?.closedProjectIds).toEqual(["project-1"])
+  })
 })
