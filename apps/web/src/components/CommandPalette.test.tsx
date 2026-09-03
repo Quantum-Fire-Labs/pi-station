@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { CommandPalette } from "./CommandPalette"
+import type { ProjectSummary } from "../application/workspace-model"
 
 const required = { onClose: vi.fn(), onDashboard: vi.fn(), onProjects: vi.fn(), onAddProject: vi.fn() }
 describe("CommandPalette stashed messages", () => {
@@ -46,5 +47,44 @@ describe("CommandPalette stashed messages", () => {
     expect(empty).toHaveClass("palette-empty-option")
     expect(empty.querySelector(".palette-option-glyph")).not.toBeNull()
     expect(empty.querySelector(".palette-option-copy")).toHaveTextContent("No stashed messages.")
+  })
+})
+
+describe("CommandPalette project browser", () => {
+  afterEach(cleanup)
+  const project = (projectId: string, name: string, available = true): ProjectSummary => ({ projectId, name, available, displayPath: `/work/${name}`, createdAt: "2026-01-01", updatedAt: "2026-01-01" })
+
+  it("sorts and filters Projects, and keeps unavailable Projects disabled", async () => {
+    const user = userEvent.setup()
+    render(<CommandPalette {...required} projects={[project("z", "Zulu"), project("a", "Alpha"), project("b", "Beta", false)]} projectBookmarkIds={["z"]} />)
+    await user.click(screen.getByRole("option", { name: "Projects" }))
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Zulu/work/Zulu", "Alpha/work/Alpha", "Beta/work/Beta · Unavailable"])
+    expect(screen.getByRole<HTMLButtonElement>("option", { name: /Beta/ }).disabled).toBe(true)
+    await user.type(screen.getByPlaceholderText("Search Projects…"), "alp")
+    expect(screen.getAllByRole("option")).toHaveLength(1)
+  })
+
+  it("sorts and searches Project Sessions, and goes back through both levels", async () => {
+    const user = userEvent.setup()
+    render(<CommandPalette {...required} projects={[project("a", "Alpha")]} sessions={[{ id: "closed", name: "Charlie", projectId: "a", closed: true }, { id: "open", name: "Bravo", projectId: "a", closed: false }, { id: "saved", name: "Zulu", projectId: "a", bookmarked: true, closed: true }, { id: "unnamed", name: "Untitled conversation", projectId: "a", closed: false }]} onOpenSession={vi.fn()} />)
+    await user.click(screen.getByRole("option", { name: "Projects" }))
+    await user.click(screen.getByRole("option", { name: /Alpha/ }))
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["ZuluBookmarked · Closed", "Bravo", "Untitled conversation", "CharlieClosed"])
+    await user.type(screen.getByPlaceholderText("Search Sessions…"), "untitled")
+    expect(screen.getAllByRole("option")).toHaveLength(1)
+    await user.keyboard("{Escape}")
+    expect(screen.getByPlaceholderText("Search Projects…")).not.toBeNull()
+    await user.keyboard("{Escape}")
+    expect(screen.getByPlaceholderText("Choose an action…")).not.toBeNull()
+  })
+
+  it.each([{ closed: false, id: "open" }, { closed: true, id: "closed" }])("selects and navigates to a $id Session", async ({ closed, id }) => {
+    const user = userEvent.setup(); const onOpenSession = vi.fn(); const onClose = vi.fn()
+    render(<CommandPalette {...required} onClose={onClose} projects={[project("a", "Alpha")]} sessions={[{ id, name: id, projectId: "a", closed }]} onOpenSession={onOpenSession} />)
+    await user.click(screen.getByRole("option", { name: "Projects" }))
+    await user.click(screen.getByRole("option", { name: /Alpha/ }))
+    await user.click(screen.getByRole("option", { name: new RegExp(id) }))
+    expect(onOpenSession).toHaveBeenCalledWith(id)
+    expect(onClose).toHaveBeenCalled()
   })
 })

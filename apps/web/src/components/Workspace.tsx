@@ -4057,6 +4057,7 @@ export function Workspace({
           projectName={selectedProject?.name}
           projectPath={selectedProject?.displayPath}
           projects={state.projects}
+          projectBookmarkIds={state.projectBookmarks.map(({ projectId }) => projectId)}
           workspaces={state.workspaces}
           activeWorkspaceId={state.activeWorkspaceId}
           directoryLists={state.directoryLists}
@@ -4077,16 +4078,15 @@ export function Workspace({
           thinkingLevels={state.selected.details?.supportedThinkingLevels}
           currentModel={state.selected.details?.model}
           currentThinking={state.selected.details?.thinkingLevel}
-          sessions={state.sessions.flatMap((session) => {
-            const name = session.name?.trim();
-            if (!name) return [];
-            return [{
-              id: session.sessionKey.piSessionId,
-              name,
-              projectName: state.projects.find((project) => project.projectId === session.projectId)?.name,
-              closed: session.projection.availability === "closed",
-            }];
-          })}
+          sessions={state.sessions.map((session) => ({
+            id: session.sessionKey.piSessionId,
+            name: sessionLabel(session),
+            projectId: session.projectId,
+            projectName: state.projects.find((project) => project.projectId === session.projectId)?.name,
+            bookmarked: state.sessionBookmarks.some((bookmark) => bookmark.projectId === session.projectId
+              && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)),
+            closed: session.projection.availability === "closed",
+          }))}
           stashes={stashes}
           pending={sessionSettingPending || closeSessionPending || stashPending}
           error={sessionSettingError ?? closeSessionError}
