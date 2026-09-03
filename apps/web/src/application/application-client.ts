@@ -32,7 +32,7 @@ import type {
 
 type ApplicationTimelineItem = ApplicationState["selected"]["timeline"][number];
 type SucceededCommandEffect = Extract<ApplicationCommandResult["outcome"], { status: "succeeded" }>["effect"];
-import { ApplicationClientBase, type ApplicationState } from "./application-client-base";
+import { ApplicationClientBase, sessionKeysEqual, type ApplicationState } from "./application-client-base";
 
 const RPC_CAPABILITIES = [
   "session.prompt.text",
@@ -814,12 +814,22 @@ export class ApplicationClient extends ApplicationClientBase {
     for (const phase of sessionResponse.phases ?? []) this.applySessionPhase(phase);
     this.openSessionUpdates(sessionResponse.sequence);
 
+    const activeWorkspace = workspaceResponse?.workspaces.find(({ id }) => id === workspaceResponse.activeWorkspaceId);
+    const closedProjectIds = new Set(activeWorkspace?.closedProjectIds ?? []);
+    const availableInActiveWorkspace = (session: SessionSummary): boolean => session.projection.availability === "available"
+      && (activeWorkspace === undefined || (session.projectId !== undefined && activeWorkspace.projectIds.includes(session.projectId) && !closedProjectIds.has(session.projectId)));
     if (selected !== undefined) {
-      this.select(selected);
-      return;
+      const selectedSession = sessions.find(({ sessionKey }) => sessionKeysEqual(sessionKey, selected));
+      if (selectedSession !== undefined && availableInActiveWorkspace(selectedSession)) {
+        this.select(selected);
+        return;
+      }
     }
-    const first = sessions.find((session) => session.projection.availability === "available");
-    if (first !== undefined) this.select(first.sessionKey);
+    const remembered = activeWorkspace?.lastSession;
+    const first = remembered === undefined ? undefined : sessions.find((session) => session.projectId === remembered.projectId
+      && session.sessionKey.piSessionId === remembered.sessionId && availableInActiveWorkspace(session));
+    const fallback = first ?? sessions.find(availableInActiveWorkspace);
+    if (fallback !== undefined) this.select(fallback.sessionKey);
   }
 
   private openSessionUpdates(after: number): void {
