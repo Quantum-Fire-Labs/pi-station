@@ -694,6 +694,7 @@ function Sidebar({
   shortcutsVisible,
   onCollapse,
   client,
+  onActivateWorkspace,
 }: {
   state: ApplicationState;
   onSelect: (key: SessionKey) => void;
@@ -710,6 +711,7 @@ function Sidebar({
   shortcutsVisible: boolean;
   onCollapse: () => void;
   client?: ApplicationClient | undefined;
+  onActivateWorkspace: (id: string) => Promise<void>;
 }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
     readCollapsedProjects,
@@ -860,7 +862,7 @@ function Sidebar({
       {state.workspaces !== undefined && client !== undefined && <WorkspaceSwitcher
         workspaces={state.workspaces}
         activeWorkspaceId={state.activeWorkspaceId}
-        onActivate={(id) => client.activateWorkspace(id)}
+        onActivate={onActivateWorkspace}
         onCreate={(name) => client.createWorkspace(name)}
         onRename={(id, name) => client.renameWorkspace(id, name)}
         onDelete={(id) => client.deleteWorkspace(id)}
@@ -1377,6 +1379,13 @@ export function Workspace({
     else action();
   };
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
+  const activateWorkspace = async (id: string): Promise<void> => {
+    if (client === undefined || id === state.activeWorkspaceId) return;
+    await client.activateWorkspace(id);
+    setDetailsOpen(false);
+    setSelectedProjectId(undefined);
+    setRouteState("dashboard");
+  };
   const openSharedMarkdown = (file: SharedMarkdownFile): void => {
     if (editorIdentity === undefined || sharedMarkdownFile?.url === file.url) return;
     afterSharedMarkdownCheck(() => {
@@ -2906,6 +2915,7 @@ export function Workspace({
     <Sidebar
       state={state}
       client={client}
+      onActivateWorkspace={activateWorkspace}
       onSelect={openSession}
       onDashboard={() => setRoute("dashboard")}
       onGeneralNewSession={() => setRoute("new-session")}
@@ -4017,6 +4027,8 @@ export function Workspace({
           projectName={selectedProject?.name}
           projectPath={selectedProject?.displayPath}
           projects={state.projects}
+          workspaces={state.workspaces}
+          activeWorkspaceId={state.activeWorkspaceId}
           directoryLists={state.directoryLists}
           managedSessionCreates={state.managedSessionCreates}
           projectCreates={state.projectCreates}
@@ -4079,6 +4091,12 @@ export function Workspace({
             if (requestId !== undefined) setSessionSettingRequestId(requestId);
           }}
           onRestoreStash={(stash) => { void restoreStash(stash); }}
+          onSelectWorkspace={(id) => {
+            void activateWorkspace(id).catch((reason: unknown) => toast({
+              message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.",
+              variant: "error",
+            }));
+          }}
           onOpenSession={(id) => {
             const session = state.sessions.find((candidate) => candidate.sessionKey.piSessionId === id);
             if (session) openSession(session.sessionKey);

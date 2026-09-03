@@ -81,6 +81,29 @@ describe("Workspace", () => {
     expect(createWorkspace).toHaveBeenCalledWith("Client work");
   });
 
+  it("leaves the previous Session when the Workspace switcher changes Workspaces", async () => {
+    enableDesktopViewport();
+    const user = userEvent.setup();
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const client = { activateWorkspace } as unknown as ApplicationClient;
+    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const state = {
+      ...fixtureState,
+      workspaces: [
+        { id: "current", name: "Current", projectIds: fixtureState.projects.map(({ projectId }) => projectId), closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "next", name: "Next", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+      ],
+      activeWorkspaceId: "current",
+    };
+    render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Switch Workspace" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Next" }));
+
+    expect(activateWorkspace).toHaveBeenCalledWith("next");
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
+  });
+
   it("opens Quick Session without selecting it or showing actions outside the modal", async () => {
     enableDesktopViewport();
     const onOpenQuickSession = vi.fn();

@@ -18,6 +18,25 @@ describe("CommandPalette stashed messages", () => {
     expect(onRestoreStash).toHaveBeenCalledWith(stash)
   })
 
+  it("lists Workspaces and selects one", async () => {
+    const user = userEvent.setup()
+    const onSelectWorkspace = vi.fn()
+    const workspaces = [
+      { id: "agency", name: "Marketing Agency", projectIds: ["site"], closedProjectIds: [], bookmarkedProjectIds: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+      { id: "product", name: "Product", projectIds: ["app", "api"], closedProjectIds: [], bookmarkedProjectIds: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+    ]
+    render(<CommandPalette {...required} workspaces={workspaces} activeWorkspaceId="agency" onSelectWorkspace={onSelectWorkspace} />)
+
+    await user.click(screen.getByRole("option", { name: "Workspaces" }))
+    expect(screen.getByRole("dialog", { name: "Workspaces" })).toBeVisible()
+    expect(screen.getByRole("option", { name: /Marketing Agency/ })).toHaveTextContent("1 Project")
+    expect(screen.getByRole("option", { name: /Product/ })).toHaveTextContent("2 Projects")
+    await user.click(screen.getByRole("option", { name: /Product/ }))
+
+    expect(onSelectWorkspace).toHaveBeenCalledWith("product")
+    expect(required.onClose).toHaveBeenCalled()
+  })
+
   it("opens the stashes flow directly and aligns its empty state with options", () => {
     render(<CommandPalette {...required} initialFlow="stashes" sessionId="session" stashes={[]} onRestoreStash={vi.fn()} />)
     const empty = screen.getByRole("status")
