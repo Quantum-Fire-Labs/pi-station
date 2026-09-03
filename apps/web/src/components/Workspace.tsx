@@ -178,6 +178,7 @@ function Dashboard({
   onDashboard,
   onProjects,
   onSettings,
+  onWorkspace,
 }: {
   state: ApplicationState;
   onOpen: (key: SessionKey) => void;
@@ -189,6 +190,7 @@ function Dashboard({
   onDashboard: () => void;
   onProjects: () => void;
   onSettings: () => void;
+  onWorkspace: (id: string) => void;
 }) {
   const [view, setView] = useState<DashboardView>(readDashboardView);
   const [showingClosed, setShowingClosed] = useState<ReadonlySet<string>>(
@@ -255,6 +257,9 @@ function Dashboard({
             onDashboard={onDashboard}
             onProjects={onProjects}
             onSettings={onSettings}
+            workspaces={state.workspaces ?? []}
+            activeWorkspaceId={state.activeWorkspaceId}
+            onWorkspace={onWorkspace}
           />
           <div className="dashboard-heading">
             <h1>Dashboard</h1>
@@ -859,14 +864,14 @@ function Sidebar({
           <PanelLeftClose aria-hidden="true" size={17} />
         </button>
       </header>
-      {state.workspaces !== undefined && client !== undefined && <WorkspaceSwitcher
-        workspaces={state.workspaces}
+      <WorkspaceSwitcher
+        workspaces={state.workspaces ?? []}
         activeWorkspaceId={state.activeWorkspaceId}
         onActivate={onActivateWorkspace}
-        onCreate={(name) => client.createWorkspace(name)}
-        onRename={(id, name) => client.renameWorkspace(id, name)}
-        onDelete={(id) => client.deleteWorkspace(id)}
-      />}
+        onCreate={(name) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.createWorkspace(name)}
+        onRename={(id, name) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.renameWorkspace(id, name)}
+        onDelete={(id) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.deleteWorkspace(id)}
+      >
       <nav className="sidebar-primary-actions" aria-label="Primary navigation">
         <div className="sidebar-session-actions">
           <Button type="button" variant="outline" title="Quick Session" aria-label="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
@@ -1114,6 +1119,7 @@ function Sidebar({
           </section>
         )}
       </nav>
+      </WorkspaceSwitcher>
       <footer>
         <button
           className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined}
@@ -3128,6 +3134,7 @@ export function Workspace({
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
         onSettings={() => setRoute("settings")}
+        onWorkspace={(id) => void activateWorkspace(id).catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.", variant: "error" }))}
       />,
     );
   }

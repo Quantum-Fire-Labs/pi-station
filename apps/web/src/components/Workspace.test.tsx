@@ -71,10 +71,7 @@ describe("Workspace", () => {
     const client = { createWorkspace } as unknown as ApplicationClient;
     render(<Workspace state={{ ...fixtureState, workspaces: [], activeWorkspaceId: undefined }} client={client} onSelect={vi.fn()} />);
 
-    const switcher = screen.getByRole("button", { name: "Switch Workspace" });
-    expect(switcher).toHaveTextContent("All Projects");
-    await user.click(switcher);
-    await user.click(await screen.findByRole("menuitem", { name: "New Workspace" }));
+    await user.click(screen.getByRole("button", { name: "New Workspace" }));
     await user.type(screen.getByRole("textbox", { name: "Workspace name" }), "Client work");
     await user.click(screen.getByRole("button", { name: "Create" }));
 
@@ -97,8 +94,9 @@ describe("Workspace", () => {
     };
     render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Switch Workspace" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Next" }));
+    expect(screen.getByRole("button", { name: "Current" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Next" })).not.toHaveAttribute("aria-current");
+    await user.click(screen.getByRole("button", { name: "Next" }));
 
     expect(activateWorkspace).toHaveBeenCalledWith("next");
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
@@ -122,8 +120,7 @@ describe("Workspace", () => {
     };
     render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={onSelect} />);
 
-    await user.click(screen.getByRole("button", { name: "Switch Workspace" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith(targetSession.sessionKey));
     expect(activateWorkspace).toHaveBeenCalledWith("next");
@@ -1787,6 +1784,29 @@ describe("Workspace", () => {
     expect(newSession).toHaveAttribute("data-slot", "button");
     expect(newSession).toHaveAccessibleName("New Session");
     expect(newSession).toHaveAttribute("title", "New Session");
+  });
+
+  it("switches Workspaces from the mobile Dashboard menu", async () => {
+    enableMobileViewport();
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const state = {
+      ...fixtureState,
+      workspaces: [
+        { id: "current", name: "Current Workspace", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "next", name: "Next Workspace", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+      ],
+      activeWorkspaceId: "current",
+    };
+    render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Back to Dashboard" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
+
+    expect(screen.getByRole("menuitem", { name: "Current Workspace" })).toHaveAttribute("aria-current", "true");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Next Workspace" }));
+
+    expect(activateWorkspace).toHaveBeenCalledWith("next");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("opens Quick Session from the mobile Dashboard header", async () => {
