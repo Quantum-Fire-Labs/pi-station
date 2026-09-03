@@ -104,6 +104,29 @@ describe("Workspace", () => {
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
 
+  it("cycles Workspaces with Control+Bracket shortcuts", async () => {
+    enableDesktopViewport();
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const client = { activateWorkspace } as unknown as ApplicationClient;
+    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const state = {
+      ...fixtureState,
+      workspaces: [
+        { id: "one", name: "One", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "two", name: "Two", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "three", name: "Three", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+      ],
+      activeWorkspaceId: "one",
+    };
+    render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
+
+    fireEvent.keyDown(window, { key: "]", ctrlKey: true });
+    await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("two"));
+    activateWorkspace.mockClear();
+    fireEvent.keyDown(window, { key: "[", ctrlKey: true });
+    await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("three"));
+  });
+
   it("opens Quick Session without selecting it or showing actions outside the modal", async () => {
     enableDesktopViewport();
     const onOpenQuickSession = vi.fn();

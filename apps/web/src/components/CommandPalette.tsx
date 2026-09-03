@@ -189,7 +189,9 @@ export function CommandPalette(props: CommandPaletteProps) {
         || left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
         || (left.projectName ?? "").localeCompare(right.projectName ?? "", undefined, { sensitivity: "base" }));
   }, [flow.kind, props.sessions, query]);
-  const shownWorkspaces = flow.kind === "workspaces" ? props.workspaces ?? [] : [];
+  const shownWorkspaces = flow.kind === "workspaces" ? (props.workspaces ?? []).filter((workspace) => (
+    workspace.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
+  )) : [];
   const shownStashes = flow.kind === "stashes" ? [...(props.stashes ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [];
   const closeChoices = [
     { glyph: <ArrowLeft aria-hidden="true" size={16} />, name: "Keep Session open", danger: false },
@@ -311,8 +313,8 @@ export function CommandPalette(props: CommandPaletteProps) {
 
   return <div className="palette-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) back(); }}>
     <section ref={panelRef} className="palette" role="dialog" aria-modal="true" aria-labelledby="palette-title" tabIndex={-1} onKeyDown={handleKeyDown}>
-      {(flow.kind === "actions" || flow.kind === "sessions") && <label className="palette-search"><Search aria-hidden="true" size={17} /><span id="palette-title" className="sr-only">{title}</span><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "sessions" ? "Search Sessions…" : "Choose an action…"} aria-controls="palette-results" /><kbd>Esc</kbd></label>}
-      {flow.kind !== "actions" && flow.kind !== "sessions" && <header className="palette-flow-header"><button type="button" onClick={back} disabled={props.pending || starting || savingProject} aria-label="Back">{flowGlyph}</button><h2 id="palette-title">{title}</h2><kbd>Esc</kbd></header>}
+      {(flow.kind === "actions" || flow.kind === "sessions" || flow.kind === "workspaces") && <label className="palette-search"><Search aria-hidden="true" size={17} /><span id="palette-title" className="sr-only">{title}</span><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "sessions" ? "Search Sessions…" : flow.kind === "workspaces" ? "Search Workspaces…" : "Choose an action…"} aria-label={flow.kind === "workspaces" ? "Search Workspaces" : undefined} aria-controls="palette-results" /><kbd>Esc</kbd></label>}
+      {flow.kind !== "actions" && flow.kind !== "sessions" && flow.kind !== "workspaces" && <header className="palette-flow-header"><button type="button" onClick={back} disabled={props.pending || starting || savingProject} aria-label="Back">{flowGlyph}</button><h2 id="palette-title">{title}</h2><kbd>Esc</kbd></header>}
       {(flow.kind === "new-project" || flow.kind === "new-directory") && <div className="palette-search palette-subsearch"><Search aria-hidden="true" size={17} /><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "new-project" ? "Filter projects…" : "Filter directories…"} aria-label={flow.kind === "new-project" ? "Filter projects" : "Filter directories"} aria-controls="palette-results" />{flow.kind === "new-directory" && <button type="button" className={showHidden ? "active" : ""} aria-pressed={showHidden} disabled={directoryRequest?.status === "loading"} onClick={() => { const hidden = !showHidden; setShowHidden(hidden); loadDirectory(directory?.current.path, hidden); }}>Hidden</button>}</div>}
       {flow.kind === "rename" && <form className="palette-form" onSubmit={(event) => { event.preventDefault(); const value = flow.value.trim(); if (value && !props.pending) props.onRename?.(value); }}><label>Session name<input ref={inputRef} value={flow.value} maxLength={120} onChange={(event) => setFlow({ kind: "rename", value: event.target.value })} /></label><button type="submit" disabled={!flow.value.trim() || props.pending}>{props.pending ? "Saving…" : "Save"}</button></form>}
       {(flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking") && <div id="palette-results" className="palette-results" role="listbox">
@@ -335,8 +337,9 @@ export function CommandPalette(props: CommandPaletteProps) {
       {flow.kind === "workspaces" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Workspaces">
         {shownWorkspaces.map((workspace, index) => <button type="button" key={workspace.id} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => closeAfter(() => props.onSelectWorkspace?.(workspace.id))} disabled={props.pending}>
           <span className="palette-option-glyph" aria-hidden="true">{workspace.id === props.activeWorkspaceId ? "✓" : <PanelsTopLeft size={14} />}</span>
-          <span className="palette-option-copy"><span className="palette-option-name">{workspace.name}</span><small>{workspace.projectIds.length} {workspace.projectIds.length === 1 ? "Project" : "Projects"}</small></span>
+          <span className="palette-option-name">{workspace.name}</span>
         </button>)}
+        {shownWorkspaces.length === 0 && <p className="palette-empty" role="status">No Workspaces match that search.</p>}
       </div>}
       {flow.kind === "stashes" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Stashed messages">
         {shownStashes.map((stash, index) => <button type="button" key={stash.id} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => props.onRestoreStash?.(stash)} disabled={props.pending}>

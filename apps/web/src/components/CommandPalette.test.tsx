@@ -29,9 +29,11 @@ describe("CommandPalette stashed messages", () => {
 
     await user.click(screen.getByRole("option", { name: "Workspaces" }))
     expect(screen.getByRole("dialog", { name: "Workspaces" })).toBeVisible()
-    expect(screen.getByRole("option", { name: /Marketing Agency/ })).toHaveTextContent("1 Project")
-    expect(screen.getByRole("option", { name: /Product/ })).toHaveTextContent("2 Projects")
-    await user.click(screen.getByRole("option", { name: /Product/ }))
+    expect(screen.getByRole("option", { name: "Marketing Agency" })).not.toHaveTextContent("Project")
+    expect(screen.getByRole("option", { name: "Product" })).not.toHaveTextContent("Project")
+    await user.type(screen.getByRole("textbox", { name: "Search Workspaces" }), "prod")
+    expect(screen.queryByRole("option", { name: "Marketing Agency" })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("option", { name: "Product" }))
 
     expect(onSelectWorkspace).toHaveBeenCalledWith("product")
     expect(required.onClose).toHaveBeenCalled()
