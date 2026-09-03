@@ -874,17 +874,6 @@ function Sidebar({
         onOpenQuickSession={onOpenQuickSession}
         onNewSession={onGeneralNewSession}
       >
-      <nav className="sidebar-primary-actions" aria-label="Primary navigation">
-        <button
-          className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined}
-          aria-label="Projects"
-          aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined}
-          onClick={onProjects}
-        >
-          <Folder aria-hidden="true" size={17} />
-          <span>Projects</span>
-        </button>
-      </nav>
       <nav className="project-list">
         {projects.map((project) => {
           const projectSessions = state.sessions.filter(
@@ -1107,6 +1096,15 @@ function Sidebar({
       </nav>
       </WorkspaceSwitcher>
       <footer>
+        <button
+          className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined}
+          aria-label="Projects"
+          aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined}
+          onClick={onProjects}
+        >
+          <Folder aria-hidden="true" size={17} />
+          <span>Projects</span>
+        </button>
         <button
           className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined}
           aria-label="Settings"

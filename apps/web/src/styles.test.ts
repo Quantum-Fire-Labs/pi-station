@@ -93,7 +93,8 @@ describe("Session header", () => {
 describe("Quick Session modal", () => {
   it("places Session creation in Workspace actions and keeps Settings in the footer", () => {
     expect(workspaceSwitcherSource).toMatch(/DropdownMenuContent[\s\S]*Quick Session[\s\S]*New Session[\s\S]*Rename Workspace[\s\S]*Delete Workspace/);
-    expect(workspaceSource).toMatch(/className={`sidebar-home[\s\S]*className="sidebar-primary-actions"[\s\S]*aria-label="Projects"[\s\S]*<footer>[\s\S]*aria-label="Settings"/);
+    expect(workspaceSource).toMatch(/className={`sidebar-home[\s\S]*<footer>[\s\S]*aria-label="Projects"[\s\S]*aria-label="Settings"/);
+    expect(styles).toMatch(/\.sidebar > footer\s*\{[^}]*display: flex;[^}]*justify-content: space-between;/s);
   });
 
   it("uses a compact opaque desktop surface without backdrop blur", () => {
