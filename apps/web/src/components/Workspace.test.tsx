@@ -1649,7 +1649,7 @@ describe("Workspace", () => {
     expect(within(firstSession as HTMLButtonElement).getByLabelText("Shortcut 1")).toBeInTheDocument();
     expect(firstSession?.querySelector(".session-row-name")).toHaveTextContent(firstSessionName ?? "");
     expect(firstSession?.querySelector(".session-status-indicator")).toBeInTheDocument();
-    fireEvent.keyUp(document, { key: "Control" });
+    fireEvent.keyUp(document, { key: "Control", ctrlKey: true });
     expect(sidebar).not.toHaveClass("shortcuts-visible");
     expect(bookmarkLayer).not.toHaveAttribute("aria-hidden");
     expect(shortcutLayer).toHaveAttribute("aria-hidden", "true");

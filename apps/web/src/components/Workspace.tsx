@@ -2337,7 +2337,7 @@ export function Workspace({
       target.scrollIntoView?.({ block: "nearest" });
     };
     const releaseModifier = (event: KeyboardEvent): void => {
-      if ((event.key === "Meta" || event.key === "Control") && !event.metaKey && !event.ctrlKey) hideShortcuts();
+      if (event.key === "Meta" || event.key === "Control") hideShortcuts();
     };
 
     document.addEventListener("keydown", navigateSessions, true);
