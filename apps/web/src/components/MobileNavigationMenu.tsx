@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import type { SavedWorkspace } from "../application/workspace-model";
 import {
+  Check,
   FolderKanban,
   FolderPlus,
   LayoutDashboard,
@@ -18,6 +20,9 @@ export function MobileNavigationMenu({
   onDashboard,
   onProjects,
   onSettings,
+  workspaces = [],
+  activeWorkspaceId,
+  onWorkspace,
 }: {
   current: MobileNavigationRoute;
   onNewSession: () => void;
@@ -25,6 +30,9 @@ export function MobileNavigationMenu({
   onDashboard: () => void;
   onProjects: () => void;
   onSettings: () => void;
+  workspaces?: readonly SavedWorkspace[];
+  activeWorkspaceId?: string | undefined;
+  onWorkspace?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -76,6 +84,19 @@ export function MobileNavigationMenu({
               <span>New Project</span>
             </button>
           </div>
+          {workspaces.length > 0 && onWorkspace !== undefined && <div className="mobile-navigation-workspaces">
+            <span>Workspaces</span>
+            {workspaces.map((workspace) => <button
+              type="button"
+              role="menuitem"
+              key={workspace.id}
+              aria-current={workspace.id === activeWorkspaceId ? "true" : undefined}
+              onClick={() => run(() => onWorkspace(workspace.id))}
+            >
+              {workspace.id === activeWorkspaceId ? <Check aria-hidden="true" size={17} /> : <span className="mobile-navigation-workspace-spacer" />}
+              <span>{workspace.name}</span>
+            </button>)}
+          </div>}
           <div className="mobile-navigation-links">
             <button
               type="button"
