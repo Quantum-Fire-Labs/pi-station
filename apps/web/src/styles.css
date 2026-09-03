@@ -439,9 +439,9 @@ body.sidebar-resizing {
 .workspace-list { display: grid; max-height: min(200px, 28vh); flex: 0 1 auto; gap: 3px; overflow-y: auto; }
 .workspace-list button { display: flex; min-width: 0; min-height: 38px; align-items: center; gap: 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 9px; font-size: 12px; font-weight: 600; text-align: left; }
 .workspace-list button:hover { background: var(--raised); color: var(--text); }
-.workspace-list button.selected { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent-strong); }
+.workspace-list button.selected { background: transparent; color: var(--accent-strong); }
 .workspace-list button span { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
-.workspace-active-panel { display: flex; min-height: 180px; flex: 1; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--raised) 55%, transparent); }
+.workspace-active-panel { display: flex; min-height: 180px; flex: 1; flex-direction: column; overflow: hidden; }
 .workspace-active-header { display: flex; min-height: 43px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px 5px 13px; }
 .workspace-active-header strong { min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
 .workspace-actions-trigger { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
