@@ -31,6 +31,12 @@ import type { ApplicationClient } from "../application/application-client";
 import { fixtureState } from "../fixtures/workspace";
 import { sessionsVisibleInWorkspace, type ApplicationCommand } from "../application/workspace-model";
 
+const fixtureStateWithWorkspace: ApplicationState = {
+  ...fixtureState,
+  workspaces: [{ id: "default-workspace", name: "Default", projectIds: fixtureState.projects.map(({ projectId }) => projectId), createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+  activeWorkspaceId: "default-workspace",
+};
+
 const enableDesktopViewport = (): void => {
   const matchMedia = vi.fn((query: string) => ({
     matches: query === "(min-width: 1100px)",
@@ -149,16 +155,13 @@ describe("Workspace", () => {
     await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("three"));
   });
 
-  it("opens Quick Session without selecting it or showing actions outside the modal", async () => {
+  it("opens Quick Session from the Workspace actions menu without selecting a Session", async () => {
     enableDesktopViewport();
     const onOpenQuickSession = vi.fn();
     const onSelect = vi.fn();
-    render(<Workspace state={fixtureState} onSelect={onSelect} onOpenQuickSession={onOpenQuickSession} />);
-    const trigger = screen.getByRole("button", { name: "Quick Session" });
-    expect(trigger).toHaveAttribute("title", "Quick Session");
-    expect(trigger).toHaveAttribute("aria-keyshortcuts", "Control+Shift+Space Meta+Shift+Space");
-    expect(screen.queryByRole("button", { name: "Quick Session actions" })).not.toBeInTheDocument();
-    await userEvent.click(trigger);
+    render(<Workspace state={fixtureStateWithWorkspace} onSelect={onSelect} onOpenQuickSession={onOpenQuickSession} />);
+    await userEvent.click(screen.getByRole("button", { name: /^Actions for / }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Quick Session" }));
     expect(onOpenQuickSession).toHaveBeenCalledOnce();
     fireEvent.keyDown(window, { key: " ", code: "Space", ctrlKey: true, shiftKey: true });
     expect(onOpenQuickSession).toHaveBeenCalledTimes(2);
@@ -1338,13 +1341,14 @@ describe("Workspace", () => {
     const onListDirectory = vi.fn(() => "directory-request");
     render(
       <Workspace
-        state={fixtureState}
+        state={fixtureStateWithWorkspace}
         onSelect={vi.fn()}
         onListDirectory={onListDirectory}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "New Session" }));
+    await user.click(screen.getByRole("button", { name: /^Actions for / }));
+    await user.click(await screen.findByRole("menuitem", { name: "New Session" }));
     expect(screen.getByRole("heading", { name: "New Session" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Project" })).toHaveAttribute(
       "aria-selected",
@@ -1360,19 +1364,20 @@ describe("Workspace", () => {
     const onCreateManagedSession = vi.fn(() => "create-request");
     const { rerender } = render(
       <Workspace
-        state={{ ...fixtureState, managedSessionCreates: {} }}
+        state={{ ...fixtureStateWithWorkspace, managedSessionCreates: {} }}
         onSelect={vi.fn()}
         onCreateManagedSession={onCreateManagedSession}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "New Session" }));
+    await user.click(screen.getByRole("button", { name: /^Actions for / }));
+    await user.click(await screen.findByRole("menuitem", { name: "New Session" }));
     await user.click(screen.getByRole("button", { name: "Start Pi" }));
 
     rerender(
       <Workspace
         state={{
-          ...fixtureState,
+          ...fixtureStateWithWorkspace,
           managedSessionCreates: {
             "create-request": {
               requestId: "create-request",

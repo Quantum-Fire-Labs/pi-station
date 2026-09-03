@@ -871,24 +871,10 @@ function Sidebar({
         onCreate={(name) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.createWorkspace(name)}
         onRename={(id, name) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.renameWorkspace(id, name)}
         onDelete={(id) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.deleteWorkspace(id)}
+        onOpenQuickSession={onOpenQuickSession}
+        onNewSession={onGeneralNewSession}
       >
       <nav className="sidebar-primary-actions" aria-label="Primary navigation">
-        <div className="sidebar-session-actions">
-          <Button type="button" variant="outline" title="Quick Session" aria-label="Quick Session" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onOpenQuickSession}>
-            <Zap aria-hidden="true" size={17} />
-            <span>Quick Session</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="New Session"
-            aria-current={activeRoute === "new-session" ? "page" : undefined}
-            onClick={onGeneralNewSession}
-          >
-            <Plus aria-hidden="true" size={17} />
-            <span>New Session</span>
-          </Button>
-        </div>
         <button
           className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined}
           aria-label="Projects"

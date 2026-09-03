@@ -6,6 +6,7 @@ const styles = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const selectSource = readFileSync(resolve(process.cwd(), "src/components/ui/select.tsx"), "utf8");
 const composerControlsSource = readFileSync(resolve(process.cwd(), "src/components/ComposerControls.tsx"), "utf8");
 const workspaceSource = readFileSync(resolve(process.cwd(), "src/components/Workspace.tsx"), "utf8");
+const workspaceSwitcherSource = readFileSync(resolve(process.cwd(), "src/components/WorkspaceSwitcher.tsx"), "utf8");
 const dialogSource = readFileSync(resolve(process.cwd(), "src/components/ui/dialog.tsx"), "utf8");
 
 describe("composer width", () => {
@@ -90,10 +91,9 @@ describe("Session header", () => {
 });
 
 describe("Quick Session modal", () => {
-  it("places Quick Session with the top navigation actions and keeps Settings in the footer", () => {
-    expect(styles).toMatch(/\.sidebar-primary-actions\s*\{[^}]*grid-template-columns: 1fr;[^}]*gap: 2px;/s);
-    expect(workspaceSource).toContain('className="sidebar-primary-actions"');
-    expect(workspaceSource).toMatch(/className={`sidebar-home[\s\S]*aria-label="Dashboard"[\s\S]*className="sidebar-primary-actions"[\s\S]*aria-label="Quick Session"[\s\S]*aria-label="New Session"[\s\S]*aria-label="Projects"[\s\S]*<footer>[\s\S]*aria-label="Settings"/);
+  it("places Session creation in Workspace actions and keeps Settings in the footer", () => {
+    expect(workspaceSwitcherSource).toMatch(/DropdownMenuContent[\s\S]*Quick Session[\s\S]*New Session[\s\S]*Rename Workspace[\s\S]*Delete Workspace/);
+    expect(workspaceSource).toMatch(/className={`sidebar-home[\s\S]*className="sidebar-primary-actions"[\s\S]*aria-label="Projects"[\s\S]*<footer>[\s\S]*aria-label="Settings"/);
   });
 
   it("uses a compact opaque desktop surface without backdrop blur", () => {
