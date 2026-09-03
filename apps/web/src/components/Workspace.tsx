@@ -1372,7 +1372,7 @@ export function Workspace({
   const activateWorkspace = async (id: string): Promise<void> => {
     if (client === undefined || id === state.activeWorkspaceId) return;
     const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
-    const firstProjectId = targetWorkspace?.projectIds[0];
+    const firstProjectId = targetWorkspace?.projectIds.find((projectId) => !(targetWorkspace.closedProjectIds ?? []).includes(projectId));
     const firstSession = firstProjectId === undefined
       ? undefined
       : sessionsVisibleInWorkspace(applicationState.sessions).find((session) => session.projectId === firstProjectId);
@@ -1413,7 +1413,7 @@ export function Workspace({
       const target = workspaces[(current + offset + workspaces.length) % workspaces.length];
       if (target === undefined) return;
       event.preventDefault();
-      const firstProjectId = target.projectIds[0];
+      const firstProjectId = target.projectIds.find((projectId) => !(target.closedProjectIds ?? []).includes(projectId));
       const firstSession = firstProjectId === undefined
         ? undefined
         : sessionsVisibleInWorkspace(applicationState.sessions).find((session) => session.projectId === firstProjectId);

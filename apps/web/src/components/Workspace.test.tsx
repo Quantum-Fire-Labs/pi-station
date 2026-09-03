@@ -132,6 +132,30 @@ describe("Workspace", () => {
     expect(activateWorkspace).toHaveBeenCalledWith("next");
   });
 
+  it("does not reopen a closed Project when returning to its Workspace", async () => {
+    enableDesktopViewport();
+    const user = userEvent.setup();
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const onSelect = vi.fn();
+    const project = fixtureState.projects[0]!;
+    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const state = {
+      ...fixtureState,
+      workspaces: [
+        { id: "current", name: "Current", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "closed", name: "Closed Project Workspace", projectIds: [project.projectId], closedProjectIds: [project.projectId], bookmarkedProjectIds: [], ...timestamps },
+      ],
+      activeWorkspaceId: "current",
+    };
+    render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={onSelect} />);
+
+    await user.click(screen.getByRole("button", { name: "Closed Project Workspace" }));
+
+    expect(activateWorkspace).toHaveBeenCalledWith("closed");
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
+  });
+
   it("cycles Workspaces with Control+Bracket shortcuts", async () => {
     enableDesktopViewport();
     const activateWorkspace = vi.fn(() => Promise.resolve());
