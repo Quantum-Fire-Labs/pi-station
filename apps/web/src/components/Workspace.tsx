@@ -1381,10 +1381,19 @@ export function Workspace({
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
   const activateWorkspace = async (id: string): Promise<void> => {
     if (client === undefined || id === state.activeWorkspaceId) return;
+    const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
+    const firstProjectId = targetWorkspace?.projectIds[0];
+    const firstSession = firstProjectId === undefined
+      ? undefined
+      : sessionsVisibleInWorkspace(applicationState.sessions).find((session) => session.projectId === firstProjectId);
     await client.activateWorkspace(id);
     setDetailsOpen(false);
     setSelectedProjectId(undefined);
-    setRouteState("dashboard");
+    if (firstSession === undefined) setRouteState("dashboard");
+    else {
+      onSelect(firstSession.sessionKey);
+      setRouteState("workspace");
+    }
   };
   const openSharedMarkdown = (file: SharedMarkdownFile): void => {
     if (editorIdentity === undefined || sharedMarkdownFile?.url === file.url) return;
@@ -1404,6 +1413,36 @@ export function Workspace({
     setCurrentEditorDirty(false);
   });
   const [selectedProjectId, setSelectedProjectId] = useState<ProjectId>();
+  useEffect(() => {
+    const cycleWorkspace = (event: KeyboardEvent): void => {
+      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat || (event.key !== "[" && event.key !== "]")) return;
+      const workspaces = state.workspaces ?? [];
+      if (client === undefined || workspaces.length < 2) return;
+      const current = Math.max(0, workspaces.findIndex(({ id }) => id === state.activeWorkspaceId));
+      const offset = event.key === "]" ? 1 : -1;
+      const target = workspaces[(current + offset + workspaces.length) % workspaces.length];
+      if (target === undefined) return;
+      event.preventDefault();
+      const firstProjectId = target.projectIds[0];
+      const firstSession = firstProjectId === undefined
+        ? undefined
+        : sessionsVisibleInWorkspace(applicationState.sessions).find((session) => session.projectId === firstProjectId);
+      void client.activateWorkspace(target.id).then(() => {
+        setDetailsOpen(false);
+        setSelectedProjectId(undefined);
+        if (firstSession === undefined) setRouteState("dashboard");
+        else {
+          onSelect(firstSession.sessionKey);
+          setRouteState("workspace");
+        }
+      }).catch((reason: unknown) => toast({
+        message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.",
+        variant: "error",
+      }));
+    };
+    window.addEventListener("keydown", cycleWorkspace);
+    return () => window.removeEventListener("keydown", cycleWorkspace);
+  }, [applicationState.sessions, client, onSelect, state.activeWorkspaceId, state.workspaces, toast]);
   const selectedSessionIdentity = state.selectedSessionKey === undefined
     ? undefined
     : sessionIdentity(state.selectedSessionKey);

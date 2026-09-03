@@ -77,12 +77,15 @@ export class WorkspaceStore {
   }
 
   ensureOpen(projectId: string, projects: readonly Project[]): Promise<WorkspaceState> {
-    return this.#update(projects, [], (current) => ({
-      ...current,
-      workspaces: current.workspaces.map((workspace) => workspace.projectIds.includes(projectId)
-        ? { ...workspace, closedProjectIds: workspace.closedProjectIds.filter((id) => id !== projectId) }
-        : workspace),
-    }))
+    return this.#update(projects, [], (current) => {
+      requireProject(projects, projectId)
+      const workspace = requireWorkspace(current, current.activeWorkspaceId)
+      if (!workspace.projectIds.includes(projectId)) return current
+      return mapWorkspace(current, workspace.id, (value) => ({
+        ...value,
+        closedProjectIds: value.closedProjectIds.filter((id) => id !== projectId),
+      }))
+    })
   }
 
   setBookmarked(projectId: string, bookmarked: boolean, projects: readonly Project[]): Promise<WorkspaceState> {

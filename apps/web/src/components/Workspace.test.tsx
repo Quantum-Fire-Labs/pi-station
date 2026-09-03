@@ -104,6 +104,54 @@ describe("Workspace", () => {
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
 
+  it("opens the first Session in the first Project after a Workspace switch", async () => {
+    enableDesktopViewport();
+    const user = userEvent.setup();
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const onSelect = vi.fn();
+    const targetProject = fixtureState.projects[1]!;
+    const targetSession = fixtureState.sessions.find(({ projectId }) => projectId === targetProject.projectId)!;
+    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const state = {
+      ...fixtureState,
+      workspaces: [
+        { id: "current", name: "Current", projectIds: [fixtureState.projects[0]!.projectId], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "next", name: "Next", projectIds: [targetProject.projectId], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+      ],
+      activeWorkspaceId: "current",
+    };
+    render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={onSelect} />);
+
+    await user.click(screen.getByRole("button", { name: "Switch Workspace" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Next" }));
+
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(targetSession.sessionKey));
+    expect(activateWorkspace).toHaveBeenCalledWith("next");
+  });
+
+  it("cycles Workspaces with Control+Bracket shortcuts", async () => {
+    enableDesktopViewport();
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const client = { activateWorkspace } as unknown as ApplicationClient;
+    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const state = {
+      ...fixtureState,
+      workspaces: [
+        { id: "one", name: "One", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "two", name: "Two", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "three", name: "Three", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+      ],
+      activeWorkspaceId: "one",
+    };
+    render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
+
+    fireEvent.keyDown(window, { key: "]", ctrlKey: true });
+    await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("two"));
+    activateWorkspace.mockClear();
+    fireEvent.keyDown(window, { key: "[", ctrlKey: true });
+    await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("three"));
+  });
+
   it("opens Quick Session without selecting it or showing actions outside the modal", async () => {
     enableDesktopViewport();
     const onOpenQuickSession = vi.fn();
