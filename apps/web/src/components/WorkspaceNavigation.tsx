@@ -154,11 +154,11 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
     </div>
     <button type="button" className="workspace-navigation-action" onClick={onNewSession}><Plus aria-hidden="true" size={15} />New Session</button>
     <button type="button" className="workspace-navigation-action" aria-expanded={libraryOpen} onClick={() => setLibraryOpen((open) => !open)}>
-      {libraryOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}<Library aria-hidden="true" size={15} />Open saved Session
+      {libraryOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}<Library aria-hidden="true" size={15} />Previous Sessions
     </button>
-    {libraryOpen && <div className="workspace-session-library" role="list" aria-label="Saved Sessions">
+    {libraryOpen && <div className="workspace-session-library" role="list" aria-label="Previous Sessions">
       {savedSessions.map((session) => <button type="button" role="listitem" aria-label={`Open ${label(session)}`} key={identity(session.sessionKey)} onClick={() => onOpenSession(session)}><SessionDot session={session} /><span>{label(session)}</span><small>{projects.find(({ projectId }) => projectId === session.projectId)?.name ?? "Project unavailable"}</small></button>)}
-      {savedSessions.length === 0 && <p>No saved Sessions to open.</p>}
+      {savedSessions.length === 0 && <p>No previous Sessions to open.</p>}
     </div>}
   </nav>;
 }

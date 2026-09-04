@@ -2976,11 +2976,11 @@ export function Workspace({
       <main className="workspace-empty" aria-labelledby="workspace-empty-title">
         <div className="workspace-empty-card">
           <h1 id="workspace-empty-title">{activeWorkspace.name} is empty</h1>
-          <p>Start new work or open a saved Session in this Workspace.</p>
+          <p>Start new work or open a previous Session in this Workspace.</p>
           <Button type="button" onClick={() => setRoute("new-session")}><Plus aria-hidden="true" />New Session</Button>
           <section aria-labelledby="workspace-saved-sessions-title">
             <h2 id="workspace-saved-sessions-title">Open existing Session</h2>
-            {savedSessions.length === 0 ? <p>No saved Sessions are available.</p> : <div className="workspace-empty-sessions">
+            {savedSessions.length === 0 ? <p>No previous Sessions are available.</p> : <div className="workspace-empty-sessions">
               {savedSessions.map((session) => <button type="button" key={sessionIdentity(session.sessionKey)} onClick={() => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}>
                 <strong>{sessionLabel(session)}</strong>
                 <span>{state.projects.find(({ projectId }) => projectId === session.projectId)?.name ?? "Unknown Project"}</span>

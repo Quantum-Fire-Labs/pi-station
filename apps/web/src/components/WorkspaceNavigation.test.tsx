@@ -45,9 +45,9 @@ describe("WorkspaceNavigation", () => {
     expect(actions.onCloseTab).toHaveBeenCalledWith(workspace.tabs?.[0], expect.objectContaining({ name: "Open work" }));
   });
 
-  it("opens saved Sessions from the global library", async () => {
+  it("opens previous Sessions from the global library", async () => {
     const actions = renderNavigation();
-    await userEvent.click(screen.getByRole("button", { name: /Open saved Session/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Previous Sessions/ }));
     await userEvent.click(screen.getByRole("listitem", { name: /Saved work/ }));
     expect(actions.onOpenSession).toHaveBeenCalledWith(expect.objectContaining({ name: "Saved work" }));
   });
