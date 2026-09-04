@@ -110,11 +110,10 @@ describe("Workspace", () => {
   it("lets a user create the first saved Workspace", async () => {
     enableDesktopViewport();
     const user = userEvent.setup();
-    const created = { ...fixtureWorkspace, id: "created", name: "Client work", tabs: [] };
-    let snapshot: ApplicationState = { ...fixtureState, workspaces: [] };
-    const createWorkspace = vi.fn(() => { snapshot = { ...fixtureState, workspaces: [created] }; return Promise.resolve(); });
+    const unrelated = { ...fixtureWorkspace, id: "unrelated", name: "Unrelated", tabs: [] };
+    const createWorkspace = vi.fn(() => Promise.resolve("created"));
     const activateWorkspace = vi.fn(() => Promise.resolve());
-    const client = { createWorkspace, activateWorkspace, get snapshot() { return snapshot; } } as unknown as ApplicationClient;
+    const client = { createWorkspace, activateWorkspace, snapshot: { ...fixtureState, workspaces: [unrelated] } } as unknown as ApplicationClient;
     render(<Workspace state={{ ...fixtureState, workspaces: [], activeWorkspaceId: undefined }} client={client} onSelect={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: "Create Workspace" }));
