@@ -42,8 +42,8 @@ export function sessionAttentionLabel(session: SessionSummary): string {
 export function AgentAttention({
   sessions,
   onSelect,
-  heading = "Needs attention",
-  emptyLabel = "No agents need attention",
+  heading = "Agent Activity",
+  emptyLabel = "No agent activity",
 }: AgentAttentionProps) {
   const attention = sessions.filter((session) => agentAttentionStatuses(session).length > 0);
   const headingId = useId();

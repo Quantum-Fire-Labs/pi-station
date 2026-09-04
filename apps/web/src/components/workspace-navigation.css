@@ -1,7 +1,7 @@
 .workspace-navigation .workspace-project-group { border-bottom: 1px solid var(--line); }
 .workspace-navigation .workspace-project-heading { display: flex; min-width: 0; align-items: stretch; }
-.workspace-navigation .workspace-project-toggle { display: flex; min-width: 0; min-height: 44px; flex: 1; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text); padding: 5px 8px; text-align: left; }
-.workspace-navigation .workspace-project-toggle > span { overflow: hidden; flex: 1; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-navigation .workspace-project-toggle { display: flex; min-width: 0; min-height: 44px; flex: 1; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text); padding: 5px 8px 5px 0; margin-left: -3px; text-align: left; }
+.workspace-navigation .workspace-project-toggle > span { overflow: hidden; flex: 1; font-size: 11px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .workspace-navigation .workspace-project-toggle > small { color: var(--muted); font-size: 10px; white-space: nowrap; }
 .workspace-navigation .workspace-project-new { display: grid; min-width: 44px; min-height: 44px; place-items: center; border: 0; background: transparent; color: var(--muted); }
 .workspace-navigation .workspace-project-toggle:hover,
