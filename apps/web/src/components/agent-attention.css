@@ -20,6 +20,18 @@
   color: var(--muted-foreground);
 }
 
+.delegated-children__summary {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
 .agent-attention__list {
   display: grid;
   gap: 0.25rem;

@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { SessionKey, SessionSummary } from "../application/workspace-model";
 import "./agent-attention.css";
 
@@ -17,6 +17,8 @@ export interface DelegatedChildrenProps {
   readonly sessions: readonly SessionSummary[];
   readonly onSelect: (sessionKey: SessionKey) => void;
   readonly expanded?: boolean;
+  readonly onExpandedChange?: (expanded: boolean) => void;
+  readonly navigationStartIndex?: number;
 }
 
 export function agentAttentionStatuses(session: SessionSummary): readonly AgentAttentionStatus[] {
@@ -52,7 +54,9 @@ export function AgentAttention({
   );
 }
 
-export function DelegatedChildren({ parentSessionKey, sessions, onSelect, expanded = true }: DelegatedChildrenProps) {
+export function DelegatedChildren({ parentSessionKey, sessions, onSelect, expanded, onExpandedChange, navigationStartIndex }: DelegatedChildrenProps) {
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const isExpanded = expanded ?? localExpanded;
   const children = sessions.filter((session) => session.parentSessionKey !== undefined && sameKey(session.parentSessionKey, parentSessionKey));
   if (children.length === 0) return null;
 
@@ -66,23 +70,27 @@ export function DelegatedChildren({ parentSessionKey, sessions, onSelect, expand
 
   return (
     <div className="delegated-children">
-      <p className="delegated-children__summary">{summary}</p>
-      {expanded ? (
+      <button type="button" className="delegated-children__summary" aria-expanded={isExpanded} onClick={() => {
+        const next = !isExpanded;
+        if (expanded === undefined) setLocalExpanded(next);
+        onExpandedChange?.(next);
+      }}>{summary}</button>
+      {isExpanded ? (
         <ul className="agent-attention__list" aria-label="Delegated agents">
-          {children.map((session) => <AgentButton key={keyOf(session.sessionKey)} session={session} onSelect={onSelect} />)}
+          {children.map((session, index) => <AgentButton key={keyOf(session.sessionKey)} session={session} onSelect={onSelect} navigationIndex={navigationStartIndex === undefined ? undefined : navigationStartIndex + index} />)}
         </ul>
       ) : null}
     </div>
   );
 }
 
-function AgentButton({ session, onSelect }: { readonly session: SessionSummary; readonly onSelect: (key: SessionKey) => void }) {
+function AgentButton({ session, onSelect, navigationIndex }: { readonly session: SessionSummary; readonly onSelect: (key: SessionKey) => void; readonly navigationIndex?: number }) {
   const statuses = agentAttentionStatuses(session);
   const label = sessionAttentionLabel(session);
   const statusText = statuses.length > 0 ? statuses.join(", ") : "Idle";
   return (
     <li>
-      <button className="agent-attention__agent" type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${statusText}`}>
+      <button className={`agent-attention__agent${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${statusText}`} data-session-identity={navigationIndex === undefined ? undefined : keyOf(session.sessionKey)} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={navigationIndex !== undefined && session.projection.unread.hasUnread ? "true" : undefined}>
         <span className="agent-attention__name">{label}</span>
         <span className="agent-attention__statuses" aria-hidden="true">
           {statuses.length > 0 ? statuses.map((status) => <span className={`agent-attention__status agent-attention__status--${status.toLowerCase()}`} key={status}>{status}</span>) : <span className="agent-attention__status">Idle</span>}

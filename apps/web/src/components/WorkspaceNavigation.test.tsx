@@ -110,6 +110,21 @@ describe("WorkspaceNavigation", () => {
     expect(screen.getByText("Selected").closest("button")).toHaveAttribute("data-session-identity", "project-2:shared");
   });
 
+  it("adds expanded delegated children to the visible keyboard order", async () => {
+    const parent = session("session-1", "Parent");
+    const child: SessionSummary = { ...session("child", "Child"), parentSessionKey: parent.sessionKey, projection: { ...projection, unread: { hasUnread: true } } };
+    const actions = renderNavigation([parent, child]);
+    expect(screen.getByText("Parent").closest("button")).toHaveAttribute("data-session-shortcut", "1");
+    await userEvent.click(screen.getByRole("button", { name: "1 agent" }));
+    const childButton = screen.getByRole("button", { name: "Child: Unread" });
+    expect(childButton).toHaveClass("workspace-tab-open");
+    expect(childButton).toHaveAttribute("data-session-identity", "project-1:child");
+    expect(childButton).toHaveAttribute("data-session-shortcut", "2");
+    expect(childButton).toHaveAttribute("data-unread", "true");
+    await userEvent.click(childButton);
+    expect(actions.onOpenSession).toHaveBeenCalledWith(child);
+  });
+
   it("shows collapsed Project activity and starts a Session in that Project", async () => {
     const working = { ...session("session-1", "Open work"), projection: { ...projection, run: "working" as const, unread: { hasUnread: true } } };
     const actions = renderNavigation([working, working]);

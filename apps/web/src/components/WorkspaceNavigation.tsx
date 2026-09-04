@@ -40,6 +40,7 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
   onNewSessionInProject?: (project: ProjectSummary) => void;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [expandedDelegations, setExpandedDelegations] = useState<ReadonlySet<string>>(new Set());
   const [collapsedProjects, setCollapsedProjects] = useState<ReadonlySet<string>>(() => readCollapsed(workspace.id));
   const sessionById = useMemo(() => new Map(sessions.map((session) => [identity(session.sessionKey), session])), [sessions]);
   const groups = useMemo(() => groupWorkspaceTabs(workspace.tabs, projects), [workspace.tabs, projects]);
@@ -50,7 +51,10 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
     : workspace.tabs.find((tab) => tabIdentity(tab.projectId, tab.sessionId) === selectedIdentity)?.id;
   const selectedProjectId = workspace.tabs.find((tab) => tab.id === selectedTabId)?.projectId ?? selectedSession?.projectId;
 
-  useEffect(() => setCollapsedProjects(readCollapsed(workspace.id)), [workspace.id]);
+  useEffect(() => {
+    setCollapsedProjects(readCollapsed(workspace.id));
+    setExpandedDelegations(new Set());
+  }, [workspace.id]);
   useEffect(() => {
     if (selectedProjectId === undefined) return;
     setCollapsedProjects((current) => {
@@ -61,6 +65,10 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
       return next;
     });
   }, [selectedIdentity, selectedProjectId, workspace.id]);
+  useEffect(() => {
+    if (selectedSession?.parentSessionKey === undefined) return;
+    setExpandedDelegations((current) => new Set(current).add(identity(selectedSession.parentSessionKey!)));
+  }, [selectedIdentity, selectedSession]);
 
   const openIds = new Set(workspace.tabs.map(({ projectId, sessionId }) => tabIdentity(projectId, sessionId)));
   const savedSessions = sessions
@@ -96,13 +104,18 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
               const session = sessionById.get(tabIdentity(tab.projectId, tab.sessionId));
               const selected = tab.id === selectedTabId;
               const shortcut = session === undefined ? undefined : ++visibleIndex;
+              const parentIdentity = session === undefined ? undefined : identity(session.sessionKey);
+              const children = session === undefined ? [] : sessions.filter((candidate) => candidate.parentSessionKey !== undefined && identity(candidate.parentSessionKey) === parentIdentity);
+              const delegationExpanded = parentIdentity !== undefined && expandedDelegations.has(parentIdentity);
+              const childStartIndex = visibleIndex + 1;
+              if (delegationExpanded) visibleIndex += children.length;
               return <div className={`workspace-tab${selected ? " selected" : ""}`} key={tab.id}>
                 <button type="button" className="workspace-tab-open" disabled={session === undefined} aria-current={selected ? "page" : undefined} data-session-shortcut={shortcut !== undefined && shortcut < 10 ? shortcut : undefined} data-unread={session?.projection.unread.hasUnread === true ? "true" : undefined} data-session-identity={session === undefined ? undefined : identity(session.sessionKey)} onClick={() => { if (session !== undefined) onSelectTab(tab, session); }}>
                   {session === undefined ? <i className="session-status-indicator status-idle" aria-label="Missing Session" /> : <SessionDot session={session} />}
                   <span><strong>{session === undefined ? "Session unavailable" : label(session)}</strong>{session === undefined ? <small>Referenced Session was not found.</small> : <SessionStatus session={session} />}</span>
                 </button>
                 <button type="button" className="workspace-tab-close" aria-label={`Remove ${session === undefined ? "unavailable Session" : label(session)} tab`} title="Remove tab (does not close Session)" onClick={() => onCloseTab(tab, session)}><X aria-hidden="true" size={14} /></button>
-                {session !== undefined && <DelegatedChildren parentSessionKey={session.sessionKey} sessions={sessions} onSelect={(key) => { const child = sessionById.get(identity(key)); if (child !== undefined) onOpenSession(child); }} expanded={false} />}
+                {session !== undefined && <DelegatedChildren parentSessionKey={session.sessionKey} sessions={sessions} onSelect={(key) => { const child = sessionById.get(identity(key)); if (child !== undefined) onOpenSession(child); }} expanded={delegationExpanded} navigationStartIndex={childStartIndex} onExpandedChange={(expanded) => setExpandedDelegations((current) => { const next = new Set(current); if (expanded) next.add(identity(session.sessionKey)); else next.delete(identity(session.sessionKey)); return next; })} />}
               </div>;
             })}
           </div>}

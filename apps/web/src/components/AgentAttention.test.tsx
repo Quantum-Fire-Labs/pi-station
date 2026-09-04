@@ -59,17 +59,21 @@ describe("DelegatedChildren", () => {
     const failed = session("failed", { parentSessionKey: parent.sessionKey, delegationStatus: "failed" });
     const unrelated = session("other-child", { parentSessionKey: otherParent });
 
-    const view = render(<DelegatedChildren parentSessionKey={parent.sessionKey} sessions={[parent, working, failed, unrelated]} onSelect={vi.fn()} />);
+    const view = render(<DelegatedChildren parentSessionKey={parent.sessionKey} sessions={[parent, working, failed, unrelated]} onSelect={vi.fn()} expanded />);
 
     expect(within(view.container).getByText("2 agents · 1 working · 1 failed")).toBeInTheDocument();
-    expect(within(view.container).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["worker: Working", "failed: Failed"]);
+    expect(within(view.container).getAllByRole("button").slice(1).map((button) => button.getAttribute("aria-label"))).toEqual(["worker: Working", "failed: Failed"]);
   });
 
-  it("can render only the compact summary", () => {
+  it("starts collapsed and expands to select a child", async () => {
     const parent = session("parent");
-    const view = render(<DelegatedChildren parentSessionKey={parent.sessionKey} sessions={[session("child", { parentSessionKey: parent.sessionKey })]} onSelect={vi.fn()} expanded={false} />);
-    expect(within(view.container).getByText("1 agent")).toBeInTheDocument();
-    expect(within(view.container).queryByRole("button")).not.toBeInTheDocument();
+    const onSelect = vi.fn();
+    const view = render(<DelegatedChildren parentSessionKey={parent.sessionKey} sessions={[session("child", { parentSessionKey: parent.sessionKey })]} onSelect={onSelect} />);
+    const summary = within(view.container).getByRole("button", { name: "1 agent" });
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(summary);
+    fireEvent.click(within(view.container).getByRole("button", { name: "child: Idle" }));
+    expect(onSelect).toHaveBeenCalledWith({ hostId: "host", piSessionId: "child" });
   });
 
   it("maps delegation and projection data without an unavailable approval state", () => {
