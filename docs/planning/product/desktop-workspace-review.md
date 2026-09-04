@@ -16,7 +16,7 @@ The user approved the desktop layout and workspace actions. Mobile review is def
 
 ## Latest manual check
 
-Development preview: https://omarchy-m1.taila78937.ts.net:8835/
+Development preview: isolated HTTPS instance. The current review URL is in the pull request.
 
 At 1440 × 1000:
 
