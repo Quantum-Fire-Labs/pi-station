@@ -27,6 +27,8 @@ import {
   isThinkingSettingRequest,
   isUpdateChannelMutation,
   isWorkspaceCreateMutation,
+  isWorkspaceOpenSessionMutation,
+  isWorkspaceReorderTabsMutation,
   isWorkspaceUpdateMutation,
   PROTOCOL_VERSION,
 } from "@pi-station/application-protocol"
@@ -727,7 +729,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
       if (request.method === "GET" && url.pathname === "/v2/workspaces") {
         const projects = await projectStore.read()
         const legacyBookmarks = (await projectBookmarks.list(projects)).map(({ projectId }) => projectId)
-        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.list(projects, legacyBookmarks) })
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.list(projects, legacyBookmarks, await sessions()) })
         return
       }
       if (request.method === "POST" && url.pathname === "/v2/workspaces") {
@@ -735,7 +737,7 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const value = await readJsonBody(request)
         if (!isWorkspaceCreateMutation(value)) throw new HttpError(400, "Workspace is invalid")
         const projects = await projectStore.read()
-        sendJson(response, 201, { version: PROTOCOL_VERSION, ...await workspaceStore.create(value, projects) })
+        sendJson(response, 201, { version: PROTOCOL_VERSION, ...await workspaceStore.create(value, projects, [], await sessions()) })
         return
       }
       const workspaceActivationRoute = /^\/v2\/workspaces\/([^/]+)\/activate$/u.exec(url.pathname)
@@ -744,7 +746,40 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         await requireEmptyJsonObject(request)
         const workspaceId = decodeURIComponent(workspaceActivationRoute[1]!)
         if (!isProtocolId(workspaceId)) throw new HttpError(404, "Not found")
-        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.select(workspaceId, await projectStore.read()) })
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.select(workspaceId, await projectStore.read(), await sessions()) })
+        return
+      }
+      const workspaceTabRoute = /^\/v2\/workspaces\/([^/]+)\/tabs(?:\/([^/]+)(?:\/(activate))?)?$/u.exec(url.pathname)
+      if (workspaceTabRoute !== null) {
+        const workspaceId = decodeURIComponent(workspaceTabRoute[1]!)
+        const tabId = workspaceTabRoute[2] === undefined ? undefined : decodeURIComponent(workspaceTabRoute[2])
+        if (!isProtocolId(workspaceId) || (tabId !== undefined && !isProtocolId(tabId))) throw new HttpError(404, "Not found")
+        const projects = await projectStore.read()
+        const listed = await sessions()
+        if (request.method === "POST" && tabId === undefined) {
+          assertJsonMutation(request); const value = await readJsonBody(request)
+          if (!isWorkspaceOpenSessionMutation(value)) throw new HttpError(400, "Workspace Session tab is invalid")
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.openSession(workspaceId, value.projectId, value.sessionId, projects, listed) }); return
+        }
+        if (request.method === "PUT" && tabId === undefined) {
+          assertJsonMutation(request); const value = await readJsonBody(request)
+          if (!isWorkspaceReorderTabsMutation(value)) throw new HttpError(400, "Workspace tab order is invalid")
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.reorderTabs(workspaceId, value.tabIds, projects, listed) }); return
+        }
+        if (request.method === "DELETE" && tabId !== undefined && workspaceTabRoute[3] === undefined) {
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.closeTab(workspaceId, tabId, projects, listed) }); return
+        }
+        if (request.method === "POST" && tabId !== undefined && workspaceTabRoute[3] === "activate") {
+          assertJsonMutation(request); await requireEmptyJsonObject(request)
+          sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.selectTab(workspaceId, tabId, projects, listed) }); return
+        }
+      }
+      const workspaceLifecycleRoute = /^\/v2\/workspaces\/([^/]+)\/(close|restore)$/u.exec(url.pathname)
+      if (request.method === "POST" && workspaceLifecycleRoute !== null) {
+        assertJsonMutation(request); await requireEmptyJsonObject(request)
+        const workspaceId = decodeURIComponent(workspaceLifecycleRoute[1]!)
+        if (!isProtocolId(workspaceId)) throw new HttpError(404, "Not found")
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.setWorkspaceClosed(workspaceId, workspaceLifecycleRoute[2] === "close", await projectStore.read(), await sessions()) })
         return
       }
       const workspaceProjectRoute = /^\/v2\/workspaces\/([^/]+)\/projects\/([^/]+)(?:\/(open))?$/u.exec(url.pathname)

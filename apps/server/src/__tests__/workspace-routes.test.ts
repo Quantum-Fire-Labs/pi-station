@@ -62,12 +62,32 @@ describe("Workspace routes", () => {
       expect((await request(base, `/v2/workspaces/${mainId}/projects/${project1.id}/open`, "POST", {})).status).toBe(200)
       await request(base, `/v2/projects/${project1.id}/close`, "POST", {})
       let state = (await request(base, "/v2/workspaces")).body
-      expect(state).toMatchObject({ activeWorkspaceId: mainId, workspaces: [{ id: defaultId, projectIds: [project1.id] }, { id: mainId, projectIds: [project2.id, project1.id], closedProjectIds: [project1.id] }] })
+      expect(state).toMatchObject({ activeWorkspaceId: defaultId, workspaces: [{ id: defaultId, projectIds: [project1.id, project2.id], closedProjectIds: [project1.id] }, { id: mainId, projectIds: [project1.id], closedProjectIds: [] }] })
       expect((await request(base, `/v2/projects/${project1.id}/workspace`, "POST", { workspaceId: mainId })).status).toBe(404)
       expect((await request(base, `/v2/workspaces/${mainId}/projects/${project1.id}`, "DELETE")).status).toBe(200)
       state = (await request(base, "/v2/workspaces")).body
-      expect(state).toMatchObject({ workspaces: [{ id: defaultId, projectIds: [project1.id] }, { id: mainId, projectIds: [project2.id], closedProjectIds: [] }] })
+      expect(state).toMatchObject({ workspaces: [{ id: defaultId, projectIds: [project1.id, project2.id] }, { id: mainId, projectIds: [], closedProjectIds: [] }] })
       expect((await request(base, "/v2/projects")).body).toMatchObject({ projects: [{ id: project1.id }, { id: project2.id }] })
+    } finally { await new Promise<void>((resolve) => server.close(() => resolve())) }
+  })
+
+  it("manages explicit Session tabs and Workspace lifecycle", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pi-workspace-tab-routes-")); const root = join(dataDir, "one"); await mkdir(root)
+    const server = createPiStationServer({ dataDir, index, runner: { run: vi.fn(), control: vi.fn(), dispose: vi.fn() } as unknown as SessionRuntime })
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve)); const address = server.address(); if (!address || typeof address === "string") throw new Error("No address"); const base = `http://127.0.0.1:${address.port}`
+    try {
+      const project = ((await request(base, "/v2/projects", "POST", { root })).body.projects as Array<{ id: string }>)[0]!
+      const initial = await request(base, "/v2/workspaces"); const first = initial.body.activeWorkspaceId as string
+      const second = ((await request(base, "/v2/workspaces", "POST", { name: "Second" })).body.workspaces as Array<{ id: string }>)[1]!.id
+      const opened = await request(base, `/v2/workspaces/${second}/tabs`, "POST", { projectId: project.id, sessionId: "session-1" })
+      expect(opened.status).toBe(200)
+      const tab = (opened.body.workspaces as Array<{ id: string; tabs: Array<{ id: string }> }>)[1]!.tabs[0]!
+      expect(((await request(base, `/v2/workspaces/${second}/tabs`, "POST", { projectId: project.id, sessionId: "session-1" })).body.workspaces as Array<{ tabs: unknown[] }>)[1]?.tabs).toHaveLength(1)
+      expect((await request(base, `/v2/workspaces/${second}/tabs/${tab.id}/activate`, "POST", {})).status).toBe(200)
+      expect((await request(base, `/v2/workspaces/${second}/close`, "POST", {})).status).toBe(200)
+      expect((await request(base, `/v2/workspaces/${second}/restore`, "POST", {})).status).toBe(200)
+      expect((await request(base, `/v2/workspaces/${second}/tabs/${tab.id}`, "DELETE")).status).toBe(200)
+      expect((await request(base, `/v2/workspaces/${second}`, "DELETE")).body).toMatchObject({ activeWorkspaceId: first })
     } finally { await new Promise<void>((resolve) => server.close(() => resolve())) }
   })
 })
