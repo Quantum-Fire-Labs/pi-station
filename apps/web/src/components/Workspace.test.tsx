@@ -357,7 +357,10 @@ describe("Workspace", () => {
       },
     };
     const { rerender } = render(<Workspace state={fixtureState} onSelect={onSelect} />);
-    await userEvent.click(within(screen.getByRole("navigation", { name: "Workspace Session tabs" })).getAllByRole("button", { name: /Application client/ })[0]!);
+    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
+    const sessionButton = sidebar.querySelector<HTMLButtonElement>(".workspace-tab-open[data-session-identity$=':session-client']");
+    if (sessionButton === null) throw new Error("Desktop Session navigation is missing");
+    await userEvent.click(sessionButton);
     expect(onSelect).toHaveBeenCalledWith(nextSession.sessionKey);
 
     rerender(<Workspace state={nextState} onSelect={onSelect} />);
@@ -382,8 +385,12 @@ describe("Workspace", () => {
         generationId: nextSession.generationId!,
       },
     };
-    const { rerender } = render(<Workspace state={fixtureState} onSelect={onSelect} />);
-    await userEvent.click(within(screen.getByRole("navigation", { name: "Workspace Session tabs" })).getAllByRole("button", { name: /Application client/ })[0]!);
+    const { container, rerender } = render(<Workspace state={fixtureState} onSelect={onSelect} />);
+    const mobileNavigation = container.querySelector(".mobile-workspace-navigation");
+    if (mobileNavigation === null) throw new Error("Mobile Workspace navigation is missing");
+    const sessionButton = mobileNavigation.querySelector<HTMLButtonElement>(".workspace-tab-open[data-session-identity$=':session-client']");
+    if (sessionButton === null) throw new Error("Mobile Session navigation is missing");
+    await userEvent.click(sessionButton);
 
     rerender(<Workspace state={nextState} onSelect={onSelect} />);
     expect(screen.getByLabelText("Message Pi")).not.toHaveFocus();
@@ -868,8 +875,8 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /^Actions for / }));
-    await user.click(await screen.findByRole("menuitem", { name: "New Session" }));
+    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
+    await user.click(within(sidebar).getByRole("button", { name: "New Session" }));
     expect(screen.getByRole("heading", { name: "New Session" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Project" })).toHaveAttribute(
       "aria-selected",
@@ -891,8 +898,8 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /^Actions for / }));
-    await user.click(await screen.findByRole("menuitem", { name: "New Session" }));
+    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
+    await user.click(within(sidebar).getByRole("button", { name: "New Session" }));
     await user.click(screen.getByRole("button", { name: "Start Pi" }));
 
     rerender(
@@ -1153,7 +1160,7 @@ describe("Workspace", () => {
     expect(newSession).toHaveAttribute("title", "New Session");
   });
 
-  it("switches Workspaces from the mobile Dashboard menu", async () => {
+  it("switches Workspaces from the persistent mobile row", async () => {
     enableMobileViewport();
     const activateWorkspace = vi.fn(() => Promise.resolve());
     const workspaceFields = { tabs: [], closedProjectIds: [], bookmarkedProjectIds: [] };
@@ -1166,14 +1173,10 @@ describe("Workspace", () => {
       activeWorkspaceId: "current",
     };
     render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={vi.fn()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
-    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
-
-    expect(screen.getByRole("menuitem", { name: "Current Workspace" })).toHaveAttribute("aria-current", "true");
-    await userEvent.click(screen.getByRole("menuitem", { name: "Next Workspace" }));
+    expect(screen.getByRole("button", { name: "Current Workspace" })).toHaveAttribute("aria-current", "page");
+    await userEvent.click(screen.getByRole("button", { name: "Next Workspace" }));
 
     expect(activateWorkspace).toHaveBeenCalledWith("next");
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("opens Quick Session from the mobile Dashboard header", async () => {
