@@ -29,6 +29,10 @@ export interface WorkspaceState {
   readonly activeWorkspaceId: string
 }
 
+export interface WorkspaceCreateResult extends WorkspaceState {
+  readonly createdWorkspaceId: string
+}
+
 export interface WorkspaceCreateMutation { readonly name: string }
 export interface WorkspaceUpdateMutation { readonly name: string }
 export interface WorkspaceOpenSessionMutation { readonly projectId: string; readonly sessionId: string }

@@ -69,6 +69,7 @@ describe("Workspace routes", () => {
       const project1 = ((await request(base, "/v2/projects", "POST", { root: root1 })).body.projects as Array<{ id: string }>)[0]!
       const initial = await request(base, "/v2/workspaces"); const defaultId = initial.body.activeWorkspaceId as string
       const created = await request(base, "/v2/workspaces", "POST", { name: "Main" }); const mainId = (created.body.workspaces as Array<{ id: string }>)[1]!.id
+      expect(created.body.createdWorkspaceId).toBe(mainId)
       await request(base, `/v2/workspaces/${mainId}/activate`, "POST", {})
       const project2 = ((await request(base, "/v2/projects", "POST", { root: root2 })).body.projects as Array<{ id: string }>)[1]!
       expect((await request(base, "/v2/projects")).body).toMatchObject({ projects: [{ id: project1.id }, { id: project2.id }] })

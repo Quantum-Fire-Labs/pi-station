@@ -735,7 +735,9 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const value = await readJsonBody(request)
         if (!isWorkspaceCreateMutation(value)) throw new HttpError(400, "Workspace is invalid")
         const projects = await projectStore.read()
-        sendJson(response, 201, { version: PROTOCOL_VERSION, ...await workspaceStore.create(value, projects, [], await sessions()) })
+        const created = await workspaceStore.create(value, projects, [], await sessions())
+        // create appends this request's Workspace to its atomic result, not a later global snapshot.
+        sendJson(response, 201, { version: PROTOCOL_VERSION, ...created, createdWorkspaceId: created.workspaces.at(-1)!.id })
         return
       }
       const workspaceActivationRoute = /^\/v2\/workspaces\/([^/]+)\/activate$/u.exec(url.pathname)

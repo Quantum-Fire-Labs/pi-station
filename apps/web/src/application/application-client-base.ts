@@ -150,7 +150,7 @@ export class ApplicationClientBase {
   setProjectClosed(_projectId: ProjectId, _closed: boolean): Promise<void> { return Promise.reject(new Error("Project state changes are unavailable")); }
   createProject(_name: string, _directory: string): string | undefined { return undefined; }
   renameProject(_projectId: ProjectId, _name: string): Promise<void> { return Promise.reject(new Error("Project rename is unavailable")); }
-  createWorkspace(_name: string): Promise<void> { return Promise.reject(new Error("Workspace creation is unavailable")); }
+  createWorkspace(_name: string): Promise<string> { return Promise.reject(new Error("Workspace creation is unavailable")); }
   renameWorkspace(_id: string, _name: string): Promise<void> { return Promise.reject(new Error("Workspace rename is unavailable")); }
   deleteWorkspace(_id: string): Promise<void> { return Promise.reject(new Error("Workspace deletion is unavailable")); }
   activateWorkspace(_id: string): Promise<void> { return Promise.reject(new Error("Workspace selection is unavailable")); }

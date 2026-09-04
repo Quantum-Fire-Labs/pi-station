@@ -49,7 +49,7 @@ import { Modal } from "./Modal";
 import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
-import { WorkspaceRow } from "./WorkspaceRow";
+import { WorkspaceActionCancelled, WorkspaceRow } from "./WorkspaceRow";
 import { WorkspaceNavigation } from "./WorkspaceNavigation";
 import { AgentAttention } from "./AgentAttention";
 import { NotificationSettingsPage } from "./NotificationSettings";
@@ -933,6 +933,9 @@ export function Workspace({
   useEffect(() => {
     if (embeddedSession && state.selectedSessionKey !== undefined) setRouteState("workspace");
   }, [embeddedSession, state.selectedSessionKey]);
+  useEffect(() => {
+    mobileWorkspaceNavigationRef.current?.removeAttribute("open");
+  }, [state.activeWorkspaceId, state.selectedSessionKey?.hostId, state.selectedSessionKey?.piSessionId, route]);
   const afterSharedMarkdownCheck = (action: () => void, onCancel?: () => void): void => {
     if (sharedMarkdownDirty || images.length > 0 || files.length > 0) {
       discardSharedMarkdownCancel.current?.();
@@ -944,7 +947,7 @@ export function Workspace({
   navigationCheck.current = afterSharedMarkdownCheck;
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
   const guardedWorkspaceAction = (action: () => Promise<void>): Promise<void> => new Promise<void>((resolve, reject) => {
-    afterSharedMarkdownCheck(() => { void action().then(resolve, reject); }, resolve);
+    afterSharedMarkdownCheck(() => { void Promise.resolve().then(action).then(resolve, reject); }, () => reject(new WorkspaceActionCancelled()));
   });
   const activateWorkspace = async (id: string): Promise<void> => {
     if (client === undefined || id === state.activeWorkspaceId) return;
@@ -2597,11 +2600,8 @@ export function Workspace({
       onActivate={(id) => guardedWorkspaceAction(() => activateWorkspace(id))}
       onCreate={(name) => guardedWorkspaceAction(async () => {
         const workspaceClient = requireWorkspaceClient();
-        const previousIds = new Set(workspaceClient.snapshot.workspaces?.map(({ id }) => id) ?? []);
-        await workspaceClient.createWorkspace(name);
-        const created = workspaceClient.snapshot.workspaces?.find(({ id }) => !previousIds.has(id));
-        if (created === undefined) throw new Error("The new Workspace could not be selected.");
-        await activateWorkspace(created.id);
+        const createdId = await workspaceClient.createWorkspace(name);
+        await activateWorkspace(createdId);
       })}
       onRename={(id, name) => guardedWorkspaceAction(() => requireWorkspaceClient().renameWorkspace(id, name))}
       onClose={(id) => guardedWorkspaceAction(() => requireWorkspaceClient().closeWorkspace(id))}

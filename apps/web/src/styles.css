@@ -261,12 +261,14 @@ textarea:focus-visible {
   min-width: 0;
   min-height: 100dvh;
   flex-direction: column;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
+.workspace-application:has(> .workspace-row) { padding-top: 44px; }
+.workspace-application:has(> .workspace-row) .session { min-height: calc(100dvh - 44px); }
 .workspace-application > .workspace-row {
-  position: sticky;
+  position: fixed;
   z-index: 40;
-  top: 0;
+  inset: 0 0 auto;
   flex: 0 0 44px;
 }
 .workspace-application > .workspace {
@@ -4222,19 +4224,26 @@ body.sidebar-resizing {
   .markdown-source-editor .cm-content { padding: 18px 16px calc(40px + env(safe-area-inset-bottom)); }
   .markdown-source-editor .cm-scroller { font-size: 16px; }
   .mobile-workspace-navigation {
-    position: fixed;
+    position: sticky;
     z-index: 35;
-    right: 8px;
-    bottom: calc(12px + env(safe-area-inset-bottom));
+    top: 44px;
     display: block;
+    width: 100%;
+    flex: 0 0 44px;
+    background: var(--page);
   }
+  .workspace-application:has(> .mobile-workspace-navigation) .session,
+  .workspace-application:has(> .mobile-workspace-navigation) .workspace-page { min-height: calc(100dvh - 88px); }
   .mobile-workspace-navigation > summary {
-    display: grid;
+    display: flex;
+    width: 100%;
     min-width: 44px;
     min-height: 44px;
-    place-items: center;
-    border: 1px solid var(--line);
-    border-radius: 7px;
+    align-items: center;
+    padding: 0 16px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
     background: var(--page);
     color: var(--text);
     cursor: pointer;
@@ -4242,12 +4251,14 @@ body.sidebar-resizing {
     list-style: none;
   }
   .mobile-workspace-navigation > summary::-webkit-details-marker { display: none; }
+  .mobile-workspace-navigation > summary::after { content: "▾"; margin-left: auto; }
+  .mobile-workspace-navigation[open] > summary::after { transform: rotate(180deg); }
   .mobile-workspace-navigation-panel {
     width: min(360px, calc(100vw - 16px));
-    position: absolute;
-    right: 0;
-    bottom: 48px;
-    max-height: calc(100dvh - 108px);
+    position: fixed;
+    top: 88px;
+    right: 8px;
+    max-height: calc(100dvh - 100px);
     overflow: auto;
     border: 1px solid var(--line);
     border-radius: 9px;

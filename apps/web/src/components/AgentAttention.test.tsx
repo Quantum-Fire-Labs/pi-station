@@ -65,7 +65,7 @@ describe("DelegatedChildren", () => {
     expect(within(view.container).getAllByRole("button").slice(1).map((button) => button.getAttribute("aria-label"))).toEqual(["worker: Working", "failed: Failed"]);
   });
 
-  it("starts collapsed and expands to select a child", async () => {
+  it("starts collapsed and expands to select a child", () => {
     const parent = session("parent");
     const onSelect = vi.fn();
     const view = render(<DelegatedChildren parentSessionKey={parent.sessionKey} sessions={[session("child", { parentSessionKey: parent.sessionKey })]} onSelect={onSelect} />);

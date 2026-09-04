@@ -84,7 +84,7 @@ export function DelegatedChildren({ parentSessionKey, sessions, onSelect, expand
   );
 }
 
-function AgentButton({ session, onSelect, navigationIndex }: { readonly session: SessionSummary; readonly onSelect: (key: SessionKey) => void; readonly navigationIndex?: number }) {
+function AgentButton({ session, onSelect, navigationIndex }: { readonly session: SessionSummary; readonly onSelect: (key: SessionKey) => void; readonly navigationIndex?: number | undefined }) {
   const statuses = agentAttentionStatuses(session);
   const label = sessionAttentionLabel(session);
   const statusText = statuses.length > 0 ? statuses.join(", ") : "Idle";

@@ -668,6 +668,18 @@ describe("Pi Station incremental Session summaries", () => {
     client.stop();
   });
 
+  it("returns the Workspace created by this request, not another new Workspace", async () => {
+    const workspace = { name: "Workspace", tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] };
+    const fetchMock = vi.fn(() => Promise.resolve(Response.json({
+      workspaces: [{ ...workspace, id: "unrelated" }, { ...workspace, id: "created" }],
+      activeWorkspaceId: "unrelated", createdWorkspaceId: "created",
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApplicationClient();
+    expect(await client.createWorkspace("My task")).toBe("created");
+    expect(fetchMock).toHaveBeenCalledWith("/v2/workspaces", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "My task" }) }));
+  });
+
   it("uses explicit Workspace tab, close, and restore routes", async () => {
     const workspace = { id: "workspace", name: "Workspace", tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] };
     const state = { workspaces: [workspace], activeWorkspaceId: "workspace" };

@@ -20,6 +20,7 @@ import type {
   MessageStash,
   CreateMessageStashRequest,
   Workspace,
+  WorkspaceCreateResult,
 } from "@pi-station/application-protocol";
 import type {
   ApplicationCommand,
@@ -436,8 +437,13 @@ export class ApplicationClient extends ApplicationClientBase {
     if (!this.restoreWorkspaceSelection(workspace)) this.clearSelectedSession();
   }
 
-  override async createWorkspace(name: string): Promise<void> {
-    this.applyWorkspaceCollection(await mutate("/v2/workspaces", "POST", { name }) as WorkspaceCollection);
+  override async createWorkspace(name: string): Promise<string> {
+    const result = await mutate("/v2/workspaces", "POST", { name }) as WorkspaceCreateResult;
+    if (typeof result.createdWorkspaceId !== "string" || !result.workspaces.some(({ id }) => id === result.createdWorkspaceId)) {
+      throw new Error("The created Workspace was not identified by the server.");
+    }
+    this.applyWorkspaceCollection(result);
+    return result.createdWorkspaceId;
   }
 
   override async renameWorkspace(id: string, name: string): Promise<void> {
