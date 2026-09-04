@@ -1,11 +1,20 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@pi-station/application-protocol";
-import type { SessionSummary } from "../application/workspace-model";
-import { WorkspaceNavigation } from "./WorkspaceNavigation";
+import type { ProjectSummary, SessionSummary } from "../application/workspace-model";
+import { groupWorkspaceTabs, WorkspaceNavigation } from "./WorkspaceNavigation";
 
-afterEach(cleanup);
+beforeAll(() => {
+  const values = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", { configurable: true, value: {
+    clear: () => values.clear(),
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  } });
+});
+afterEach(() => { cleanup(); window.localStorage.clear(); });
 
 const projection: SessionSummary["projection"] = {
   availability: "available", synchronization: "synchronized", run: "idle",
@@ -20,9 +29,12 @@ const workspace: Workspace = {
   tabs: [{ id: "tab-1", kind: "session", projectId: "project-1", sessionId: "session-1" }], activeTabId: "tab-1",
 };
 
+const project = (projectId: string, name: string): ProjectSummary => ({ projectId, name, displayPath: `/${projectId}`, available: true, createdAt: "", updatedAt: "" });
+const projects = [project("project-1", "Pi Station"), project("project-2", "Client")];
+
 const renderNavigation = (sessions = [session("session-1", "Open work"), session("session-2", "Saved work")]) => {
-  const actions = { onSelectTab: vi.fn(), onCloseTab: vi.fn(), onOpenSession: vi.fn(), onNewSession: vi.fn() };
-  render(<WorkspaceNavigation workspace={workspace} projects={[{ projectId: "project-1", name: "Pi Station", displayPath: "/repo", available: true, createdAt: "", updatedAt: "" }]} sessions={sessions} {...actions} />);
+  const actions = { onSelectTab: vi.fn(), onCloseTab: vi.fn(), onOpenSession: vi.fn(), onNewSession: vi.fn(), onNewSessionInProject: vi.fn() };
+  render(<WorkspaceNavigation workspace={workspace} projects={projects} sessions={sessions} {...actions} />);
   return actions;
 };
 
@@ -59,5 +71,51 @@ describe("WorkspaceNavigation", () => {
     expect(screen.getByRole("button", { name: /Session unavailable/ })).toBeDisabled();
     expect(screen.getByText("Referenced Session was not found.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Remove unavailable Session tab" })).toBeEnabled();
+  });
+
+  it("groups tabs by first Project occurrence and preserves Session order", () => {
+    const tabs: Workspace["tabs"] = [
+      { id: "a", kind: "session", projectId: "project-2", sessionId: "a" },
+      { id: "b", kind: "session", projectId: "project-1", sessionId: "b" },
+      { id: "c", kind: "session", projectId: "project-2", sessionId: "c" },
+    ];
+    const groups = groupWorkspaceTabs(tabs, projects);
+    expect(groups.map((group) => group.projectId)).toEqual(["project-2", "project-1"]);
+    expect(groups[0]?.tabs.map((tab) => tab.sessionId)).toEqual(["a", "c"]);
+  });
+
+  it("collapses a Project per Workspace and numbers only visible Session rows", async () => {
+    const groupedWorkspace: Workspace = { ...workspace, activeTabId: undefined, tabs: [
+      ...workspace.tabs,
+      { id: "tab-2", kind: "session", projectId: "project-2", sessionId: "session-2" },
+    ] };
+    render(<WorkspaceNavigation workspace={groupedWorkspace} projects={projects} sessions={[session("session-2", "Second", "project-2")]} onSelectTab={vi.fn()} onCloseTab={vi.fn()} onOpenSession={vi.fn()} onNewSession={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /Session unavailable/ })).not.toHaveAttribute("data-session-shortcut");
+    await userEvent.click(screen.getByRole("button", { name: "Pi Station" }));
+    expect(screen.queryByText("Session unavailable")).not.toBeInTheDocument();
+    expect(screen.getByText("Second").closest("button")).toHaveAttribute("data-session-shortcut", "1");
+    expect(window.localStorage.getItem("pi-station:workspace-navigation:workspace-1:collapsed-projects")).toContain("project-1");
+  });
+
+  it("expands the selected Project and uses complete Session identity hooks", async () => {
+    window.localStorage.setItem("pi-station:workspace-navigation:workspace-1:collapsed-projects", JSON.stringify(["project-2"]));
+    const second = session("shared", "Selected", "project-2");
+    const sameId = session("shared", "Other host", "project-1");
+    const groupedWorkspace: Workspace = { ...workspace, tabs: [
+      { id: "tab-1", kind: "session", projectId: "project-1", sessionId: "shared" },
+      { id: "tab-2", kind: "session", projectId: "project-2", sessionId: "shared" },
+    ] };
+    render(<WorkspaceNavigation workspace={groupedWorkspace} projects={projects} sessions={[sameId, second]} selectedSessionKey={second.sessionKey} onSelectTab={vi.fn()} onCloseTab={vi.fn()} onOpenSession={vi.fn()} onNewSession={vi.fn()} />);
+    expect(await screen.findByText("Selected")).toBeVisible();
+    expect(screen.getByText("Selected").closest("button")).toHaveAttribute("data-session-identity", "project-2:shared");
+  });
+
+  it("shows collapsed Project activity and starts a Session in that Project", async () => {
+    const working = { ...session("session-1", "Open work"), projection: { ...projection, run: "working" as const, unread: { hasUnread: true } } };
+    const actions = renderNavigation([working, working]);
+    await userEvent.click(screen.getByRole("button", { name: "Pi Station" }));
+    expect(screen.getByText("1 working · 1 unread")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "New Session in Pi Station" }));
+    expect(actions.onNewSessionInProject).toHaveBeenCalledWith(projects[0]);
   });
 });
