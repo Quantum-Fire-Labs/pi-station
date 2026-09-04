@@ -476,7 +476,7 @@ body.sidebar-resizing {
 .workspace-tab { position: relative; display: flex; align-items: stretch; border-radius: 7px; }
 .workspace-session-branch { min-width: 0; }
 .workspace-session-branch > .delegated-children,
-.delegated-branch > .delegated-children { padding: 0 0 2px 16px; }
+.delegated-branch > .delegated-children { padding: 0 0 2px 8px; }
 .workspace-tab:hover, .workspace-tab.selected { background: var(--raised); }
 .workspace-tab.selected::before { position: absolute; inset: 6px auto 6px 0; width: 2px; background: var(--accent); content: ""; }
 .workspace-tab-open { display: flex; min-width: 0; min-height: 45px; flex: 1; align-items: center; gap: 9px; border: 0; background: transparent; color: var(--text); padding: 5px 4px 5px 10px; text-align: left; }
