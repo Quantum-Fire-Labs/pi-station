@@ -56,12 +56,29 @@ describe("WorkspaceRow", () => {
     const css = readFileSync(resolve(process.cwd(), "src/components/workspace-row.css"), "utf8");
     expect(css).toMatch(/height:\s*44px/);
     expect(css).toMatch(/overflow-x:\s*auto/);
+    expect(css).toMatch(/scrollbar-width:\s*none/);
+    expect(css).toMatch(/::-webkit-scrollbar\s*{[^}]*display:\s*none/s);
     expect(css).toMatch(/min-width:\s*140px/);
     expect(css).toMatch(/max-width:\s*240px/);
     expect(css).not.toMatch(/\.workspace-row-status\s*{[^}]*display:\s*none/s);
     expect(css).not.toMatch(/var\(--(?:background|foreground|border|primary|ring|destructive|muted-foreground)\)/);
     expect(css).toContain("background: var(--raised)");
     expect(css).toContain("background: var(--accent)");
+  });
+
+  it("keeps the active Workspace visible after a viewport resize", () => {
+    const original = HTMLElement.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<WorkspaceRow workspaces={[workspace("one", "One"), workspace("two", "Two"), workspace("three", "Three")]} activeWorkspaceId="three" sessions={[]} {...callbacks()} />);
+      scrollIntoView.mockClear();
+      window.dispatchEvent(new Event("resize"));
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+    } finally {
+      if (original === undefined) Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+      else HTMLElement.prototype.scrollIntoView = original;
+    }
   });
 
   it("creates, activates, renames, and closes with the exact callbacks", async () => {

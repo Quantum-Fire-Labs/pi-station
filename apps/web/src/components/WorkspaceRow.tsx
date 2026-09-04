@@ -83,8 +83,13 @@ export function WorkspaceRow({ workspaces, activeWorkspaceId, sessions, onActiva
     return () => { mounted.current = false; };
   }, []);
   useEffect(() => {
-    const element = activeRef.current;
-    if (element !== null && typeof element.scrollIntoView === "function") element.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const ensureActiveVisible = (): void => {
+      const element = activeRef.current;
+      if (element !== null && typeof element.scrollIntoView === "function") element.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+    ensureActiveVisible();
+    window.addEventListener("resize", ensureActiveVisible);
+    return () => window.removeEventListener("resize", ensureActiveVisible);
   }, [activeWorkspaceId]);
 
   const run = async (operation: () => Promise<void>, closeOnSuccess = false): Promise<void> => {

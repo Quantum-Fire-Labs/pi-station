@@ -16,8 +16,12 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   white-space: nowrap;
+}
+
+.workspace-row-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .workspace-row-tab {
