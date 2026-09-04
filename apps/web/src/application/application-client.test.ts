@@ -411,7 +411,7 @@ describe("Pi Station incremental Session summaries", () => {
       settings: { modelInventory: [], supportedThinkingLevels: ["off"] },
       commandInventory: [{ name: "review", description: "Review changes", source: "extension", invocation: "direct" }],
       sharedFiles: [],
-      commandApproval: { id: "approval-1", command: "rm -rf build" },
+      commandApproval: { id: "approval-1", kind: "command", command: "rm -rf build" },
     };
     globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(view));
     const client = new ApplicationClient();

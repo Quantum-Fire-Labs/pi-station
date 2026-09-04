@@ -222,13 +222,30 @@ describe("Workspace", () => {
     const client = { respondToCommandApproval } as unknown as ApplicationClient;
     const state = {
       ...fixtureState,
-      selected: { ...fixtureState.selected, commandApproval: { id: "approval-1", command: "rm -rf build" } },
+      selected: { ...fixtureState.selected, commandApproval: { id: "approval-1", kind: "command" as const, command: "rm -rf build" } },
     };
     render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
     const dialog = screen.getByRole("alertdialog", { name: "Run recursive rm command?" });
     expect(within(dialog).getByText("rm -rf build")).toBeVisible();
     await userEvent.click(within(dialog).getByRole("button", { name: "Run command" }));
     expect(respondToCommandApproval).toHaveBeenCalledWith("approval-1", true);
+  });
+
+  it("shows delegation approval without dangerous command text", async () => {
+    enableDesktopViewport();
+    const respondToCommandApproval = vi.fn(() => Promise.resolve());
+    const client = { respondToCommandApproval } as unknown as ApplicationClient;
+    const state = {
+      ...fixtureState,
+      selected: { ...fixtureState.selected, commandApproval: { id: "approval-2", kind: "delegation" as const, model: "anthropic/claude-sonnet-4-6", thinkingLevel: "high" } },
+    };
+    render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
+    const dialog = screen.getByRole("alertdialog", { name: "Approve delegation settings?" });
+    expect(within(dialog).getByText("anthropic/claude-sonnet-4-6")).toBeVisible();
+    expect(within(dialog).getByText("high")).toBeVisible();
+    expect(within(dialog).queryByText(/delete files/)).not.toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+    expect(respondToCommandApproval).toHaveBeenCalledWith("approval-2", true);
   });
 
   it("excludes Quick Sessions from normal Workspace collections", () => {

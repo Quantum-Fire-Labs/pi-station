@@ -3967,20 +3967,29 @@ export function Workspace({
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Run recursive rm command?</AlertDialogTitle>
-            <AlertDialogDescription>This command can permanently delete files.</AlertDialogDescription>
+            <AlertDialogTitle>{state.selected.commandApproval?.kind === "delegation" ? "Approve delegation settings?" : "Run recursive rm command?"}</AlertDialogTitle>
+            <AlertDialogDescription>{state.selected.commandApproval?.kind === "delegation"
+              ? "An agent supplied settings for a new child Session."
+              : "This command can permanently delete files."}</AlertDialogDescription>
           </AlertDialogHeader>
-          <pre className="command-approval-command"><code>{state.selected.commandApproval?.command}</code></pre>
+          {state.selected.commandApproval?.kind === "delegation" ? (
+            <dl className="command-approval-command">
+              <dt>Model</dt><dd>{state.selected.commandApproval.model}</dd>
+              <dt>Thinking</dt><dd>{state.selected.commandApproval.thinkingLevel}</dd>
+            </dl>
+          ) : (
+            <pre className="command-approval-command"><code>{state.selected.commandApproval?.command}</code></pre>
+          )}
           {commandApprovalError !== undefined && <p className="modal-error" role="alert">{commandApprovalError}</p>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={commandApprovalPending} onClick={(event) => {
               event.preventDefault();
               respondToCommandApproval(false);
-            }}>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={commandApprovalPending} onClick={(event) => {
+            }}>{state.selected.commandApproval?.kind === "delegation" ? "Reject" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction variant={state.selected.commandApproval?.kind === "delegation" ? "default" : "destructive"} disabled={commandApprovalPending} onClick={(event) => {
               event.preventDefault();
               respondToCommandApproval(true);
-            }}>{commandApprovalPending ? "Responding…" : "Run command"}</AlertDialogAction>
+            }}>{commandApprovalPending ? "Responding…" : state.selected.commandApproval?.kind === "delegation" ? "Approve" : "Run command"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

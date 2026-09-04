@@ -226,7 +226,11 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
     journal.publish(key, {
       version: 2,
       type: "command.approval",
-      approval: event.type === "requested" ? { id: event.approval.id, command: event.approval.command } : null,
+      approval: event.type === "requested"
+        ? event.approval.kind === "command"
+          ? { id: event.approval.id, kind: "command", command: event.approval.command }
+          : { id: event.approval.id, kind: "delegation", model: event.approval.model, thinkingLevel: event.approval.thinkingLevel }
+        : null,
     })
   })
 
@@ -1383,7 +1387,11 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
           sharedFiles: await options.sharedFiles?.list(route.key.sessionId) ?? [],
           ...(() => {
             const approval = options.commandApprovals?.current(route.key)
-            return approval === undefined ? {} : { commandApproval: { id: approval.id, command: approval.command } }
+            return approval === undefined ? {} : {
+              commandApproval: approval.kind === "command"
+                ? { id: approval.id, kind: "command", command: approval.command }
+                : { id: approval.id, kind: "delegation", model: approval.model, thinkingLevel: approval.thinkingLevel },
+            }
           })(),
         })
         return
