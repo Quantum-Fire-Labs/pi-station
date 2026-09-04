@@ -1,3 +1,4 @@
+import type { ApprovalRequest } from "@pi-station/application-protocol"
 import type {
   ApplicationQueueSnapshot,
   SessionDetails,
@@ -17,7 +18,7 @@ export interface SelectedSessionState {
   readonly queue?: ApplicationQueueSnapshot
   readonly hasEarlierHistory: boolean
   readonly historyCursor?: string
-  readonly commandApproval?: { readonly id: string; readonly command: string }
+  readonly commandApproval?: ApprovalRequest
 }
 
 export const initialSelectedSessionState = (): SelectedSessionState => ({
