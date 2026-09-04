@@ -51,12 +51,14 @@ describe("WorkspaceRow", () => {
     const tabs = screen.getByTestId("workspace-row-scroll");
     expect(tabs).toHaveClass("workspace-row-tabs");
     expect([...view.container.querySelectorAll(".workspace-row-activate")].map((button) => button.textContent)).toEqual(["First1 working1 unread", "Second"]);
+    expect(view.container.querySelector(".workspace-row-name")).toHaveAttribute("title", "First");
     expect(screen.queryByRole("button", { name: "Hidden" })).not.toBeInTheDocument();
     const css = readFileSync(resolve(process.cwd(), "src/components/workspace-row.css"), "utf8");
     expect(css).toMatch(/height:\s*44px/);
     expect(css).toMatch(/overflow-x:\s*auto/);
     expect(css).toMatch(/min-width:\s*140px/);
     expect(css).toMatch(/max-width:\s*240px/);
+    expect(css).not.toMatch(/\.workspace-row-status\s*{[^}]*display:\s*none/s);
   });
 
   it("creates, activates, renames, and closes with the exact callbacks", async () => {
