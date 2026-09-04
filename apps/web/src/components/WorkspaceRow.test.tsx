@@ -59,6 +59,9 @@ describe("WorkspaceRow", () => {
     expect(css).toMatch(/min-width:\s*140px/);
     expect(css).toMatch(/max-width:\s*240px/);
     expect(css).not.toMatch(/\.workspace-row-status\s*{[^}]*display:\s*none/s);
+    expect(css).not.toMatch(/var\(--(?:background|foreground|border|primary|ring|destructive|muted-foreground)\)/);
+    expect(css).toContain("background: var(--raised)");
+    expect(css).toContain("background: var(--accent)");
   });
 
   it("creates, activates, renames, and closes with the exact callbacks", async () => {
