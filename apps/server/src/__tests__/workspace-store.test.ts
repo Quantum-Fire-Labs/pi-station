@@ -56,6 +56,31 @@ describe("WorkspaceStore", () => {
     expect((await store.list(projects, [], sessions)).workspaces[0]?.tabs).toEqual([])
   })
 
+  it("uses the central Session source for the first rename operation", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const open = { id: "open", projectId: "project-2", path: "/open", modifiedAt: "2026-01-01", state: "open" as const }
+    const store = new WorkspaceStore(data, () => Promise.resolve([open]))
+    const initial = await store.list(projects)
+    expect(initial.workspaces[0]?.tabs.map(({ sessionId }) => sessionId)).toEqual(["open"])
+
+    const otherData = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    await writeFile(join(otherData, "workspaces.json"), JSON.stringify({ version: 2, workspaces: [{ id: "legacy", name: "Old", projectIds: ["project-2"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "legacy" }))
+    const other = new WorkspaceStore(otherData, () => Promise.resolve([open]))
+    const renamed = await other.update("legacy", { name: "Renamed" }, projects)
+    expect(renamed.workspaces[0]?.tabs.map(({ sessionId }) => sessionId)).toEqual(["open"])
+  })
+
+  it("rejects unsafe migration size and duplicate tab order", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const many = Array.from({ length: 101 }, (_, index) => ({ id: `session-${index}`, projectId: "project-2", path: `/session-${index}`, modifiedAt: "2026-01-01", state: "open" as const }))
+    const store = new WorkspaceStore(data, () => Promise.resolve(many))
+    await expect(store.list(projects)).rejects.toMatchObject({ code: "limit" })
+    await expect(store.list(projects, [], many.slice(0, 1))).resolves.toMatchObject({ workspaces: [{ tabs: [{ sessionId: "session-0" }] }] })
+    const state = await store.list(projects)
+    const workspace = state.workspaces[0]!
+    await expect(store.reorderTabs(workspace.id, [workspace.tabs[0]!.id, workspace.tabs[0]!.id], projects, many.slice(0, 1))).rejects.toMatchObject({ code: "invalid" })
+  })
+
   it("manages scoped tabs and Workspace lifecycle without changing Session state", async () => {
     const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
     const store = new WorkspaceStore(data)

@@ -18,7 +18,11 @@ export class WorkspaceStoreError extends Error {
 
 export class WorkspaceStore {
   readonly #store: AtomicJsonStore<StoredData>
-  constructor(dataDir: string) { this.#store = new AtomicJsonStore(join(dataDir, "workspaces.json"), isStoredData) }
+  readonly #migrationSessions: () => Promise<readonly SavedSession[]>
+  constructor(dataDir: string, migrationSessions: () => Promise<readonly SavedSession[]> = () => Promise.resolve([])) {
+    this.#store = new AtomicJsonStore(join(dataDir, "workspaces.json"), isStoredData)
+    this.#migrationSessions = migrationSessions
+  }
 
   list(projects: readonly Project[], legacyBookmarks: readonly string[] = [], sessions: readonly SavedSession[] = []): Promise<WorkspaceState> { return this.#update(projects, legacyBookmarks, sessions, (value) => value) }
   create(mutation: WorkspaceCreateMutation, projects: readonly Project[], legacyBookmarks: readonly string[] = [], sessions: readonly SavedSession[] = []): Promise<WorkspaceState> {
@@ -71,7 +75,7 @@ export class WorkspaceStore {
   }
   reorderTabs(workspaceId: string, tabIds: readonly string[], projects: readonly Project[], sessions: readonly SavedSession[] = []): Promise<WorkspaceState> {
     return this.#update(projects, [], sessions, (current) => mapWorkspace(current, workspaceId, (workspace) => {
-      if (tabIds.length !== workspace.tabs.length || !tabIds.every((id) => workspace.tabs.some((tab) => tab.id === id))) throw new WorkspaceStoreError("invalid", "tabIds must contain every Workspace tab exactly once")
+      if (new Set(tabIds).size !== tabIds.length || tabIds.length !== workspace.tabs.length || !tabIds.every((id) => workspace.tabs.some((tab) => tab.id === id))) throw new WorkspaceStoreError("invalid", "tabIds must contain every Workspace tab exactly once")
       const tabs = tabIds.map((id) => workspace.tabs.find((tab) => tab.id === id)!)
       return { ...workspace, tabs }
     }))
@@ -98,7 +102,11 @@ export class WorkspaceStore {
   reorderBookmark(projectId: string, direction: "up" | "down", projects: readonly Project[]): Promise<WorkspaceState> { return this.#projectUpdate(projectId, projects, (workspace) => { const ids = [...workspace.bookmarkedProjectIds]; const index = ids.indexOf(projectId); const target = direction === "up" ? index - 1 : index + 1; if (index < 0 || target < 0 || target >= ids.length) return workspace; [ids[index], ids[target]] = [ids[target]!, ids[index]!]; return { ...workspace, bookmarkedProjectIds: ids } }) }
   removeProject(projectId: string, projects: readonly Project[]): Promise<WorkspaceState> { return this.#update(projects, [], [], (current) => ({ ...current, workspaces: current.workspaces.map((workspace) => removeFromWorkspace(workspace, projectId)) })) }
   #projectUpdate(projectId: string, projects: readonly Project[], change: (workspace: Workspace) => Workspace): Promise<WorkspaceState> { return this.#update(projects, [], [], (current) => { requireProject(projects, projectId); const workspace = requireWorkspace(current, current.activeWorkspaceId); if (!workspace.projectIds.includes(projectId)) throw new WorkspaceStoreError("not-found", "Project is not in the active Workspace"); return mapWorkspace(current, workspace.id, change) }) }
-  #update(projects: readonly Project[], bookmarks: readonly string[], sessions: readonly SavedSession[], change: (current: StoredWorkspaceData) => StoredWorkspaceData): Promise<WorkspaceState> { return this.#store.update(FALLBACK, (stored) => change(reconcile(stored, projects, bookmarks, sessions))).then((stored) => publicState(stored as StoredWorkspaceData)) }
+  async #update(projects: readonly Project[], bookmarks: readonly string[], sessions: readonly SavedSession[], change: (current: StoredWorkspaceData) => StoredWorkspaceData): Promise<WorkspaceState> {
+    const migrationSessions = sessions.length === 0 ? await this.#migrationSessions() : sessions
+    const stored = await this.#store.update(FALLBACK, (current) => change(reconcile(current, projects, bookmarks, migrationSessions)))
+    return publicState(stored as StoredWorkspaceData)
+  }
 }
 
 function reconcile(stored: StoredData, projects: readonly Project[], bookmarks: readonly string[], sessions: readonly SavedSession[]): StoredWorkspaceData {
@@ -106,17 +114,22 @@ function reconcile(stored: StoredData, projects: readonly Project[], bookmarks: 
   let source: readonly Workspace[]
   if (stored.version === 3) source = stored.workspaces
   else {
-    const old = stored.workspaces.length === 0 ? [emptyWorkspace(DEFAULT_NAME)] : stored.workspaces.map((workspace) => ({ ...workspace, closedProjectIds: "closedProjectIds" in workspace ? workspace.closedProjectIds : [], bookmarkedProjectIds: "bookmarkedProjectIds" in workspace ? workspace.bookmarkedProjectIds : [], tabs: [] }))
+    const old = stored.workspaces.length === 0
+      ? [{ ...emptyWorkspace(DEFAULT_NAME), projectIds: migratedDefaultProjectIds(projects, bookmarks) }]
+      : stored.workspaces.map((workspace) => ({ ...workspace, closedProjectIds: "closedProjectIds" in workspace ? workspace.closedProjectIds : [], bookmarkedProjectIds: "bookmarkedProjectIds" in workspace ? workspace.bookmarkedProjectIds : [], tabs: [] }))
     source = old.map((workspace) => {
-      const tabs = sessions.filter((session) => session.state === "open" && session.quickSession !== true && session.parentSessionId === undefined && workspace.projectIds.includes(session.projectId)).map((session) => ({ id: randomUUID(), kind: "session" as const, projectId: session.projectId, sessionId: session.id }))
+      const eligible = sessions.filter((session) => session.state === "open" && session.quickSession !== true && session.parentSessionId === undefined && workspace.projectIds.includes(session.projectId))
+      if (eligible.length > MAX_WORKSPACE_TABS) throw new WorkspaceStoreError("limit", `Workspace migration found more than ${MAX_WORKSPACE_TABS} open Sessions`)
+      const tabs = eligible.map((session) => ({ id: randomUUID(), kind: "session" as const, projectId: session.projectId, sessionId: session.id }))
       return { ...workspace, tabs, ...(tabs[0] === undefined ? {} : { activeTabId: tabs[0].id }) }
     })
   }
   let workspaces = source.map((workspace) => { const projectIds = workspace.projectIds.filter((id) => configured.has(id)); const bookmarked = workspace.bookmarkedProjectIds.filter((id) => projectIds.includes(id)); return { ...workspace, projectIds, closedProjectIds: workspace.closedProjectIds.filter((id) => projectIds.includes(id)), bookmarkedProjectIds: [...bookmarked, ...bookmarks.filter((id) => projectIds.includes(id) && !bookmarked.includes(id))] } })
-  if (stored.workspaces.length === 0) { const marked = new Set(bookmarks); const projectIds = projects.filter(({ id, closed }) => closed !== true || marked.has(id)).map(({ id }) => id); workspaces = [{ ...workspaces[0]!, projectIds, closedProjectIds: projects.filter(({ id, closed }) => closed === true && marked.has(id)).map(({ id }) => id), bookmarkedProjectIds: bookmarks.filter((id) => projectIds.includes(id)) }] }
+  if (stored.workspaces.length === 0) { const projectIds = migratedDefaultProjectIds(projects, bookmarks); const marked = new Set(bookmarks); workspaces = [{ ...workspaces[0]!, projectIds, closedProjectIds: projects.filter(({ id, closed }) => closed === true && marked.has(id)).map(({ id }) => id), bookmarkedProjectIds: bookmarks.filter((id) => projectIds.includes(id)) }] }
   const activeWorkspaceId = stored.activeWorkspaceId !== undefined && workspaces.some(({ id }) => id === stored.activeWorkspaceId) ? stored.activeWorkspaceId : workspaces[0]!.id
   return { version: 3, workspaces, activeWorkspaceId }
 }
+function migratedDefaultProjectIds(projects: readonly Project[], bookmarks: readonly string[]): string[] { const marked = new Set(bookmarks); return projects.filter(({ id, closed }) => closed !== true || marked.has(id)).map(({ id }) => id) }
 function emptyWorkspace(name: string): Workspace { return { id: randomUUID(), name, tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] } }
 function requireWorkspace(state: StoredWorkspaceData, id: string): Workspace { const value = state.workspaces.find((item) => item.id === id); if (!value) throw new WorkspaceStoreError("not-found", "Workspace not found"); return value }
 function requireProject(projects: readonly Project[], id: string): void { if (!projects.some((project) => project.id === id)) throw new WorkspaceStoreError("not-found", "Project not found") }
