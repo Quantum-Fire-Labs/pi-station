@@ -27,6 +27,7 @@ import {
   isThinkingSettingRequest,
   isUpdateChannelMutation,
   isWorkspaceCreateMutation,
+  isWorkspaceSessionMutation,
   isWorkspaceUpdateMutation,
   PROTOCOL_VERSION,
 } from "@pi-station/application-protocol"
@@ -745,6 +746,16 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         const workspaceId = decodeURIComponent(workspaceActivationRoute[1]!)
         if (!isProtocolId(workspaceId)) throw new HttpError(404, "Not found")
         sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.select(workspaceId, await projectStore.read()) })
+        return
+      }
+      const workspaceSessionRoute = /^\/v2\/workspaces\/([^/]+)\/last-session$/u.exec(url.pathname)
+      if (request.method === "PUT" && workspaceSessionRoute !== null) {
+        assertJsonMutation(request)
+        const workspaceId = decodeURIComponent(workspaceSessionRoute[1]!)
+        const value = await readJsonBody(request)
+        if (!isProtocolId(workspaceId) || !isWorkspaceSessionMutation(value)) throw new HttpError(400, "Workspace Session is invalid")
+        await workspaceStore.setLastSession(workspaceId, value, await projectStore.read())
+        response.writeHead(204); response.end()
         return
       }
       const workspaceProjectRoute = /^\/v2\/workspaces\/([^/]+)\/projects\/([^/]+)(?:\/(open))?$/u.exec(url.pathname)

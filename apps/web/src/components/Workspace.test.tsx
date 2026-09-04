@@ -132,6 +132,30 @@ describe("Workspace", () => {
     expect(activateWorkspace).toHaveBeenCalledWith("next");
   });
 
+  it("returns to the last viewed Session in a Workspace", async () => {
+    enableDesktopViewport();
+    const user = userEvent.setup();
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const onSelect = vi.fn();
+    const project = fixtureState.projects[0]!;
+    const projectSessions = fixtureState.sessions.filter(({ projectId }) => projectId === project.projectId);
+    const remembered = projectSessions[1] ?? projectSessions[0]!;
+    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const state = {
+      ...fixtureState,
+      workspaces: [
+        { id: "current", name: "Current", projectIds: [], closedProjectIds: [], ...timestamps },
+        { id: "remembered", name: "Remembered", projectIds: [project.projectId], closedProjectIds: [], lastSession: { projectId: project.projectId, sessionId: remembered.sessionKey.piSessionId }, ...timestamps },
+      ],
+      activeWorkspaceId: "current",
+    };
+    render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={onSelect} />);
+
+    await user.click(screen.getByRole("button", { name: "Remembered" }));
+
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(remembered.sessionKey));
+  });
+
   it("does not reopen a closed Project when returning to its Workspace", async () => {
     enableDesktopViewport();
     const user = userEvent.setup();

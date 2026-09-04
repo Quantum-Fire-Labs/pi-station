@@ -146,18 +146,22 @@ function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSavin
       <Card className="projects-page-list bg-transparent" role="list">
         {projects.map((project, index) => (
           <div className={`projects-page-row${project.available ? "" : " unavailable"}`} key={project.projectId} role="listitem">
-            <div className="projects-page-row-open" role="button" tabIndex={0} aria-label={`${project.closed === true ? "View" : "Open"} ${project.name}`} onClick={() => onOpen(project.projectId)} onKeyDown={(event: KeyboardEvent) => {
-              if (event.key !== "Enter" && event.key !== " ") return;
-              event.preventDefault();
-              onOpen(project.projectId);
-            }}>
+            <div className="projects-page-row-open" {...(workspaceProjectIds.has(project.projectId) ? {
+              role: "button", tabIndex: 0, "aria-label": `${project.closed === true ? "View" : "Open"} ${project.name}`,
+              onClick: () => onOpen(project.projectId),
+              onKeyDown: (event: KeyboardEvent) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onOpen(project.projectId);
+              },
+            } : {})}>
               <span className="projects-page-row-icon"><Folder aria-hidden="true" size={18} /></span>
               <div className="projects-page-row-copy"><h3>{project.name}</h3><span title={project.displayPath}>{project.displayPath}</span></div>
             </div>
             <div className="projects-page-row-status">{project.available ? <Badge variant="outline">Available</Badge> : <Badge variant="outline">Unavailable</Badge>}</div>
             <div className="projects-page-row-actions">
               {onChangeMembership !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onChangeMembership(project.projectId, workspaceProjectIds.has(project.projectId))}>
-                {projectSaving === project.projectId ? "Saving…" : workspaceProjectIds.has(project.projectId) ? "Remove from Workspace" : "Open in this Workspace"}
+                {projectSaving === project.projectId ? "Saving…" : workspaceProjectIds.has(project.projectId) ? "Remove from Workspace" : "Move to this Workspace"}
               </Button>}
               {workspaceProjectIds.has(project.projectId) && project.closed === true && onSetClosed !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button>}
               {onReorder !== undefined && <span className="projects-page-order" role="group" aria-label={`Change ${project.name} order`}>

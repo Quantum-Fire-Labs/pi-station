@@ -136,10 +136,13 @@ function Root() {
     if (deepLink === undefined) return;
     const target = findDeepLinkedSession(state.sessions, deepLink);
     if (target) {
-      client.select(target.sessionKey);
+      const owner = state.workspaces?.find(({ projectIds }) => target.projectId !== undefined && projectIds.includes(target.projectId));
       history.replaceState(null, "", urlAfterConsumingSessionDeepLink(new URL(location.href)));
+      if (owner === undefined) return;
+      if (owner.id === state.activeWorkspaceId) client.select(target.sessionKey);
+      else void client.activateWorkspace(owner.id).then(() => client.select(target.sessionKey));
     }
-  }, [client, state.connection, state.sessions]);
+  }, [client, state.activeWorkspaceId, state.connection, state.sessions, state.workspaces]);
 
   const selectSession = (
     key: Parameters<ApplicationClient["select"]>[0],
