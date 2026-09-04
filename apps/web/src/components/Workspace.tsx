@@ -6,9 +6,6 @@ import {
   ArrowLeft,
   ArrowUp,
   AudioWaveform,
-  Bookmark,
-  ChevronDown,
-  ChevronRight,
   Clock3,
   CornerDownRight,
   Ellipsis,
@@ -53,6 +50,7 @@ import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { WorkspaceNavigation, type TabbedWorkspace, type WorkspaceTab } from "./WorkspaceNavigation";
 import { NotificationSettingsPage } from "./NotificationSettings";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -64,6 +62,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
 import type { SettingsRoute } from "./SettingsPage";
+
+interface WorkspaceClientActions {
+  openSessionInWorkspace(workspaceId: string, projectId: string, sessionId: string): Promise<void>;
+  closeWorkspaceTab(workspaceId: string, tabId: string): Promise<void>;
+  selectWorkspaceTab(workspaceId: string, tabId: string): Promise<void>;
+  closeWorkspace(workspaceId: string): Promise<void>;
+  restoreWorkspace(workspaceId: string): Promise<void>;
+}
 
 const ProjectPage = lazy(async () => ({
   default: (await import("./ProjectPage")).ProjectPage,
@@ -587,7 +593,6 @@ const sessionTime = (value?: string): number => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const collapsedProjectsKey = "pi-station:collapsed-projects";
 const sessionEditorFilesKey = "pi-station:session-editor-files";
 const composerDraftKey = (identity: string): string => `pi-station:composer-draft:${identity}`;
 
@@ -622,84 +627,20 @@ const writeSessionEditorFiles = (files: Readonly<Record<string, SharedMarkdownFi
   try { localStorage.setItem(sessionEditorFilesKey, JSON.stringify(files)); } catch { /* Restricted storage keeps state in memory. */ }
 };
 
-const readCollapsedProjects = (): ReadonlySet<string> => {
-  try {
-    const stored = localStorage.getItem(collapsedProjectsKey) ?? "[]";
-    const value = JSON.parse(stored) as unknown;
-    if (!Array.isArray(value)) return new Set();
-    return new Set(value.filter((id): id is string => typeof id === "string"));
-  } catch {
-    return new Set();
-  }
-};
-
-const writeCollapsedProjects = (projects: ReadonlySet<string>): void => {
-  try {
-    localStorage.setItem(collapsedProjectsKey, JSON.stringify([...projects]));
-  } catch {
-    // Restricted storage must not prevent local Project controls.
-  }
-};
-
-function SessionRowAccessory({
-  shortcut,
-  shortcutsVisible,
-  children,
-}: {
-  shortcut?: number | undefined;
-  shortcutsVisible: boolean;
-  children?: ReactNode;
-}) {
-  const shortcutIsVisible = shortcutsVisible && shortcut !== undefined;
-  return (
-    <span className="session-row-accessory">
-      <span
-        className="session-row-accessory-content"
-        aria-hidden={shortcutIsVisible || undefined}
-      >
-        {children}
-      </span>
-      {shortcut !== undefined && (
-        <span
-          className="session-row-shortcut"
-          role="img"
-          aria-label={`Shortcut ${shortcut}`}
-          aria-hidden={!shortcutIsVisible || undefined}
-        >
-          {shortcut}
-        </span>
-      )}
-    </span>
-  );
-}
-
-function SessionStatusIndicator({ session }: { session: SessionSummary }) {
-  const status = session.projection.run === "working"
-    ? "working"
-    : session.projection.unread.hasUnread
-      ? "unread"
-      : "idle";
-  const label = `${status[0]?.toUpperCase()}${status.slice(1)} Session`;
-  return <i className={`session-status-indicator status-${status}`} aria-label={label} />;
-}
-
 function Sidebar({
   state,
   onSelect,
   onDashboard,
-  onNewSession,
   onGeneralNewSession,
   onProjects,
   onSettings,
-  onOpenProject,
-  onSessionContextMenu,
   onOpenQuickSession,
   activeRoute,
-  activeProjectId,
   shortcutsVisible,
   onCollapse,
   client,
   onActivateWorkspace,
+  onCloseWorkspaceTab,
 }: {
   state: ApplicationState;
   onSelect: (key: SessionKey) => void;
@@ -717,403 +658,53 @@ function Sidebar({
   onCollapse: () => void;
   client?: ApplicationClient | undefined;
   onActivateWorkspace: (id: string) => Promise<void>;
+  onCloseWorkspaceTab: (tab: WorkspaceTab, session?: SessionSummary) => void;
 }) {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
-    readCollapsedProjects,
-  );
-  const bookmarkPosition = new Map(
-    state.projectBookmarks.map(({ projectId, position }) => [
-      projectId,
-      position,
-    ]),
-  );
-  let sessionShortcutNumber = 0;
-  const projects = state.projects
-    .filter((project) => project.closed !== true)
-    .filter((project) => (
-      bookmarkPosition.has(project.projectId)
-      || state.sessions.some((session) => (
-        session.projectId === project.projectId
-        && sessionIsOpen(session)
-      ))
-    ))
-    .sort((left, right) => {
-      const leftPosition = bookmarkPosition.get(left.projectId);
-      const rightPosition = bookmarkPosition.get(right.projectId);
-      if (leftPosition !== undefined || rightPosition !== undefined) {
-        return (leftPosition ?? Number.MAX_SAFE_INTEGER)
-          - (rightPosition ?? Number.MAX_SAFE_INTEGER);
-      }
-      return left.name.localeCompare(
-        right.name,
-        undefined,
-        { sensitivity: "base" },
-      ) || left.projectId.localeCompare(right.projectId);
-    });
-  const sessionPosition = new Map(
-    state.sessionBookmarks.map(({ sessionKey, position }) => [
-      sessionIdentity(sessionKey),
-      position,
-    ]),
-  );
-  const sessionIsBookmarked = (
-    projectId: ProjectId,
-    sessionKey: SessionKey,
-  ): boolean => state.sessionBookmarks.some((bookmark) => (
-    bookmark.projectId === projectId
-    && sessionKeysEqual(bookmark.sessionKey, sessionKey)
-  ));
-  const toggleProject = (projectId: string): void => {
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      writeCollapsedProjects(next);
-      return next;
-    });
-  };
-  const compareSessions = (
-    left: SessionSummary,
-    right: SessionSummary,
-  ): number => {
-    const leftLive = sessionIsOpen(left);
-    const rightLive = sessionIsOpen(right);
-    if (leftLive !== rightLive) return leftLive ? -1 : 1;
-
-    const leftPosition = sessionPosition.get(sessionIdentity(left.sessionKey));
-    const rightPosition = sessionPosition.get(sessionIdentity(right.sessionKey));
-    if (leftPosition !== undefined || rightPosition !== undefined) {
-      return (leftPosition ?? Number.MAX_SAFE_INTEGER)
-        - (rightPosition ?? Number.MAX_SAFE_INTEGER);
-    }
-
-    const creationDifference = sessionTime(right.createdAt)
-      - sessionTime(left.createdAt);
-    return creationDifference
-      || sessionIdentity(left.sessionKey).localeCompare(
-        sessionIdentity(right.sessionKey),
-      );
-  };
-  const nestedSessions = (
-    sessions: readonly SessionSummary[],
-  ): readonly { session: SessionSummary; depth: number }[] => {
-    const ordered = [...sessions].sort(compareSessions);
-    const sessionsByIdentity = new Map(ordered.map((session) => [
-      sessionIdentity(session.sessionKey),
-      session,
-    ]));
-    const children = new Map<string, SessionSummary[]>();
-    for (const session of ordered) {
-      const parentIdentity = session.parentSessionKey === undefined
-        ? undefined
-        : sessionIdentity(session.parentSessionKey);
-      if (parentIdentity === undefined || !sessionsByIdentity.has(parentIdentity)) {
-        continue;
-      }
-      children.set(parentIdentity, [
-        ...(children.get(parentIdentity) ?? []),
-        session,
-      ]);
-    }
-
-    const result: { session: SessionSummary; depth: number }[] = [];
-    const visited = new Set<string>();
-    const append = (session: SessionSummary, depth: number): void => {
-      const identity = sessionIdentity(session.sessionKey);
-      if (visited.has(identity)) return;
-      visited.add(identity);
-      result.push({ session, depth });
-      for (const child of children.get(identity) ?? []) append(child, depth + 1);
-    };
-    for (const session of ordered) {
-      const parentIdentity = session.parentSessionKey === undefined
-        ? undefined
-        : sessionIdentity(session.parentSessionKey);
-      if (parentIdentity === undefined || !sessionsByIdentity.has(parentIdentity)) {
-        append(session, 0);
-      }
-    }
-    for (const session of ordered) append(session, 0);
-    return result;
+  const workspaceClient = client as (ApplicationClient & WorkspaceClientActions) | undefined;
+  const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId) as TabbedWorkspace | undefined;
+  const openSessionInWorkspace = async (session: SessionSummary): Promise<void> => {
+    if (workspaceClient === undefined || activeWorkspace === undefined || session.projectId === undefined) return;
+    await workspaceClient.openSessionInWorkspace(activeWorkspace.id, session.projectId, session.sessionKey.piSessionId);
+    onSelect(session.sessionKey);
   };
   return (
-    <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Projects and Sessions">
+    <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Workspace and Sessions">
       <header className="sidebar-header">
-        <button
-          type="button"
-          className={`sidebar-home${activeRoute === "dashboard" ? " selected" : ""}`}
-          aria-label="Dashboard"
-          aria-current={activeRoute === "dashboard" ? "page" : undefined}
-          onClick={onDashboard}
-        >
-          <svg className="sidebar-brand-mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 12 12 5M5 12h14M19 12l-7 7" />
-            <circle cx="5" cy="12" r="2.5" />
-            <circle cx="12" cy="5" r="2.5" />
-            <circle cx="19" cy="12" r="2.5" />
-            <circle cx="12" cy="19" r="2.5" />
-          </svg>
+        <button type="button" className={`sidebar-home${activeRoute === "dashboard" ? " selected" : ""}`} aria-label="Dashboard" aria-current={activeRoute === "dashboard" ? "page" : undefined} onClick={onDashboard}>
+          <svg className="sidebar-brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 12 5M5 12h14M19 12l-7 7" /><circle cx="5" cy="12" r="2.5" /><circle cx="12" cy="5" r="2.5" /><circle cx="19" cy="12" r="2.5" /><circle cx="12" cy="19" r="2.5" /></svg>
           Pi Station
         </button>
-        <button
-          type="button"
-          aria-label="Hide sidebar"
-          aria-keyshortcuts="Control+B Meta+B"
-          onClick={onCollapse}
-        >
-          <PanelLeftClose aria-hidden="true" size={17} />
-        </button>
+        <button type="button" aria-label="Hide sidebar" aria-keyshortcuts="Control+B Meta+B" onClick={onCollapse}><PanelLeftClose aria-hidden="true" size={17} /></button>
       </header>
       <WorkspaceSwitcher
         workspaces={state.workspaces ?? []}
         activeWorkspaceId={state.activeWorkspaceId}
         onActivate={onActivateWorkspace}
-        onCreate={(name) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.createWorkspace(name)}
-        onRename={(id, name) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.renameWorkspace(id, name)}
-        onDelete={(id) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.deleteWorkspace(id)}
+        onCreate={(name) => workspaceClient?.createWorkspace(name) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
+        onRename={(id, name) => workspaceClient?.renameWorkspace(id, name) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
+        onDelete={(id) => workspaceClient?.deleteWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
+        onCloseWorkspace={(id) => workspaceClient?.closeWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
+        onRestoreWorkspace={(id) => workspaceClient?.restoreWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
         onOpenQuickSession={onOpenQuickSession}
         onNewSession={onGeneralNewSession}
       >
-      <nav className="project-list">
-        {projects.map((project) => {
-          const projectSessions = state.sessions.filter(
-            (session) => session.projectId === project.projectId,
-          );
-          const runningCount = projectSessions.filter(sessionIsOpen).length;
-          return <section
-            key={project.projectId}
-            className={`project${project.available ? "" : " unavailable"}`}
-          >
-            <header>
-              <span className="project-title">
-                <button
-                  className="project-collapse-toggle"
-                  aria-expanded={!collapsed.has(project.projectId)}
-                  aria-label={`${collapsed.has(project.projectId) ? "Expand" : "Collapse"} ${project.name}`}
-                  onClick={() => toggleProject(project.projectId)}
-                >
-                  {collapsed.has(project.projectId)
-                    ? <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
-                    : <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} />}
-                </button>
-                <button
-                  className={`project-name-link${activeRoute === "project" && activeProjectId === project.projectId ? " selected" : ""}`}
-                  type="button"
-                  aria-current={activeRoute === "project" && activeProjectId === project.projectId ? "page" : undefined}
-                  onClick={() => onOpenProject(project.projectId)}
-                >
-                  {project.name}
-                </button>
-              </span>
-              <span className="project-actions">
-                <button
-                  aria-label={`New Session in ${project.name}`}
-                  disabled={!project.available}
-                  onClick={() => onNewSession(project)}
-                >
-                  <Plus aria-hidden="true" size={14} strokeWidth={1.5} />
-                </button>
-              </span>
-            </header>
-            {!collapsed.has(project.projectId) && runningCount === 0 && (
-                <p className="project-session-empty">No open Sessions</p>
-              )}
-            {!collapsed.has(project.projectId) && nestedSessions(
-              projectSessions.filter(sessionIsOpen),
-            ).map(({ session, depth }) => {
-                const selected = activeRoute === "workspace"
-                  && state.selectedSessionKey !== undefined
-                  && sessionKeysEqual(
-                    session.sessionKey,
-                    state.selectedSessionKey,
-                  );
-                sessionShortcutNumber += 1;
-                const shortcut = sessionShortcutNumber <= 9 ? sessionShortcutNumber : undefined;
-                return (
-                  <button
-                    className={`session-row${selected ? " selected" : ""}`}
-                    aria-current={selected ? "page" : undefined}
-                    aria-keyshortcuts={shortcut === undefined ? undefined : `Control+${shortcut} Meta+${shortcut}`}
-                    data-session-shortcut={shortcut}
-                    data-session-identity={sessionIdentity(session.sessionKey)}
-                    data-session-depth={depth}
-                    data-unread={session.projection.unread.hasUnread || undefined}
-                    style={{ "--session-depth": depth } as CSSProperties}
-                    key={`${session.sessionKey.hostId}:${session.sessionKey.piSessionId}`}
-                    onClick={() => onSelect(session.sessionKey)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      onSessionContextMenu(session, event.clientX, event.clientY);
-                    }}
-                  >
-                    <SessionStatusIndicator session={session} />
-                    <span className="session-row-name">
-                      {sessionLabel(session)}
-                    </span>
-                    <SessionRowAccessory
-                      shortcut={shortcut}
-                      shortcutsVisible={shortcutsVisible}
-                    >
-                      {sessionIsBookmarked(project.projectId, session.sessionKey) && (
-                        <span
-                          className="session-bookmark-indicator"
-                          role="img"
-                          aria-label="Bookmarked"
-                        >
-                          <Bookmark aria-hidden="true" size={13} strokeWidth={1.6} />
-                        </span>
-                      )}
-                    </SessionRowAccessory>
-                  </button>
-                );
-              })}
-          </section>;
-        })}
-        {state.sessions.some((session) => (
-          !state.projects.some((project) => project.projectId === session.projectId)
-          && state.sessionBookmarks.some((bookmark) => (
-            bookmark.projectId === session.projectId
-            && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)
-          ))
-        )) && (
-          <section className="project bookmarked-sessions">
-            <header>
-              <strong>Bookmarked Sessions</strong>
-            </header>
-            {state.sessions
-              .filter((session) => (
-                !state.projects.some((project) => project.projectId === session.projectId)
-                && state.sessionBookmarks.some((bookmark) => (
-                  bookmark.projectId === session.projectId
-                  && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)
-                ))
-              ))
-              .sort(compareSessions)
-              .map((session) => {
-                const selected = activeRoute === "workspace"
-                  && state.selectedSessionKey !== undefined
-                  && sessionKeysEqual(session.sessionKey, state.selectedSessionKey);
-                sessionShortcutNumber += 1;
-                const shortcut = sessionShortcutNumber <= 9 ? sessionShortcutNumber : undefined;
-                return (
-                  <button
-                    className={`session-row${selected ? " selected" : ""}`}
-                    aria-current={selected ? "page" : undefined}
-                    aria-keyshortcuts={shortcut === undefined ? undefined : `Control+${shortcut} Meta+${shortcut}`}
-                    data-session-shortcut={shortcut}
-                    data-session-identity={sessionIdentity(session.sessionKey)}
-                    data-session-depth={0}
-                    data-unread={session.projection.unread.hasUnread || undefined}
-                    style={{ "--session-depth": 0 } as CSSProperties}
-                    key={sessionIdentity(session.sessionKey)}
-                    onClick={() => onSelect(session.sessionKey)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      onSessionContextMenu(session, event.clientX, event.clientY);
-                    }}
-                  >
-                    <SessionStatusIndicator session={session} />
-                    <span className="session-row-name">{sessionLabel(session)}</span>
-                    <SessionRowAccessory
-                      shortcut={shortcut}
-                      shortcutsVisible={shortcutsVisible}
-                    >
-                      <span
-                        className="session-bookmark-indicator"
-                        role="img"
-                        aria-label="Bookmarked"
-                      >
-                        <Bookmark aria-hidden="true" size={13} strokeWidth={1.6} />
-                      </span>
-                    </SessionRowAccessory>
-                  </button>
-                );
-              })}
-          </section>
-        )}
-        {state.sessions.some((session) => (
-          sessionIsOpen(session)
-          && !state.projects.some((project) => project.projectId === session.projectId)
-          && !state.sessionBookmarks.some((bookmark) => (
-            bookmark.projectId === session.projectId
-            && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)
-          ))
-        )) && (
-          <section className="project other-sessions">
-            <header>
-              <strong>Other Sessions</strong>
-            </header>
-            {state.sessions
-              .filter((session) => (
-                sessionIsOpen(session)
-                && !state.projects.some((project) => project.projectId === session.projectId)
-                && !state.sessionBookmarks.some((bookmark) => (
-                  bookmark.projectId === session.projectId
-                  && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)
-                ))
-              ))
-              .sort((left, right) => (
-                (right.lastActivityAt ?? "").localeCompare(left.lastActivityAt ?? "")
-                || sessionIdentity(left.sessionKey).localeCompare(sessionIdentity(right.sessionKey))
-              ))
-              .map((session) => ({ session, depth: 0 }))
-              .map(({ session, depth }) => {
-                const selected = activeRoute === "workspace"
-                  && state.selectedSessionKey !== undefined
-                  && sessionKeysEqual(session.sessionKey, state.selectedSessionKey);
-                sessionShortcutNumber += 1;
-                const shortcut = sessionShortcutNumber <= 9 ? sessionShortcutNumber : undefined;
-                return (
-                  <button
-                    className={`session-row${selected ? " selected" : ""}`}
-                    aria-current={selected ? "page" : undefined}
-                    aria-keyshortcuts={shortcut === undefined ? undefined : `Control+${shortcut} Meta+${shortcut}`}
-                    data-session-shortcut={shortcut}
-                    data-session-identity={sessionIdentity(session.sessionKey)}
-                    data-session-depth={depth}
-                    data-unread={session.projection.unread.hasUnread || undefined}
-                    style={{ "--session-depth": depth } as CSSProperties}
-                    key={sessionIdentity(session.sessionKey)}
-                    onClick={() => onSelect(session.sessionKey)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      onSessionContextMenu(session, event.clientX, event.clientY);
-                    }}
-                  >
-                    <SessionStatusIndicator session={session} />
-                    <span className="session-row-name">{sessionLabel(session)}</span>
-                    <SessionRowAccessory
-                      shortcut={shortcut}
-                      shortcutsVisible={shortcutsVisible}
-                    >
-                      <small>{session.displayPath?.split("/").pop()}</small>
-                    </SessionRowAccessory>
-                  </button>
-                );
-              })}
-          </section>
-        )}
-      </nav>
+        {activeWorkspace && <WorkspaceNavigation
+          workspace={activeWorkspace}
+          sessions={sessionsVisibleInWorkspace(state.sessions)}
+          selectedSessionKey={state.selectedSessionKey}
+          onNewSession={onGeneralNewSession}
+          onOpenSession={(session) => { void openSessionInWorkspace(session); }}
+          onSelectTab={(tab, session) => {
+            if (workspaceClient === undefined) return;
+            void workspaceClient.selectWorkspaceTab(activeWorkspace.id, tab.id).then(() => onSelect(session.sessionKey));
+          }}
+          onCloseTab={onCloseWorkspaceTab}
+        />}
+        {/* NeedsAttention can be mounted here after its parallel component is available. */}
       </WorkspaceSwitcher>
       <footer>
-        <button
-          className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined}
-          aria-label="Projects"
-          aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined}
-          onClick={onProjects}
-        >
-          <Folder aria-hidden="true" size={17} />
-          <span>Projects</span>
-        </button>
-        <button
-          className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined}
-          aria-label="Settings"
-          aria-current={["settings", "notifications", "themes"].includes(activeRoute) ? "page" : undefined}
-          onClick={onSettings}
-        >
-          <Settings aria-hidden="true" size={17} />
-          <span>Settings</span>
-        </button>
+        <button className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined} aria-label="Projects and Session library" aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined} onClick={onProjects}><Folder aria-hidden="true" size={17} /><span>Projects / Library</span></button>
+        <button className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined} aria-label="Settings" aria-current={["settings", "notifications", "themes"].includes(activeRoute) ? "page" : undefined} onClick={onSettings}><Settings aria-hidden="true" size={17} /><span>Settings</span></button>
       </footer>
     </aside>
   );
@@ -1246,16 +837,13 @@ export function Workspace({
   onOpenQuickSession,
   embeddedSession = false,
 }: WorkspaceProps) {
-  const activeWorkspace = applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
-    ?? applicationState.workspaces?.[0];
-  const workspaceProjectIds = activeWorkspace === undefined ? undefined : new Set(activeWorkspace.projectIds);
-  const state = embeddedSession
-    ? applicationState
-    : {
-      ...applicationState,
-      projects: workspaceProjectIds === undefined ? applicationState.projects : applicationState.projects.filter(({ projectId }) => workspaceProjectIds.has(projectId)),
-      sessions: sessionsVisibleInWorkspace(applicationState.sessions).filter(({ projectId }) => projectId === undefined || workspaceProjectIds === undefined || workspaceProjectIds.has(projectId)),
-    };
+  const activeWorkspace = (applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
+    ?? applicationState.workspaces?.find((workspace) => (workspace as TabbedWorkspace).closedAt === undefined)) as TabbedWorkspace | undefined;
+  // Projects and saved Sessions are global library data. Explicit tabs control Workspace navigation.
+  const state = embeddedSession ? applicationState : {
+    ...applicationState,
+    sessions: sessionsVisibleInWorkspace(applicationState.sessions),
+  };
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteInitialFlow, setPaletteInitialFlow] = useState<CommandPaletteInitialFlow>("actions");
   const { toast } = useToast();
@@ -1371,17 +959,15 @@ export function Workspace({
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
   const activateWorkspace = async (id: string): Promise<void> => {
     if (client === undefined || id === state.activeWorkspaceId) return;
-    const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
-    const firstProjectId = targetWorkspace?.projectIds[0];
-    const firstSession = firstProjectId === undefined
-      ? undefined
-      : sessionsVisibleInWorkspace(applicationState.sessions).find((session) => session.projectId === firstProjectId);
+    const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id) as TabbedWorkspace | undefined;
+    const activeTab = targetWorkspace?.tabs?.find((tab) => tab.id === targetWorkspace.activeTabId) ?? targetWorkspace?.tabs?.[0];
+    const targetSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.piSessionId === activeTab.sessionId);
     await client.activateWorkspace(id);
     setDetailsOpen(false);
     setSelectedProjectId(undefined);
-    if (firstSession === undefined) setRouteState("dashboard");
+    if (targetSession === undefined) setRouteState("dashboard");
     else {
-      onSelect(firstSession.sessionKey);
+      onSelect(targetSession.sessionKey);
       setRouteState("workspace");
     }
   };
@@ -1413,10 +999,9 @@ export function Workspace({
       const target = workspaces[(current + offset + workspaces.length) % workspaces.length];
       if (target === undefined) return;
       event.preventDefault();
-      const firstProjectId = target.projectIds[0];
-      const firstSession = firstProjectId === undefined
-        ? undefined
-        : sessionsVisibleInWorkspace(applicationState.sessions).find((session) => session.projectId === firstProjectId);
+      const tabbedTarget = target as TabbedWorkspace;
+      const activeTab = tabbedTarget.tabs?.find((tab) => tab.id === tabbedTarget.activeTabId) ?? tabbedTarget.tabs?.[0];
+      const firstSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.piSessionId === activeTab.sessionId);
       void client.activateWorkspace(target.id).then(() => {
         setDetailsOpen(false);
         setSelectedProjectId(undefined);
@@ -1973,6 +1558,14 @@ export function Workspace({
 
   const openSession = (sessionKey: SessionKey): void => {
     const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, sessionKey));
+    const workspaceClient = client as (ApplicationClient & WorkspaceClientActions) | undefined;
+    const tabAlreadyOpen = activeWorkspace?.tabs?.some(({ sessionId }) => sessionId === sessionKey.piSessionId) ?? false;
+    if (target?.projectId !== undefined && activeWorkspace !== undefined && !tabAlreadyOpen) {
+      void workspaceClient?.openSessionInWorkspace(activeWorkspace.id, target.projectId, sessionKey.piSessionId).catch((reason: unknown) => toast({
+        message: reason instanceof Error ? reason.message : "Session could not be added to this Workspace.",
+        variant: "error",
+      }));
+    }
     const project = target === undefined
       ? undefined
       : state.projects.find((candidate) => candidate.projectId === target.projectId);
@@ -2948,7 +2541,15 @@ export function Workspace({
       state={state}
       client={client}
       onActivateWorkspace={activateWorkspace}
-      onSelect={openSession}
+      onCloseWorkspaceTab={(tab) => afterSharedMarkdownCheck(() => {
+        const workspaceClient = client as (ApplicationClient & WorkspaceClientActions) | undefined;
+        if (workspaceClient === undefined || activeWorkspace === undefined) return;
+        void workspaceClient.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
+          message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
+          variant: "error",
+        }));
+      })}
+      onSelect={(key) => afterSharedMarkdownCheck(() => openSession(key))}
       onDashboard={() => setRoute("dashboard")}
       onGeneralNewSession={() => setRoute("new-session")}
       onProjects={() => setRoute("projects")}
