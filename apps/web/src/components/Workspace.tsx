@@ -685,6 +685,7 @@ function Sidebar({
       >
         {activeWorkspace && <WorkspaceNavigation
           workspace={activeWorkspace}
+          projects={state.projects}
           sessions={sessionsVisibleInWorkspace(state.sessions)}
           selectedSessionKey={state.selectedSessionKey}
           onNewSession={onGeneralNewSession}
