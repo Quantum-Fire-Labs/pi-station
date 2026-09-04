@@ -675,7 +675,7 @@ function Sidebar({
         }} />
       </div>
       <footer>
-        <button className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined} aria-label="Projects and Session library" aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined} onClick={onProjects}><Folder aria-hidden="true" size={17} /><span>Projects / Library</span></button>
+        <button className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined} aria-label="Projects" aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined} onClick={onProjects}><Folder aria-hidden="true" size={17} /><span>Projects</span></button>
         <button className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined} aria-label="Settings" aria-current={["settings", "notifications", "themes"].includes(activeRoute) ? "page" : undefined} onClick={onSettings}><Settings aria-hidden="true" size={17} /><span>Settings</span></button>
       </footer>
     </aside>
@@ -2847,7 +2847,13 @@ export function Workspace({
           setRoute("project");
         }}
         onAdd={() => setRoute("add-project")}
-        onNewSession={() => setRoute("new-session")}
+        onNewSession={(project) => afterSharedMarkdownCheck(() => {
+          if (project === undefined) setRoute("new-session");
+          else {
+            setNewSessionProject(project);
+            setRoute("workspace");
+          }
+        })}
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
         onSettings={() => setRoute("settings")}
@@ -2914,7 +2920,13 @@ export function Workspace({
           setRoute("project");
         }}
         onAdd={() => setRoute("add-project")}
-        onNewSession={() => setRoute("new-session")}
+        onNewSession={(project) => afterSharedMarkdownCheck(() => {
+          if (project === undefined) setRoute("new-session");
+          else {
+            setNewSessionProject(project);
+            setRoute("workspace");
+          }
+        })}
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
         onSettings={() => setRoute("settings")}

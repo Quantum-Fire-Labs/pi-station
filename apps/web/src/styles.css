@@ -2193,6 +2193,37 @@ body.sidebar-resizing {
 .project-sessions-section {
   width: 100%;
 }
+.project-sessions-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.project-sessions-heading h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.project-sessions-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.project-session-search {
+  position: relative;
+  width: min(320px, 100%);
+}
+.project-session-search > svg {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 11px;
+  width: 15px;
+  color: var(--muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.project-session-search [data-slot="input"] { padding-left: 34px; }
 .project-sessions-toolbar {
   display: flex;
   min-width: 0;
@@ -3270,7 +3301,7 @@ body.sidebar-resizing {
 }
 .projects-page-content {
   display: grid;
-  gap: 28px;
+  gap: 22px;
 }
 .projects-page-toolbar {
   position: relative;
@@ -3317,8 +3348,8 @@ body.sidebar-resizing {
 }
 .projects-page-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px minmax(88px, auto);
-  min-height: 68px;
+  grid-template-columns: minmax(0, 1fr) 100px minmax(190px, auto);
+  min-height: 58px;
   align-items: stretch;
   border-bottom: 1px solid var(--line);
 }
@@ -3328,9 +3359,9 @@ body.sidebar-resizing {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   outline: none;
-  padding: 11px 16px;
+  padding: 8px 14px;
   cursor: pointer;
   transition: background-color 120ms ease;
 }
@@ -3341,8 +3372,8 @@ body.sidebar-resizing {
 }
 .projects-page-row-icon {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--line);
@@ -3377,7 +3408,11 @@ body.sidebar-resizing {
   justify-content: flex-end;
   padding: 10px 16px;
 }
-.projects-page-row-actions { min-width: 88px; }
+.projects-page-row-actions {
+  min-width: 190px;
+  gap: 8px;
+  border-left: 1px solid var(--line);
+}
 .projects-page-order {
   display: flex;
   align-items: center;
