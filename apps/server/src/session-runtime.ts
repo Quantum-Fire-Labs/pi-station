@@ -150,13 +150,11 @@ export type RuntimeSessionFactory = (input: {
   readonly delegated?: boolean
 }) => Promise<RuntimeSession>
 
-export function delegatedSessionSettings(parent: RuntimeSession): SessionDefaults {
-  const model = parent.model
-  if (model === undefined) throw new Error("Parent Session has no model")
+export function delegatedSessionSettings(): SessionDefaults {
   return {
-    provider: model.provider,
-    modelId: model.id,
-    thinkingLevel: parent.thinkingLevel,
+    provider: "openai-codex",
+    modelId: "gpt-5.6-sol",
+    thinkingLevel: "low",
   }
 }
 
@@ -518,7 +516,7 @@ async function createSdkSession(input: {
   const delegationTools = input.delegated === true || input.projectId === undefined ? [] : [defineTool({
     name: DELEGATION_TOOL_NAME,
     label: "Delegate",
-    description: "Start an independent Pi Station child Session for a bounded task. The child Session appears nested under this Session and inherits its model and thinking level.",
+    description: "Start an independent Pi Station child Session for a bounded task. The child Session appears nested under this Session and uses GPT-5.6 Sol with low thinking.",
     parameters: Type.Object({
       prompt: Type.String({ description: "Complete, self-contained task instructions" }),
       name: Type.Optional(Type.String({ description: "Short child Session name" })),
@@ -531,7 +529,7 @@ async function createSdkSession(input: {
         parentSessionId: input.sessionId,
         cwd: input.cwd,
         prompt: parameters.prompt,
-        settings: delegatedSessionSettings(parent.session),
+        settings: delegatedSessionSettings(),
         ...(parameters.name === undefined ? {} : { name: parameters.name }),
         onComplete: async (report) => {
           if (parent.session === undefined) return

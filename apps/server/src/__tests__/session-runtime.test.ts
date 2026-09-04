@@ -54,14 +54,11 @@ describe("SDK Session runtime", () => {
     ])
   })
 
-  it("inherits the parent model and thinking level for a delegated child Session", () => {
-    const parent = fakeSession()
-    parent.setThinkingLevel("high")
-
-    expect(delegatedSessionSettings(parent)).toEqual({
-      provider: "openai",
-      modelId: "gpt-a",
-      thinkingLevel: "high",
+  it("uses GPT-5.6 Sol with low thinking for a delegated child Session", () => {
+    expect(delegatedSessionSettings()).toEqual({
+      provider: "openai-codex",
+      modelId: "gpt-5.6-sol",
+      thinkingLevel: "low",
     })
   })
 
