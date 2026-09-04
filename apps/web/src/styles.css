@@ -469,6 +469,15 @@ body.sidebar-resizing {
 .workspace-session-library button:hover { background: var(--raised); }
 .workspace-session-library button span, .workspace-session-library button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-session-library button small { max-width: 90px; color: var(--faint); }
+.workspace-empty { display: grid; min-height: 100%; place-items: center; padding: 32px; }
+.workspace-empty-card { width: min(520px, 100%); }
+.workspace-empty-card > p { color: var(--muted); }
+.workspace-empty-card section { margin-top: 28px; }
+.workspace-empty-card h2 { font-size: 13px; }
+.workspace-empty-sessions { display: grid; gap: 5px; }
+.workspace-empty-sessions button { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--text); padding: 7px 10px; text-align: left; }
+.workspace-empty-sessions button:hover { background: var(--raised); }
+.workspace-empty-sessions button span { color: var(--muted); font-size: 11px; }
 
 .project-list {
   flex: 1;

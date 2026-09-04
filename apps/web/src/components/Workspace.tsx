@@ -967,7 +967,7 @@ export function Workspace({
     await client.activateWorkspace(id);
     setDetailsOpen(false);
     setSelectedProjectId(undefined);
-    if (targetSession === undefined) setRouteState("dashboard");
+    if (targetSession === undefined) setRouteState("workspace");
     else {
       onSelect(targetSession.sessionKey);
       setRouteState("workspace");
@@ -1006,7 +1006,7 @@ export function Workspace({
       void client.activateWorkspace(target.id).then(() => {
         setDetailsOpen(false);
         setSelectedProjectId(undefined);
-        if (firstSession === undefined) setRouteState("dashboard");
+        if (firstSession === undefined) setRouteState("workspace");
         else {
           onSelect(firstSession.sessionKey);
           setRouteState("workspace");
@@ -2897,6 +2897,28 @@ export function Workspace({
           setRoute("workspace");
         }}
       />,
+    );
+  }
+
+  if (!embeddedSession && activeWorkspace !== undefined && activeWorkspace.tabs.length === 0) {
+    const savedSessions = state.sessions.filter(({ quickSession, parentSessionKey }) => quickSession !== true && parentSessionKey === undefined);
+    return renderPage(
+      <main className="workspace-empty" aria-labelledby="workspace-empty-title">
+        <div className="workspace-empty-card">
+          <h1 id="workspace-empty-title">{activeWorkspace.name} is empty</h1>
+          <p>Start new work or open a saved Session in this Workspace.</p>
+          <Button type="button" onClick={() => setRoute("new-session")}><Plus aria-hidden="true" />New Session</Button>
+          <section aria-labelledby="workspace-saved-sessions-title">
+            <h2 id="workspace-saved-sessions-title">Open existing Session</h2>
+            {savedSessions.length === 0 ? <p>No saved Sessions are available.</p> : <div className="workspace-empty-sessions">
+              {savedSessions.map((session) => <button type="button" key={sessionIdentity(session.sessionKey)} onClick={() => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}>
+                <strong>{sessionLabel(session)}</strong>
+                <span>{state.projects.find(({ projectId }) => projectId === session.projectId)?.name ?? "Unknown Project"}</span>
+              </button>)}
+            </div>}
+          </section>
+        </div>
+      </main>,
     );
   }
 

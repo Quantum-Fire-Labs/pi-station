@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArchiveRestore, Check, ChevronDown, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { SavedWorkspace } from "../application/workspace-model";
 import { Button } from "./ui/button";
@@ -24,6 +24,18 @@ export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, onActivate, o
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [createdWorkspace, setCreatedWorkspace] = useState<{ readonly name: string; readonly previousIds: ReadonlySet<string> }>();
+  const activatingCreatedWorkspace = useRef(false);
+  useEffect(() => {
+    if (createdWorkspace === undefined || activatingCreatedWorkspace.current) return;
+    const created = workspaces.find((workspace) => !createdWorkspace.previousIds.has(workspace.id) && workspace.name === createdWorkspace.name);
+    if (created === undefined) return;
+    activatingCreatedWorkspace.current = true;
+    void run(() => onActivate(created.id)).finally(() => {
+      activatingCreatedWorkspace.current = false;
+      setCreatedWorkspace(undefined);
+    });
+  }, [createdWorkspace, workspaces]);
   const run = async (operation: () => Promise<void>): Promise<void> => {
     setBusy(true); setError(undefined);
     try { await operation(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Workspace could not be changed."); }
@@ -32,7 +44,8 @@ export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, onActivate, o
   const create = (): void => {
     const value = name.trim();
     if (value === "") return;
-    void run(async () => { await onCreate(value); setName(""); setCreating(false); });
+    const previousIds = new Set(workspaces.map(({ id }) => id));
+    void run(async () => { await onCreate(value); setCreatedWorkspace({ name: value, previousIds }); setName(""); setCreating(false); });
   };
   return <div className={`workspace-switcher${open.length === 0 ? " empty" : ""}`} aria-label="Workspaces">
     <div className="workspace-picker-row">

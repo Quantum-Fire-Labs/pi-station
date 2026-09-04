@@ -116,7 +116,14 @@ describe("Workspace", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Next" }));
 
     expect(activateWorkspace).toHaveBeenCalledWith("next");
-    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
+  });
+
+  it("shows task actions instead of Dashboard content for an empty Workspace", () => {
+    const empty = { id: "empty", name: "Empty Workspace", tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] };
+    render(<Workspace state={{ ...fixtureState, workspaces: [empty], activeWorkspaceId: empty.id }} onSelect={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Empty Workspace is empty" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Open existing Session" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Dashboard" })).not.toBeInTheDocument();
   });
 
   it("restores the active Session tab after a Workspace switch", async () => {
@@ -1134,7 +1141,7 @@ describe("Workspace", () => {
       activeWorkspaceId: "current",
     };
     render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={vi.fn()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Back to Dashboard" }));
+    await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
     await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
 
     expect(screen.getByRole("menuitem", { name: "Current Workspace" })).toHaveAttribute("aria-current", "true");
