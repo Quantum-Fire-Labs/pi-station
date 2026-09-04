@@ -126,17 +126,35 @@
 }
 
 .workspace-row-inline-error {
-  position: absolute;
-  z-index: 10;
-  top: 4px;
+  position: fixed;
+  z-index: 60;
+  top: 52px;
   right: 8px;
-  max-width: min(360px, calc(100% - 16px));
-  margin: 0;
-  padding: 6px 10px;
+  display: flex;
+  max-width: min(420px, calc(100% - 16px));
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 10px;
   border: 1px solid var(--destructive);
   border-radius: 6px;
   color: var(--destructive);
   background: var(--background);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
+}
+
+.workspace-row-inline-error span {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.workspace-row-inline-error button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  color: inherit;
+  background: transparent;
 }
 
 .workspace-row-closed-list {

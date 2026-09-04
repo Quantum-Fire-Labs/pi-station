@@ -102,6 +102,22 @@ describe("WorkspaceRow", () => {
     await waitFor(() => expect(actions.onActivate).toHaveBeenCalledTimes(2));
   });
 
+  it("dismisses a failed close and permits retry and create", async () => {
+    const actions = callbacks();
+    actions.onClose.mockRejectedValueOnce(new Error("Close failed"));
+    render(<WorkspaceRow workspaces={[workspace("one", "One")]} activeWorkspaceId="one" sessions={[]} {...actions} />);
+    await userEvent.click(screen.getByRole("button", { name: "Actions for One" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Close" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Close failed");
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss Workspace error" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Actions for One" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Close" }));
+    await waitFor(() => expect(actions.onClose).toHaveBeenCalledTimes(2));
+    await userEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
+    expect(screen.getByRole("dialog", { name: "Create Workspace" })).toBeInTheDocument();
+  });
+
   it("reports dialog callback errors and enables a retry", async () => {
     const actions = callbacks();
     actions.onCreate.mockRejectedValueOnce(new Error("Create failed"));

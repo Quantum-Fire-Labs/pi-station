@@ -132,8 +132,8 @@ export function WorkspaceRow({ workspaces, activeWorkspaceId, sessions, onActiva
       </div>
       <button type="button" className="workspace-row-control" disabled={busy} aria-label="Create Workspace" onClick={() => openDialog({ kind: "create" })}><Plus aria-hidden="true" /></button>
       <button type="button" className="workspace-row-closed" disabled={busy} onClick={() => openDialog({ kind: "closed" })}>Closed{closed.length > 0 ? ` (${closed.length})` : ""}</button>
-      {dialog === undefined && error && <p className="workspace-row-inline-error" role="alert">{error}</p>}
     </nav>
+    {dialog === undefined && error && <div className="workspace-row-inline-error" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss Workspace error" onClick={() => setError(undefined)}>Dismiss</button></div>}
 
     <Modal open={dialog?.kind === "create" || dialog?.kind === "rename"} title={dialog?.kind === "rename" ? "Rename Workspace" : "Create Workspace"} initialFocus={nameRef} busy={busy} onClose={closeDialog} onSubmit={submitName} actions={<><Button type="button" variant="ghost" disabled={busy} onClick={closeDialog}>Cancel</Button><Button type="submit" disabled={busy || name.trim() === ""}>{dialog?.kind === "rename" ? "Rename" : "Create"}</Button></>}>
       <label className="workspace-row-field"><span>Workspace name</span><input ref={nameRef} maxLength={120} value={name} disabled={busy} onChange={(event) => setName(event.target.value)} /></label>
