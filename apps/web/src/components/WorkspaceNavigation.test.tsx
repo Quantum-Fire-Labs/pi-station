@@ -85,7 +85,7 @@ describe("WorkspaceNavigation", () => {
   });
 
   it("collapses a Project per Workspace and numbers only visible Session rows", async () => {
-    const groupedWorkspace: Workspace = { ...workspace, activeTabId: undefined, tabs: [
+    const groupedWorkspace: Workspace = { ...workspace, tabs: [
       ...workspace.tabs,
       { id: "tab-2", kind: "session", projectId: "project-2", sessionId: "session-2" },
     ] };
