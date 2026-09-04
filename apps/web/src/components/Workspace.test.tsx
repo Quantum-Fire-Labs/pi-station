@@ -110,16 +110,19 @@ describe("Workspace", () => {
   it("lets a user create the first saved Workspace", async () => {
     enableDesktopViewport();
     const user = userEvent.setup();
-    const createWorkspace = vi.fn(() => Promise.resolve());
-    const client = { createWorkspace } as unknown as ApplicationClient;
+    const created = { ...fixtureWorkspace, id: "created", name: "Client work", tabs: [] };
+    let snapshot: ApplicationState = { ...fixtureState, workspaces: [] };
+    const createWorkspace = vi.fn(() => { snapshot = { ...fixtureState, workspaces: [created] }; return Promise.resolve(); });
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const client = { createWorkspace, activateWorkspace, get snapshot() { return snapshot; } } as unknown as ApplicationClient;
     render(<Workspace state={{ ...fixtureState, workspaces: [], activeWorkspaceId: undefined }} client={client} onSelect={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Select Workspace" }));
-    await user.click(await screen.findByRole("menuitem", { name: "New Workspace" }));
+    await user.click(screen.getByRole("button", { name: "Create Workspace" }));
     await user.type(screen.getByRole("textbox", { name: "Workspace name" }), "Client work");
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     expect(createWorkspace).toHaveBeenCalledWith("Client work");
+    await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("created"));
   });
 
   it("leaves the previous Session when the Workspace switcher changes Workspaces", async () => {
@@ -138,9 +141,8 @@ describe("Workspace", () => {
     };
     render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Select Workspace" })).toHaveTextContent("Current");
-    await user.click(screen.getByRole("button", { name: "Select Workspace" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Next" }));
+    expect(screen.getByRole("button", { name: "Current" })).toHaveAttribute("aria-current", "page");
+    await user.click(screen.getByRole("button", { name: "Next" }));
 
     expect(activateWorkspace).toHaveBeenCalledWith("next");
   });
@@ -171,8 +173,7 @@ describe("Workspace", () => {
     };
     render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={onSelect} />);
 
-    await user.click(screen.getByRole("button", { name: "Select Workspace" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith(targetSession.sessionKey));
     expect(activateWorkspace).toHaveBeenCalledWith("next");
@@ -201,16 +202,13 @@ describe("Workspace", () => {
     await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("three"));
   });
 
-  it("opens Quick Session from the Workspace actions menu without selecting a Session", async () => {
+  it("opens Quick Session with its keyboard shortcut without selecting a Session", () => {
     enableDesktopViewport();
     const onOpenQuickSession = vi.fn();
     const onSelect = vi.fn();
     render(<Workspace state={fixtureStateWithWorkspace} onSelect={onSelect} onOpenQuickSession={onOpenQuickSession} />);
-    await userEvent.click(screen.getByRole("button", { name: /^Actions for / }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Quick Session" }));
-    expect(onOpenQuickSession).toHaveBeenCalledOnce();
     fireEvent.keyDown(window, { key: " ", code: "Space", ctrlKey: true, shiftKey: true });
-    expect(onOpenQuickSession).toHaveBeenCalledTimes(2);
+    expect(onOpenQuickSession).toHaveBeenCalledOnce();
     expect(onSelect).not.toHaveBeenCalled();
   });
 

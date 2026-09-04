@@ -49,7 +49,7 @@ import { Modal } from "./Modal";
 import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
-import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { WorkspaceRow } from "./WorkspaceRow";
 import { WorkspaceNavigation } from "./WorkspaceNavigation";
 import { AgentAttention } from "./AgentAttention";
 import { NotificationSettingsPage } from "./NotificationSettings";
@@ -179,7 +179,6 @@ function Dashboard({
   onDashboard,
   onProjects,
   onSettings,
-  onWorkspace,
 }: {
   state: ApplicationState;
   onOpen: (key: SessionKey) => void;
@@ -191,7 +190,6 @@ function Dashboard({
   onDashboard: () => void;
   onProjects: () => void;
   onSettings: () => void;
-  onWorkspace: (id: string) => void;
 }) {
   const [view, setView] = useState<DashboardView>(readDashboardView);
   const [showingClosed, setShowingClosed] = useState<ReadonlySet<string>>(
@@ -258,9 +256,6 @@ function Dashboard({
             onDashboard={onDashboard}
             onProjects={onProjects}
             onSettings={onSettings}
-            workspaces={state.workspaces ?? []}
-            activeWorkspaceId={state.activeWorkspaceId}
-            onWorkspace={onWorkspace}
           />
           <div className="dashboard-heading">
             <h1>Dashboard</h1>
@@ -626,17 +621,13 @@ function Sidebar({
   state,
   onDashboard,
   onGeneralNewSession,
+  onNewSession,
   onProjects,
   onSettings,
-  onOpenQuickSession,
   activeRoute,
   shortcutsVisible,
   onCollapse,
-  client,
-  onActivateWorkspace,
   onCloseWorkspaceTab,
-  onCloseWorkspace,
-  onDeleteWorkspace,
   onOpenSessionInWorkspace,
   onSelectWorkspaceTab,
 }: {
@@ -648,20 +639,14 @@ function Sidebar({
   onSettings: () => void;
   onOpenProject: (projectId: ProjectId) => void;
   onSessionContextMenu: (session: SessionSummary, x: number, y: number) => void;
-  onOpenQuickSession: () => void;
   activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers" | "update";
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
   onCollapse: () => void;
-  client?: ApplicationClient | undefined;
-  onActivateWorkspace: (id: string) => Promise<void>;
   onCloseWorkspaceTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
-  onCloseWorkspace: (workspaceId: string) => Promise<void>;
-  onDeleteWorkspace: (workspaceId: string) => Promise<void>;
   onOpenSessionInWorkspace: (session: SessionSummary) => void;
   onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
 }) {
-  const workspaceClient = client;
   const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId);
   return (
     <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Workspace and Sessions">
@@ -672,24 +657,14 @@ function Sidebar({
         </button>
         <button type="button" aria-label="Hide sidebar" aria-keyshortcuts="Control+B Meta+B" onClick={onCollapse}><PanelLeftClose aria-hidden="true" size={17} /></button>
       </header>
-      <WorkspaceSwitcher
-        workspaces={state.workspaces ?? []}
-        activeWorkspaceId={state.activeWorkspaceId}
-        onActivate={onActivateWorkspace}
-        onCreate={(name) => workspaceClient?.createWorkspace(name) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
-        onRename={(id, name) => workspaceClient?.renameWorkspace(id, name) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
-        onDelete={onDeleteWorkspace}
-        onCloseWorkspace={onCloseWorkspace}
-        onRestoreWorkspace={(id) => workspaceClient?.restoreWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
-        onOpenQuickSession={onOpenQuickSession}
-        onNewSession={onGeneralNewSession}
-      >
+      <div className="workspace-sidebar-navigation">
         {activeWorkspace && <WorkspaceNavigation
           workspace={activeWorkspace}
           projects={state.projects}
           sessions={sessionsVisibleInWorkspace(state.sessions)}
           selectedSessionKey={state.selectedSessionKey}
           onNewSession={onGeneralNewSession}
+          onNewSessionInProject={onNewSession}
           onOpenSession={onOpenSessionInWorkspace}
           onSelectTab={onSelectWorkspaceTab}
           onCloseTab={onCloseWorkspaceTab}
@@ -698,7 +673,7 @@ function Sidebar({
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
           if (session !== undefined) onOpenSessionInWorkspace(session);
         }} />
-      </WorkspaceSwitcher>
+      </div>
       <footer>
         <button className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined} aria-label="Projects and Session library" aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined} onClick={onProjects}><Folder aria-hidden="true" size={17} /><span>Projects / Library</span></button>
         <button className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined} aria-label="Settings" aria-current={["settings", "notifications", "themes"].includes(activeRoute) ? "page" : undefined} onClick={onSettings}><Settings aria-hidden="true" size={17} /><span>Settings</span></button>
@@ -891,6 +866,7 @@ export function Workspace({
   }, [resizingSidebar]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileWorkspaceNavigationRef = useRef<HTMLDetailsElement>(null);
   const editorIdentity = state.selectedSessionKey === undefined
     ? undefined
     : sessionIdentity(state.selectedSessionKey);
@@ -967,6 +943,9 @@ export function Workspace({
   const navigationCheck = useRef(afterSharedMarkdownCheck);
   navigationCheck.current = afterSharedMarkdownCheck;
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
+  const guardedWorkspaceAction = (action: () => Promise<void>): Promise<void> => new Promise<void>((resolve, reject) => {
+    afterSharedMarkdownCheck(() => { void action().then(resolve, reject); }, resolve);
+  });
   const activateWorkspace = async (id: string): Promise<void> => {
     if (client === undefined || id === state.activeWorkspaceId) return;
     const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
@@ -2565,16 +2544,6 @@ export function Workspace({
   const sidebar = (
     <Sidebar
       state={state}
-      client={client}
-      onActivateWorkspace={(id) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => { void activateWorkspace(id).then(resolve, reject); }, resolve))}
-      onCloseWorkspace={(workspaceId) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => {
-        if (client === undefined) { reject(new Error("Workspace changes are unavailable")); return; }
-        void client.closeWorkspace(workspaceId).then(resolve, reject);
-      }, resolve))}
-      onDeleteWorkspace={(workspaceId) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => {
-        if (client === undefined) { reject(new Error("Workspace changes are unavailable")); return; }
-        void client.deleteWorkspace(workspaceId).then(resolve, reject);
-      }, resolve))}
       onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}
       onSelectWorkspaceTab={(tab, session) => afterSharedMarkdownCheck(() => {
         if (client === undefined || activeWorkspace === undefined) { openSession(session.sessionKey); return; }
@@ -2598,10 +2567,6 @@ export function Workspace({
         setSelectedProjectId(projectId);
         setRoute("project");
       }}
-      onOpenQuickSession={() => {
-        if (onOpenQuickSession !== undefined) onOpenQuickSession();
-        else void client?.openQuickSession();
-      }}
       onSessionContextMenu={(session, x, y) => setSessionContextMenu({
         session,
         x: Math.max(8, Math.min(x, window.innerWidth - 220)),
@@ -2611,15 +2576,82 @@ export function Workspace({
       shortcutsVisible={sessionShortcutsVisible}
       onCollapse={() => setSidebarVisible(false)}
       {...(selectedProjectId === undefined ? {} : { activeProjectId: selectedProjectId })}
-      onNewSession={(project) => {
+      onNewSession={(project) => afterSharedMarkdownCheck(() => {
         setNewSessionName("");
         setNewSessionRequestId(undefined);
         setNewSessionProject(project);
-        setRoute("workspace");
-      }}
+        setRouteState("workspace");
+      })}
     />
   );
   const activeSidebarWidth = sidebarVisible ? sidebarWidth : 0;
+  const requireWorkspaceClient = (): ApplicationClient => {
+    if (client === undefined) throw new Error("Workspace changes are unavailable");
+    return client;
+  };
+  const workspaceRow = !embeddedSession && (
+    <WorkspaceRow
+      workspaces={applicationState.workspaces ?? []}
+      activeWorkspaceId={applicationState.activeWorkspaceId}
+      sessions={sessionsVisibleInWorkspace(applicationState.sessions)}
+      onActivate={(id) => guardedWorkspaceAction(() => activateWorkspace(id))}
+      onCreate={(name) => guardedWorkspaceAction(async () => {
+        const workspaceClient = requireWorkspaceClient();
+        const previousIds = new Set(workspaceClient.snapshot.workspaces?.map(({ id }) => id) ?? []);
+        await workspaceClient.createWorkspace(name);
+        const created = workspaceClient.snapshot.workspaces?.find(({ id }) => !previousIds.has(id));
+        if (created === undefined) throw new Error("The new Workspace could not be selected.");
+        await activateWorkspace(created.id);
+      })}
+      onRename={(id, name) => guardedWorkspaceAction(() => requireWorkspaceClient().renameWorkspace(id, name))}
+      onClose={(id) => guardedWorkspaceAction(() => requireWorkspaceClient().closeWorkspace(id))}
+      onRestore={(id) => guardedWorkspaceAction(async () => {
+        await requireWorkspaceClient().restoreWorkspace(id);
+        await activateWorkspace(id);
+      })}
+      onDelete={(id) => guardedWorkspaceAction(() => requireWorkspaceClient().deleteWorkspace(id))}
+    />
+  );
+  const closeMobileWorkspaceNavigation = (): void => { mobileWorkspaceNavigationRef.current?.removeAttribute("open"); };
+  const mobileWorkspaceNavigation = !embeddedSession && activeWorkspace !== undefined && (
+    <details ref={mobileWorkspaceNavigationRef} className="mobile-workspace-navigation">
+      <summary>Sessions</summary>
+      <div className="mobile-workspace-navigation-panel">
+        <WorkspaceNavigation
+          workspace={activeWorkspace}
+          projects={state.projects}
+          sessions={sessionsVisibleInWorkspace(state.sessions)}
+          selectedSessionKey={state.selectedSessionKey}
+          onNewSession={() => setRoute("new-session")}
+          onNewSessionInProject={(project) => afterSharedMarkdownCheck(() => {
+            setNewSessionName("");
+            setNewSessionRequestId(undefined);
+            setNewSessionProject(project);
+            setRouteState("workspace");
+          })}
+          onOpenSession={(session) => afterSharedMarkdownCheck(() => {
+            openSession(session.sessionKey);
+            closeMobileWorkspaceNavigation();
+          })}
+          onSelectTab={(tab, session) => afterSharedMarkdownCheck(() => {
+            if (client === undefined) { openSession(session.sessionKey); return; }
+            void client.selectWorkspaceTab(activeWorkspace.id, tab.id)
+              .then(() => {
+                openSession(session.sessionKey, false);
+                closeMobileWorkspaceNavigation();
+              })
+              .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace tab could not be selected.", variant: "error" }));
+          })}
+          onCloseTab={(tab) => afterSharedMarkdownCheck(() => {
+            void client?.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
+              message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
+              variant: "error",
+            }));
+          })}
+        />
+      </div>
+    </details>
+  );
   const resizeSidebarWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     let next = sidebarWidth;
     if (event.key === "ArrowLeft") next -= 10;
@@ -2697,6 +2729,9 @@ export function Workspace({
   );
   const renderPage = (page: ReactNode): ReactNode => (
     <>
+      <div className="workspace-application">
+      {workspaceRow}
+      {mobileWorkspaceNavigation}
       <main
         className={`workspace${sidebarVisible ? "" : " sidebar-hidden"}`}
         style={{ "--rail": `${activeSidebarWidth}px` } as CSSProperties}
@@ -2737,6 +2772,7 @@ export function Workspace({
           </Suspense>
         </div>
       </main>
+      </div>
       {contextMenu}
       {newSessionModal}
     </>
@@ -2762,7 +2798,6 @@ export function Workspace({
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
         onSettings={() => setRoute("settings")}
-        onWorkspace={(id) => void activateWorkspace(id).catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.", variant: "error" }))}
       />,
     );
   }
@@ -3005,6 +3040,9 @@ export function Workspace({
       setDetailsOpen(open);
       if (!open) queueMicrotask(() => detailsTriggerRef.current?.focus());
     }}>
+    <div className={`workspace-application${embeddedSession ? " embedded-session" : ""}`}>
+    {workspaceRow}
+    {mobileWorkspaceNavigation}
     <main
       className={`workspace${embeddedSession ? " embedded-session" : ""}${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}${sidebarVisible && !embeddedSession ? "" : " sidebar-hidden"}`}
       style={{ "--rail": `${embeddedSession ? 0 : activeSidebarWidth}px` } as CSSProperties}
@@ -3829,6 +3867,7 @@ export function Workspace({
         />
       )}
     </main>
+    </div>
     </Sheet>
     {contextMenu}
     </>

@@ -256,6 +256,24 @@ textarea:focus-visible {
   text-align: center;
 }
 .pairing-error { color: var(--danger); }
+.workspace-application {
+  display: flex;
+  min-width: 0;
+  min-height: 100dvh;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+.workspace-application > .workspace-row {
+  position: sticky;
+  z-index: 40;
+  top: 0;
+  flex: 0 0 44px;
+}
+.workspace-application > .workspace {
+  min-height: 0;
+  flex: 1;
+}
+.workspace-application.embedded-session > .workspace { min-height: 100dvh; }
 .workspace {
   min-height: 100dvh;
 }
@@ -350,13 +368,14 @@ textarea:focus-visible {
 }
 .workspace-page {
   min-width: 0;
-  min-height: 100dvh;
+  min-height: calc(100dvh - 44px);
   margin-left: var(--rail);
 }
+.workspace-application.embedded-session .workspace-page { min-height: 100dvh; }
 .sidebar {
   position: fixed;
   z-index: 30;
-  inset: 0 auto 0 0;
+  inset: 44px auto 0 0;
   display: flex;
   width: var(--rail);
   flex-direction: column;
@@ -408,7 +427,7 @@ textarea:focus-visible {
 .sidebar-resize-handle {
   position: fixed;
   z-index: 31;
-  inset: 0 auto 0 calc(var(--rail) - 4px);
+  inset: 44px auto 0 calc(var(--rail) - 4px);
   width: 8px;
   cursor: col-resize;
   touch-action: none;
@@ -434,6 +453,8 @@ body.sidebar-resizing {
   cursor: col-resize;
   user-select: none;
 }
+.workspace-sidebar-navigation { display: flex; min-height: 0; flex: 1; flex-direction: column; padding: 0 12px 10px; }
+.mobile-workspace-navigation { display: none; }
 .workspace-switcher { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 8px; padding: 0 12px 10px; }
 .workspace-picker-row { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
 .workspace-picker { display: flex; min-width: 0; min-height: 34px; flex: 1; align-items: center; justify-content: space-between; gap: 8px; border: 0; border-radius: 7px; background: var(--raised); color: var(--text); padding: 5px 9px; font-size: 12px; font-weight: 650; text-align: left; }
@@ -4200,6 +4221,41 @@ body.sidebar-resizing {
   .shared-markdown-external-change button { min-height: 44px; }
   .markdown-source-editor .cm-content { padding: 18px 16px calc(40px + env(safe-area-inset-bottom)); }
   .markdown-source-editor .cm-scroller { font-size: 16px; }
+  .mobile-workspace-navigation {
+    position: fixed;
+    z-index: 35;
+    right: 8px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    display: block;
+  }
+  .mobile-workspace-navigation > summary {
+    display: grid;
+    min-width: 44px;
+    min-height: 44px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--page);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+    list-style: none;
+  }
+  .mobile-workspace-navigation > summary::-webkit-details-marker { display: none; }
+  .mobile-workspace-navigation-panel {
+    width: min(360px, calc(100vw - 16px));
+    position: absolute;
+    right: 0;
+    bottom: 48px;
+    max-height: calc(100dvh - 108px);
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--page);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 18%);
+    padding: 8px;
+  }
+  .mobile-workspace-navigation-panel button { min-height: 44px; }
   .sidebar,
   .sidebar-resize-handle,
   .sidebar-expand-control {
