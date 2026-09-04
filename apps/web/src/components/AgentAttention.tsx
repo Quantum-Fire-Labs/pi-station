@@ -22,6 +22,8 @@ export interface DelegatedChildrenProps {
   readonly selectedSessionKey?: SessionKey | undefined;
   readonly openSessionIdentities?: ReadonlySet<string>;
   readonly onCloseTab?: (sessionKey: SessionKey) => void;
+  readonly expandedIdentities?: ReadonlySet<string>;
+  readonly onToggleIdentity?: (sessionIdentity: string, expanded: boolean) => void;
 }
 
 export function agentAttentionStatuses(session: SessionSummary): readonly AgentAttentionStatus[] {
@@ -57,34 +59,51 @@ export function AgentAttention({
   );
 }
 
-export function DelegatedChildren({ parentSessionKey, sessions, onSelect, expanded, onExpandedChange, navigationStartIndex, selectedSessionKey, openSessionIdentities, onCloseTab }: DelegatedChildrenProps) {
-  const [localExpanded, setLocalExpanded] = useState(false);
-  const isExpanded = expanded ?? localExpanded;
-  const children = sessions.filter((session) => session.parentSessionKey !== undefined && sameKey(session.parentSessionKey, parentSessionKey));
-  if (children.length === 0) return null;
+export function visibleDelegatedCount(parentSessionKey: SessionKey, sessions: readonly SessionSummary[], expandedIdentities: ReadonlySet<string>): number {
+  const visit = (parent: SessionKey, ancestors: ReadonlySet<string>): number => {
+    const parentId = keyOf(parent);
+    if (!expandedIdentities.has(parentId) || ancestors.has(parentId)) return 0;
+    const nextAncestors = new Set(ancestors).add(parentId);
+    return directChildren(parent, sessions).reduce((count, child) => count + 1 + visit(child.sessionKey, nextAncestors), 0);
+  };
+  return visit(parentSessionKey, new Set());
+}
 
+export function DelegatedChildren({ parentSessionKey, sessions, onSelect, expanded, onExpandedChange, navigationStartIndex, selectedSessionKey, openSessionIdentities, onCloseTab, expandedIdentities, onToggleIdentity }: DelegatedChildrenProps) {
+  const [localExpanded, setLocalExpanded] = useState<ReadonlySet<string>>(() => expanded ? new Set([keyOf(parentSessionKey)]) : new Set());
+  const controlled = expandedIdentities ?? (expanded === undefined ? undefined : expanded ? new Set([keyOf(parentSessionKey)]) : new Set<string>());
+  const activeExpanded = controlled ?? localExpanded;
+  const counter = { value: navigationStartIndex ?? 0 };
+  const toggle = (sessionIdentity: string, next: boolean) => {
+    if (controlled === undefined) setLocalExpanded((current) => { const result = new Set(current); if (next) result.add(sessionIdentity); else result.delete(sessionIdentity); return result; });
+    if (sessionIdentity === keyOf(parentSessionKey)) onExpandedChange?.(next);
+    onToggleIdentity?.(sessionIdentity, next);
+  };
+  return <DelegatedBranch parentSessionKey={parentSessionKey} sessions={sessions} onSelect={onSelect} expandedIdentities={activeExpanded} onToggle={toggle} counter={navigationStartIndex === undefined ? undefined : counter} selectedSessionKey={selectedSessionKey} openSessionIdentities={openSessionIdentities} onCloseTab={onCloseTab} ancestors={new Set()} />;
+}
+
+function DelegatedBranch({ parentSessionKey, sessions, onSelect, expandedIdentities, onToggle, counter, selectedSessionKey, openSessionIdentities, onCloseTab, ancestors }: { parentSessionKey: SessionKey; sessions: readonly SessionSummary[]; onSelect: (key: SessionKey) => void; expandedIdentities: ReadonlySet<string>; onToggle: (identity: string, expanded: boolean) => void; counter: { value: number } | undefined; selectedSessionKey: SessionKey | undefined; openSessionIdentities: ReadonlySet<string> | undefined; onCloseTab: ((key: SessionKey) => void) | undefined; ancestors: ReadonlySet<string> }) {
+  const parentId = keyOf(parentSessionKey);
+  if (ancestors.has(parentId)) return null;
+  const children = directChildren(parentSessionKey, sessions).filter((child) => !ancestors.has(keyOf(child.sessionKey)));
+  if (children.length === 0) return null;
+  const isExpanded = expandedIdentities.has(parentId);
   const working = children.filter((session) => agentAttentionStatuses(session).includes("Working")).length;
   const failed = children.filter((session) => agentAttentionStatuses(session).includes("Failed")).length;
-  const summary = [
-    `${children.length} ${children.length === 1 ? "agent" : "agents"}`,
-    working > 0 ? `${working} working` : undefined,
-    failed > 0 ? `${failed} failed` : undefined,
-  ].filter(Boolean).join(" · ");
+  const summary = [`${children.length} ${children.length === 1 ? "agent" : "agents"}`, working > 0 ? `${working} working` : undefined, failed > 0 ? `${failed} failed` : undefined].filter(Boolean).join(" · ");
+  const nextAncestors = new Set(ancestors).add(parentId);
+  return <div className="delegated-children">
+    <button type="button" className="delegated-children__summary" aria-expanded={isExpanded} onClick={() => onToggle(parentId, !isExpanded)}>{summary}</button>
+    {isExpanded && <ul className="agent-attention__list" aria-label="Delegated agents">{children.map((session) => {
+      const navigationIndex = counter === undefined ? undefined : counter.value++;
+      return <div key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} navigationIndex={navigationIndex} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} removable={openSessionIdentities?.has(keyOf(session.sessionKey)) === true} onCloseTab={onCloseTab} /><DelegatedBranch parentSessionKey={session.sessionKey} sessions={sessions} onSelect={onSelect} expandedIdentities={expandedIdentities} onToggle={onToggle} counter={counter} selectedSessionKey={selectedSessionKey} openSessionIdentities={openSessionIdentities} onCloseTab={onCloseTab} ancestors={nextAncestors} /></div>;
+    })}</ul>}
+  </div>;
+}
 
-  return (
-    <div className="delegated-children">
-      <button type="button" className="delegated-children__summary" aria-expanded={isExpanded} onClick={() => {
-        const next = !isExpanded;
-        if (expanded === undefined) setLocalExpanded(next);
-        onExpandedChange?.(next);
-      }}>{summary}</button>
-      {isExpanded ? (
-        <ul className="agent-attention__list" aria-label="Delegated agents">
-          {children.map((session, index) => <AgentButton key={keyOf(session.sessionKey)} session={session} onSelect={onSelect} navigationIndex={navigationStartIndex === undefined ? undefined : navigationStartIndex + index} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} removable={openSessionIdentities?.has(keyOf(session.sessionKey)) === true} onCloseTab={onCloseTab} />)}
-        </ul>
-      ) : null}
-    </div>
-  );
+function directChildren(parentSessionKey: SessionKey, sessions: readonly SessionSummary[]): readonly SessionSummary[] {
+  const seen = new Set<string>();
+  return sessions.filter((session) => session.parentSessionKey !== undefined && sameKey(session.parentSessionKey, parentSessionKey) && !seen.has(keyOf(session.sessionKey)) && Boolean(seen.add(keyOf(session.sessionKey))));
 }
 
 function AgentButton({ session, onSelect, navigationIndex, selected = false, removable = false, onCloseTab }: { readonly session: SessionSummary; readonly onSelect: (key: SessionKey) => void; readonly navigationIndex?: number | undefined; readonly selected?: boolean; readonly removable?: boolean; readonly onCloseTab?: ((key: SessionKey) => void) | undefined }) {

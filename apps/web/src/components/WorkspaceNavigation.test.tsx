@@ -158,6 +158,22 @@ describe("WorkspaceNavigation", () => {
     expect(await screen.findByRole("button", { name: "Child: Working" })).toBeVisible();
   });
 
+  it("renders a selected grandchild once in recursive depth-first order", async () => {
+    const root = session("session-1", "Root");
+    const child: SessionSummary = { ...session("child", "Child"), parentSessionKey: root.sessionKey };
+    const grandchild: SessionSummary = { ...session("grandchild", "Grandchild"), parentSessionKey: child.sessionKey };
+    const childTab = { id: "child-tab", kind: "session" as const, projectId: "project-1", sessionId: "child" };
+    const grandchildTab = { id: "grandchild-tab", kind: "session" as const, projectId: "project-1", sessionId: "grandchild" };
+    const recursiveWorkspace: Workspace = { ...workspace, tabs: [...workspace.tabs, childTab, grandchildTab], activeTabId: grandchildTab.id };
+    render(<WorkspaceNavigation workspace={recursiveWorkspace} projects={projects} sessions={[root, child, grandchild]} onSelectTab={vi.fn()} onCloseTab={vi.fn()} onOpenSession={vi.fn()} onNewSession={vi.fn()} />);
+    const selectedGrandchild = await screen.findByRole("button", { name: "Grandchild: Idle" });
+    expect(screen.getAllByText("Grandchild")).toHaveLength(1);
+    expect(selectedGrandchild).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Root").closest("button")).toHaveAttribute("data-session-shortcut", "1");
+    expect(screen.getByRole("button", { name: "Child: Idle" })).toHaveAttribute("data-session-shortcut", "2");
+    expect(selectedGrandchild).toHaveAttribute("data-session-shortcut", "3");
+  });
+
   it("shows collapsed Project activity and starts a Session in that Project", async () => {
     const working = { ...session("session-1", "Open work"), projection: { ...projection, run: "working" as const, unread: { hasUnread: true } } };
     const actions = renderNavigation([working, working]);
