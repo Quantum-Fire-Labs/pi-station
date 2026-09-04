@@ -456,6 +456,8 @@ body.sidebar-resizing {
   user-select: none;
 }
 .workspace-sidebar-navigation { display: flex; min-height: 0; flex: 1; flex-direction: column; padding: 0 12px 10px; }
+.workspace-sidebar-navigation > .agent-attention { margin-top: 8px; border-top: 1px solid var(--line); padding: 10px 0 0 19px; }
+.workspace-sidebar-navigation > .agent-attention .agent-attention__agent { padding-left: 0; }
 .mobile-workspace-navigation { display: none; }
 .workspace-switcher { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 8px; padding: 0 12px 10px; }
 .workspace-picker-row { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
