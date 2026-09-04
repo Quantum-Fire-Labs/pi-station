@@ -125,6 +125,24 @@ describe("WorkspaceNavigation", () => {
     expect(actions.onOpenSession).toHaveBeenCalledWith(child);
   });
 
+  it("renders an open child once under its parent and makes it removable", async () => {
+    const parent = session("session-1", "Parent");
+    const child: SessionSummary = { ...session("child", "Child"), parentSessionKey: parent.sessionKey };
+    const childTab = { id: "child-tab", kind: "session" as const, projectId: "project-1", sessionId: "child" };
+    const groupedWorkspace: Workspace = { ...workspace, tabs: [...workspace.tabs, childTab], activeTabId: childTab.id };
+    const actions = { onSelectTab: vi.fn(), onCloseTab: vi.fn(), onOpenSession: vi.fn(), onNewSession: vi.fn() };
+    const view = render(<WorkspaceNavigation workspace={groupedWorkspace} projects={projects} sessions={[parent, child]} {...actions} />);
+    const selectedChild = await screen.findByRole("button", { name: "Child: Idle" });
+    expect(screen.getAllByText("Child")).toHaveLength(1);
+    expect(selectedChild).toHaveAttribute("aria-current", "page");
+    await userEvent.click(screen.getByRole("button", { name: "Remove Child tab" }));
+    expect(actions.onCloseTab).toHaveBeenCalledWith(childTab, child);
+
+    view.rerender(<WorkspaceNavigation workspace={{ ...groupedWorkspace, tabs: [childTab] }} projects={projects} sessions={[parent, child]} {...actions} />);
+    expect(screen.queryByRole("button", { name: "Child: Idle" })).not.toBeInTheDocument();
+    expect(screen.getByText("Child").closest("button")).toHaveClass("workspace-tab-open");
+  });
+
   it("shows collapsed Project activity and starts a Session in that Project", async () => {
     const working = { ...session("session-1", "Open work"), projection: { ...projection, run: "working" as const, unread: { hasUnread: true } } };
     const actions = renderNavigation([working, working]);

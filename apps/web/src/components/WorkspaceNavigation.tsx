@@ -45,11 +45,13 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
   const sessionById = useMemo(() => new Map(sessions.map((session) => [identity(session.sessionKey), session])), [sessions]);
   const groups = useMemo(() => groupWorkspaceTabs(workspace.tabs, projects), [workspace.tabs, projects]);
   const selectedIdentity = selectedSessionKey === undefined ? undefined : identity(selectedSessionKey);
-  const selectedSession = selectedIdentity === undefined ? undefined : sessionById.get(selectedIdentity);
-  const selectedTabId = selectedSession === undefined
+  const requestedSelectedSession = selectedIdentity === undefined ? undefined : sessionById.get(selectedIdentity);
+  const selectedTabId = requestedSelectedSession === undefined
     ? workspace.activeTabId
     : workspace.tabs.find((tab) => tabIdentity(tab.projectId, tab.sessionId) === selectedIdentity)?.id;
-  const selectedProjectId = workspace.tabs.find((tab) => tab.id === selectedTabId)?.projectId ?? selectedSession?.projectId;
+  const selectedTab = workspace.tabs.find((tab) => tab.id === selectedTabId);
+  const selectedSession = requestedSelectedSession ?? (selectedTab === undefined ? undefined : sessionById.get(tabIdentity(selectedTab.projectId, selectedTab.sessionId)));
+  const selectedProjectId = selectedTab?.projectId ?? selectedSession?.projectId;
 
   useEffect(() => {
     setCollapsedProjects(readCollapsed(workspace.id));
@@ -71,6 +73,11 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
   }, [selectedIdentity, selectedSession]);
 
   const openIds = new Set(workspace.tabs.map(({ projectId, sessionId }) => tabIdentity(projectId, sessionId)));
+  const openTabByIdentity = new Map(workspace.tabs.map((tab) => [tabIdentity(tab.projectId, tab.sessionId), tab]));
+  const nestedTabIds = new Set(workspace.tabs.flatMap((tab) => {
+    const session = sessionById.get(tabIdentity(tab.projectId, tab.sessionId));
+    return session?.parentSessionKey !== undefined && openIds.has(identity(session.parentSessionKey)) ? [tab.id] : [];
+  }));
   const savedSessions = sessions
     .filter((session) => session.quickSession !== true && session.parentSessionKey === undefined && !openIds.has(identity(session.sessionKey)))
     .sort((left, right) => (right.lastActivityAt ?? "").localeCompare(left.lastActivityAt ?? ""));
@@ -87,6 +94,8 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
     <div className="workspace-navigation-heading"><span>Open tabs</span><span>{workspace.tabs.length}</span></div>
     <div className="workspace-tab-list">
       {groups.map((group) => {
+        const visibleTabs = group.tabs.filter((tab) => !nestedTabIds.has(tab.id));
+        if (visibleTabs.length === 0) return null;
         const collapsed = collapsedProjects.has(group.projectId);
         const projectLabel = group.project?.name ?? (group.projectId ? `Unknown Project (${group.projectId})` : "Project unavailable");
         const activity = groupActivity(group.tabs, sessionById, sessions);
@@ -100,7 +109,7 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
             {group.project !== undefined && <button type="button" className="workspace-project-new" aria-label={`New Session in ${projectLabel}`} disabled={onNewSessionInProject === undefined} onClick={() => onNewSessionInProject?.(group.project!)}><Plus aria-hidden="true" size={16} /></button>}
           </div>
           {!collapsed && <div className="workspace-project-tabs">
-            {group.tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const session = sessionById.get(tabIdentity(tab.projectId, tab.sessionId));
               const selected = tab.id === selectedTabId;
               const shortcut = session === undefined ? undefined : ++visibleIndex;
@@ -115,7 +124,7 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
                   <span><strong>{session === undefined ? "Session unavailable" : label(session)}</strong>{session === undefined ? <small>Referenced Session was not found.</small> : <SessionStatus session={session} />}</span>
                 </button>
                 <button type="button" className="workspace-tab-close" aria-label={`Remove ${session === undefined ? "unavailable Session" : label(session)} tab`} title="Remove tab (does not close Session)" onClick={() => onCloseTab(tab, session)}><X aria-hidden="true" size={14} /></button>
-                {session !== undefined && <DelegatedChildren parentSessionKey={session.sessionKey} sessions={sessions} onSelect={(key) => { const child = sessionById.get(identity(key)); if (child !== undefined) onOpenSession(child); }} expanded={delegationExpanded} navigationStartIndex={childStartIndex} onExpandedChange={(expanded) => setExpandedDelegations((current) => { const next = new Set(current); if (expanded) next.add(identity(session.sessionKey)); else next.delete(identity(session.sessionKey)); return next; })} />}
+                {session !== undefined && <DelegatedChildren parentSessionKey={session.sessionKey} sessions={sessions} onSelect={(key) => { const child = sessionById.get(identity(key)); if (child !== undefined) onOpenSession(child); }} expanded={delegationExpanded} navigationStartIndex={childStartIndex} selectedSessionKey={selectedSession?.sessionKey} openSessionIdentities={openIds} onCloseTab={(key) => { const childTab = openTabByIdentity.get(identity(key)); const child = sessionById.get(identity(key)); if (childTab !== undefined) onCloseTab(childTab, child); }} onExpandedChange={(expanded) => setExpandedDelegations((current) => { const next = new Set(current); if (expanded) next.add(identity(session.sessionKey)); else next.delete(identity(session.sessionKey)); return next; })} />}
               </div>;
             })}
           </div>}
