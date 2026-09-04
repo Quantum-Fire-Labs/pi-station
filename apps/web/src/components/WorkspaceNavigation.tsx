@@ -1,29 +1,19 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { ChevronDown, ChevronRight, Library, Plus, X } from "lucide-react";
-import type { SavedWorkspace, SessionKey, SessionSummary } from "../application/workspace-model";
+import type { Workspace, WorkspaceSessionTab } from "@pi-station/application-protocol";
+import type { SessionKey, SessionSummary } from "../application/workspace-model";
+import { DelegatedChildren } from "./AgentAttention";
 
-export interface WorkspaceTab {
-  readonly id: string;
-  readonly kind: "session";
-  readonly projectId: string;
-  readonly sessionId: string;
-}
-
-export type TabbedWorkspace = SavedWorkspace & {
-  readonly tabs?: readonly WorkspaceTab[];
-  readonly activeTabId?: string;
-  readonly closedAt?: string;
-};
 
 const identity = (key: SessionKey): string => `${key.hostId}:${key.piSessionId}`;
 const label = (session: SessionSummary): string => session.name?.trim() || "Untitled Session";
 
 export function WorkspaceNavigation({ workspace, sessions, selectedSessionKey, onSelectTab, onCloseTab, onOpenSession, onNewSession }: {
-  workspace: TabbedWorkspace;
+  workspace: Workspace;
   sessions: readonly SessionSummary[];
   selectedSessionKey?: SessionKey | undefined;
-  onSelectTab: (tab: WorkspaceTab, session: SessionSummary) => void;
-  onCloseTab: (tab: WorkspaceTab, session?: SessionSummary) => void;
+  onSelectTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
+  onCloseTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
   onOpenSession: (session: SessionSummary) => void;
   onNewSession: () => void;
 }) {
@@ -42,11 +32,15 @@ export function WorkspaceNavigation({ workspace, sessions, selectedSessionKey, o
         const session = sessionById.get(tab.sessionId);
         const selected = tab.id === workspace.activeTabId || (session !== undefined && selectedSessionKey !== undefined && identity(session.sessionKey) === identity(selectedSessionKey));
         return <div className={`workspace-tab${selected ? " selected" : ""}`} key={tab.id}>
-          <button type="button" className="workspace-tab-open" disabled={session === undefined} aria-current={selected ? "page" : undefined} data-session-shortcut={index < 9 ? index + 1 : undefined} onClick={() => { if (session !== undefined) onSelectTab(tab, session); }}>
+          <button type="button" className="workspace-tab-open" disabled={session === undefined} aria-current={selected ? "page" : undefined} data-session-shortcut={index < 9 ? index + 1 : undefined} data-session-identity={session === undefined ? undefined : identity(session.sessionKey)} onClick={() => { if (session !== undefined) onSelectTab(tab, session); }}>
             {session === undefined ? <i className="session-status-indicator status-idle" aria-label="Missing Session" /> : <SessionDot session={session} />}
             <span><strong>{session === undefined ? "Session unavailable" : label(session)}</strong><small>{session?.displayPath?.split("/").pop() ?? "Missing reference"}</small></span>
           </button>
           <button type="button" className="workspace-tab-close" aria-label={`Remove ${session === undefined ? "unavailable Session" : label(session)} tab`} title="Remove tab (does not close Session)" onClick={() => onCloseTab(tab, session)}><X aria-hidden="true" size={14} /></button>
+          {session !== undefined && <DelegatedChildren parentSessionKey={session.sessionKey} sessions={sessions} onSelect={(key) => {
+            const child = sessions.find((candidate) => identity(candidate.sessionKey) === identity(key));
+            if (child !== undefined) onOpenSession(child);
+          }} expanded={selected} />}
         </div>;
       })}
       {tabs.length === 0 && <p className="workspace-tabs-empty">No open tabs</p>}

@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import type { MessageStash } from "@pi-station/application-protocol";
+import type { MessageStash, WorkspaceSessionTab } from "@pi-station/application-protocol";
 import {
   ArrowDown,
   ArrowLeft,
@@ -50,7 +50,8 @@ import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
-import { WorkspaceNavigation, type TabbedWorkspace, type WorkspaceTab } from "./WorkspaceNavigation";
+import { WorkspaceNavigation } from "./WorkspaceNavigation";
+import { AgentAttention } from "./AgentAttention";
 import { NotificationSettingsPage } from "./NotificationSettings";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -62,14 +63,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
 import type { SettingsRoute } from "./SettingsPage";
-
-interface WorkspaceClientActions {
-  openSessionInWorkspace(workspaceId: string, projectId: string, sessionId: string): Promise<void>;
-  closeWorkspaceTab(workspaceId: string, tabId: string): Promise<void>;
-  selectWorkspaceTab(workspaceId: string, tabId: string): Promise<void>;
-  closeWorkspace(workspaceId: string): Promise<void>;
-  restoreWorkspace(workspaceId: string): Promise<void>;
-}
 
 const ProjectPage = lazy(async () => ({
   default: (await import("./ProjectPage")).ProjectPage,
@@ -641,6 +634,7 @@ function Sidebar({
   client,
   onActivateWorkspace,
   onCloseWorkspaceTab,
+  onCloseWorkspace,
 }: {
   state: ApplicationState;
   onSelect: (key: SessionKey) => void;
@@ -658,10 +652,11 @@ function Sidebar({
   onCollapse: () => void;
   client?: ApplicationClient | undefined;
   onActivateWorkspace: (id: string) => Promise<void>;
-  onCloseWorkspaceTab: (tab: WorkspaceTab, session?: SessionSummary) => void;
+  onCloseWorkspaceTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
+  onCloseWorkspace: (workspaceId: string) => Promise<void>;
 }) {
-  const workspaceClient = client as (ApplicationClient & WorkspaceClientActions) | undefined;
-  const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId) as TabbedWorkspace | undefined;
+  const workspaceClient = client;
+  const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId);
   const openSessionInWorkspace = async (session: SessionSummary): Promise<void> => {
     if (workspaceClient === undefined || activeWorkspace === undefined || session.projectId === undefined) return;
     await workspaceClient.openSessionInWorkspace(activeWorkspace.id, session.projectId, session.sessionKey.piSessionId);
@@ -683,7 +678,7 @@ function Sidebar({
         onCreate={(name) => workspaceClient?.createWorkspace(name) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
         onRename={(id, name) => workspaceClient?.renameWorkspace(id, name) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
         onDelete={(id) => workspaceClient?.deleteWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
-        onCloseWorkspace={(id) => workspaceClient?.closeWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
+        onCloseWorkspace={onCloseWorkspace}
         onRestoreWorkspace={(id) => workspaceClient?.restoreWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
         onOpenQuickSession={onOpenQuickSession}
         onNewSession={onGeneralNewSession}
@@ -695,12 +690,18 @@ function Sidebar({
           onNewSession={onGeneralNewSession}
           onOpenSession={(session) => { void openSessionInWorkspace(session); }}
           onSelectTab={(tab, session) => {
-            if (workspaceClient === undefined) return;
+            if (workspaceClient === undefined) {
+              onSelect(session.sessionKey);
+              return;
+            }
             void workspaceClient.selectWorkspaceTab(activeWorkspace.id, tab.id).then(() => onSelect(session.sessionKey));
           }}
           onCloseTab={onCloseWorkspaceTab}
         />}
-        {/* NeedsAttention can be mounted here after its parallel component is available. */}
+        <AgentAttention sessions={sessionsVisibleInWorkspace(state.sessions)} onSelect={(key) => {
+          const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
+          if (session !== undefined) void openSessionInWorkspace(session);
+        }} />
       </WorkspaceSwitcher>
       <footer>
         <button className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined} aria-label="Projects and Session library" aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined} onClick={onProjects}><Folder aria-hidden="true" size={17} /><span>Projects / Library</span></button>
@@ -837,8 +838,8 @@ export function Workspace({
   onOpenQuickSession,
   embeddedSession = false,
 }: WorkspaceProps) {
-  const activeWorkspace = (applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
-    ?? applicationState.workspaces?.find((workspace) => (workspace as TabbedWorkspace).closedAt === undefined)) as TabbedWorkspace | undefined;
+  const activeWorkspace = applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
+    ?? applicationState.workspaces?.find((workspace) => workspace.closedAt === undefined);
   // Projects and saved Sessions are global library data. Explicit tabs control Workspace navigation.
   const state = embeddedSession ? applicationState : {
     ...applicationState,
@@ -959,7 +960,7 @@ export function Workspace({
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
   const activateWorkspace = async (id: string): Promise<void> => {
     if (client === undefined || id === state.activeWorkspaceId) return;
-    const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id) as TabbedWorkspace | undefined;
+    const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
     const activeTab = targetWorkspace?.tabs?.find((tab) => tab.id === targetWorkspace.activeTabId) ?? targetWorkspace?.tabs?.[0];
     const targetSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.piSessionId === activeTab.sessionId);
     await client.activateWorkspace(id);
@@ -999,8 +1000,7 @@ export function Workspace({
       const target = workspaces[(current + offset + workspaces.length) % workspaces.length];
       if (target === undefined) return;
       event.preventDefault();
-      const tabbedTarget = target as TabbedWorkspace;
-      const activeTab = tabbedTarget.tabs?.find((tab) => tab.id === tabbedTarget.activeTabId) ?? tabbedTarget.tabs?.[0];
+      const activeTab = target.tabs.find((tab) => tab.id === target.activeTabId) ?? target.tabs[0];
       const firstSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.piSessionId === activeTab.sessionId);
       void client.activateWorkspace(target.id).then(() => {
         setDetailsOpen(false);
@@ -1558,7 +1558,7 @@ export function Workspace({
 
   const openSession = (sessionKey: SessionKey): void => {
     const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, sessionKey));
-    const workspaceClient = client as (ApplicationClient & WorkspaceClientActions) | undefined;
+    const workspaceClient = client;
     const tabAlreadyOpen = activeWorkspace?.tabs?.some(({ sessionId }) => sessionId === sessionKey.piSessionId) ?? false;
     if (target?.projectId !== undefined && activeWorkspace !== undefined && !tabAlreadyOpen) {
       void workspaceClient?.openSessionInWorkspace(activeWorkspace.id, target.projectId, sessionKey.piSessionId).catch((reason: unknown) => toast({
@@ -1890,7 +1890,7 @@ export function Workspace({
       ) return;
 
       const options = [...document.querySelectorAll<HTMLButtonElement>(
-        ".sidebar .session-row[data-session-identity]",
+        ".sidebar .workspace-tab-open[data-session-identity]",
       )];
       const numberMatch = event.code.match(/^(?:Digit|Numpad)([1-9])$/);
       if (numberMatch !== null) {
@@ -2540,9 +2540,13 @@ export function Workspace({
     <Sidebar
       state={state}
       client={client}
-      onActivateWorkspace={activateWorkspace}
+      onActivateWorkspace={(id) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => { void activateWorkspace(id).then(resolve, reject); }))}
+      onCloseWorkspace={(workspaceId) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => {
+        if (client === undefined) { reject(new Error("Workspace changes are unavailable")); return; }
+        void client.closeWorkspace(workspaceId).then(resolve, reject);
+      }))}
       onCloseWorkspaceTab={(tab) => afterSharedMarkdownCheck(() => {
-        const workspaceClient = client as (ApplicationClient & WorkspaceClientActions) | undefined;
+        const workspaceClient = client;
         if (workspaceClient === undefined || activeWorkspace === undefined) return;
         void workspaceClient.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
           message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",

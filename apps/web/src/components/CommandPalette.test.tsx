@@ -22,8 +22,8 @@ describe("CommandPalette stashed messages", () => {
     const user = userEvent.setup()
     const onSelectWorkspace = vi.fn()
     const workspaces = [
-      { id: "agency", name: "Marketing Agency", projectIds: ["site"], closedProjectIds: [], bookmarkedProjectIds: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
-      { id: "product", name: "Product", projectIds: ["app", "api"], closedProjectIds: [], bookmarkedProjectIds: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+      { id: "agency", name: "Marketing Agency", projectIds: ["site"], tabs: [], closedProjectIds: [], bookmarkedProjectIds: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+      { id: "product", name: "Product", projectIds: ["app", "api"], tabs: [], closedProjectIds: [], bookmarkedProjectIds: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
     ]
     render(<CommandPalette {...required} workspaces={workspaces} activeWorkspaceId="agency" onSelectWorkspace={onSelectWorkspace} />)
 

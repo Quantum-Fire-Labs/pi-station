@@ -4,10 +4,8 @@ import type { SavedWorkspace } from "../application/workspace-model";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
-type ClosableWorkspace = SavedWorkspace & { readonly closedAt?: string };
-
-export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, onActivate, onCreate, onRename, onDelete, onCloseWorkspace, onRestoreWorkspace, children }: {
-  workspaces: readonly ClosableWorkspace[];
+export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, onActivate, onCreate, onRename, onDelete, onCloseWorkspace, onRestoreWorkspace, onOpenQuickSession, onNewSession, children }: {
+  workspaces: readonly SavedWorkspace[];
   activeWorkspaceId?: string | undefined;
   onActivate: (id: string) => Promise<void>;
   onCreate: (name: string) => Promise<void>;
@@ -49,6 +47,8 @@ export function WorkspaceSwitcher({ workspaces, activeWorkspaceId, onActivate, o
       {active && <DropdownMenu>
         <DropdownMenuTrigger className="workspace-actions-trigger" disabled={busy} aria-label={`Actions for ${active.name}`}><MoreHorizontal aria-hidden="true" size={16} /></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onOpenQuickSession}>Quick Session</DropdownMenuItem>
+          <DropdownMenuItem onClick={onNewSession}><Plus aria-hidden="true" />New Session</DropdownMenuItem>
           <DropdownMenuItem onClick={() => { const value = window.prompt("Rename Workspace", active.name)?.trim(); if (value) void run(() => onRename(active.id, value)); }}><Pencil aria-hidden="true" />Rename Workspace</DropdownMenuItem>
           <DropdownMenuItem onClick={() => void run(() => onCloseWorkspace(active.id))}><X aria-hidden="true" />Close Workspace</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={() => { if (window.confirm(`Delete Workspace “${active.name}”? Sessions will not be deleted.`)) void run(() => onDelete(active.id)); }}><Trash2 aria-hidden="true" />Delete Workspace</DropdownMenuItem>

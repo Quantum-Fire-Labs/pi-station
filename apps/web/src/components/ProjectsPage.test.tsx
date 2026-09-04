@@ -15,7 +15,7 @@ const pageProps = {
   onProjects: vi.fn(),
   onSettings: vi.fn(),
   onReorderBookmark: vi.fn(),
-  activeWorkspace: { id: "workspace-one", name: "One", projectIds: fixtureState.projects.map(({ projectId }) => projectId), createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+  activeWorkspace: { id: "workspace-one", name: "One", projectIds: fixtureState.projects.map(({ projectId }) => projectId), tabs: [], closedProjectIds: [], bookmarkedProjectIds: [] },
 };
 
 describe("ProjectsPage", () => {

@@ -1,8 +1,9 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Workspace } from "@pi-station/application-protocol";
 import type { SessionSummary } from "../application/workspace-model";
-import { WorkspaceNavigation, type TabbedWorkspace } from "./WorkspaceNavigation";
+import { WorkspaceNavigation } from "./WorkspaceNavigation";
 
 afterEach(cleanup);
 
@@ -14,8 +15,8 @@ const projection: SessionSummary["projection"] = {
 const session = (id: string, name: string, projectId = "project-1"): SessionSummary => ({
   sessionKey: { hostId: "local", piSessionId: id }, name, projectId, projection,
 });
-const workspace: TabbedWorkspace = {
-  id: "workspace-1", name: "Delivery", projectIds: [], createdAt: "", updatedAt: "",
+const workspace: Workspace = {
+  id: "workspace-1", name: "Delivery", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [],
   tabs: [{ id: "tab-1", kind: "session", projectId: "project-1", sessionId: "session-1" }], activeTabId: "tab-1",
 };
 
