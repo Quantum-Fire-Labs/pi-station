@@ -622,7 +622,6 @@ const writeSessionEditorFiles = (files: Readonly<Record<string, SharedMarkdownFi
 
 function Sidebar({
   state,
-  onSelect,
   onDashboard,
   onGeneralNewSession,
   onProjects,
@@ -635,9 +634,11 @@ function Sidebar({
   onActivateWorkspace,
   onCloseWorkspaceTab,
   onCloseWorkspace,
+  onDeleteWorkspace,
+  onOpenSessionInWorkspace,
+  onSelectWorkspaceTab,
 }: {
   state: ApplicationState;
-  onSelect: (key: SessionKey) => void;
   onDashboard: () => void;
   onNewSession: (project: ProjectSummary) => void;
   onGeneralNewSession: () => void;
@@ -654,14 +655,12 @@ function Sidebar({
   onActivateWorkspace: (id: string) => Promise<void>;
   onCloseWorkspaceTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
   onCloseWorkspace: (workspaceId: string) => Promise<void>;
+  onDeleteWorkspace: (workspaceId: string) => Promise<void>;
+  onOpenSessionInWorkspace: (session: SessionSummary) => void;
+  onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
 }) {
   const workspaceClient = client;
   const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId);
-  const openSessionInWorkspace = async (session: SessionSummary): Promise<void> => {
-    if (workspaceClient === undefined || activeWorkspace === undefined || session.projectId === undefined) return;
-    await workspaceClient.openSessionInWorkspace(activeWorkspace.id, session.projectId, session.sessionKey.piSessionId);
-    onSelect(session.sessionKey);
-  };
   return (
     <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Workspace and Sessions">
       <header className="sidebar-header">
@@ -677,7 +676,7 @@ function Sidebar({
         onActivate={onActivateWorkspace}
         onCreate={(name) => workspaceClient?.createWorkspace(name) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
         onRename={(id, name) => workspaceClient?.renameWorkspace(id, name) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
-        onDelete={(id) => workspaceClient?.deleteWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
+        onDelete={onDeleteWorkspace}
         onCloseWorkspace={onCloseWorkspace}
         onRestoreWorkspace={(id) => workspaceClient?.restoreWorkspace(id) ?? Promise.reject(new Error("Workspace changes are unavailable"))}
         onOpenQuickSession={onOpenQuickSession}
@@ -689,19 +688,13 @@ function Sidebar({
           sessions={sessionsVisibleInWorkspace(state.sessions)}
           selectedSessionKey={state.selectedSessionKey}
           onNewSession={onGeneralNewSession}
-          onOpenSession={(session) => { void openSessionInWorkspace(session); }}
-          onSelectTab={(tab, session) => {
-            if (workspaceClient === undefined) {
-              onSelect(session.sessionKey);
-              return;
-            }
-            void workspaceClient.selectWorkspaceTab(activeWorkspace.id, tab.id).then(() => onSelect(session.sessionKey));
-          }}
+          onOpenSession={onOpenSessionInWorkspace}
+          onSelectTab={onSelectWorkspaceTab}
           onCloseTab={onCloseWorkspaceTab}
         />}
         <AgentAttention sessions={sessionsVisibleInWorkspace(state.sessions)} onSelect={(key) => {
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
-          if (session !== undefined) void openSessionInWorkspace(session);
+          if (session !== undefined) onOpenSessionInWorkspace(session);
         }} />
       </WorkspaceSwitcher>
       <footer>
@@ -1557,11 +1550,11 @@ export function Workspace({
     return uri !== undefined && /\.(?:gif|jpe?g|png|webp)(?:$|[?#])/iu.test(uri);
   };
 
-  const openSession = (sessionKey: SessionKey): void => {
+  const openSession = (sessionKey: SessionKey, addToWorkspace = true): void => {
     const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, sessionKey));
     const workspaceClient = client;
     const tabAlreadyOpen = activeWorkspace?.tabs?.some(({ sessionId }) => sessionId === sessionKey.piSessionId) ?? false;
-    if (target?.projectId !== undefined && activeWorkspace !== undefined && !tabAlreadyOpen) {
+    if (addToWorkspace && target?.projectId !== undefined && activeWorkspace !== undefined && !tabAlreadyOpen) {
       void workspaceClient?.openSessionInWorkspace(activeWorkspace.id, target.projectId, sessionKey.piSessionId).catch((reason: unknown) => toast({
         message: reason instanceof Error ? reason.message : "Session could not be added to this Workspace.",
         variant: "error",
@@ -2546,6 +2539,23 @@ export function Workspace({
         if (client === undefined) { reject(new Error("Workspace changes are unavailable")); return; }
         void client.closeWorkspace(workspaceId).then(resolve, reject);
       }))}
+      onDeleteWorkspace={(workspaceId) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => {
+        if (client === undefined) { reject(new Error("Workspace changes are unavailable")); return; }
+        void client.deleteWorkspace(workspaceId).then(resolve, reject);
+      }))}
+      onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => {
+        const isOpen = activeWorkspace?.tabs.some(({ projectId, sessionId }) => projectId === session.projectId && sessionId === session.sessionKey.piSessionId) ?? false;
+        if (client === undefined || activeWorkspace === undefined || session.projectId === undefined || isOpen) { openSession(session.sessionKey, false); return; }
+        void client.openSessionInWorkspace(activeWorkspace.id, session.projectId, session.sessionKey.piSessionId)
+          .then(() => openSession(session.sessionKey, false))
+          .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Session could not be added to this Workspace.", variant: "error" }));
+      })}
+      onSelectWorkspaceTab={(tab, session) => afterSharedMarkdownCheck(() => {
+        if (client === undefined || activeWorkspace === undefined) { openSession(session.sessionKey); return; }
+        void client.selectWorkspaceTab(activeWorkspace.id, tab.id)
+          .then(() => openSession(session.sessionKey))
+          .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace tab could not be selected.", variant: "error" }));
+      })}
       onCloseWorkspaceTab={(tab) => afterSharedMarkdownCheck(() => {
         const workspaceClient = client;
         if (workspaceClient === undefined || activeWorkspace === undefined) return;
@@ -2554,7 +2564,6 @@ export function Workspace({
           variant: "error",
         }));
       })}
-      onSelect={(key) => afterSharedMarkdownCheck(() => openSession(key))}
       onDashboard={() => setRoute("dashboard")}
       onGeneralNewSession={() => setRoute("new-session")}
       onProjects={() => setRoute("projects")}
