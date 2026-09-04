@@ -13,7 +13,7 @@ const projection: SessionSummary["projection"] = {
   management: { kind: "unmanaged" }, capabilities: [],
 };
 const session = (id: string, name: string, projectId = "project-1"): SessionSummary => ({
-  sessionKey: { hostId: "local", piSessionId: id }, name, projectId, projection,
+  sessionKey: { hostId: projectId, piSessionId: id }, name, projectId, projection,
 });
 const workspace: Workspace = {
   id: "workspace-1", name: "Delivery", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [],

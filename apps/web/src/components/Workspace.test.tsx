@@ -40,7 +40,7 @@ const fixtureWorkspace = {
   tabs: baseFixtureState.sessions.filter(({ quickSession, parentSessionKey }) => quickSession !== true && parentSessionKey === undefined).map((session, index) => ({
     id: `tab-${index}`,
     kind: "session" as const,
-    projectId: session.projectId!,
+    projectId: session.sessionKey.hostId,
     sessionId: session.sessionKey.piSessionId,
   })),
 };
@@ -80,6 +80,33 @@ const swipe = (
 };
 
 describe("Workspace", () => {
+  it("opens a requested Session tab before consuming its deep link", async () => {
+    let finish!: () => void;
+    const openSessionInWorkspace = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const onSelect = vi.fn();
+    const onRequestedSessionOpened = vi.fn();
+    const target = fixtureState.sessions.find((session) => session.projection.availability === "available")!;
+    render(<Workspace state={fixtureState} client={{ openSessionInWorkspace } as unknown as ApplicationClient}
+      onSelect={onSelect} requestedSessionKey={target.sessionKey} onRequestedSessionOpened={onRequestedSessionOpened} />);
+    expect(openSessionInWorkspace).toHaveBeenCalledWith(fixtureWorkspace.id, target.sessionKey.hostId, target.sessionKey.piSessionId);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onRequestedSessionOpened).not.toHaveBeenCalled();
+    finish();
+    await waitFor(() => expect(onRequestedSessionOpened).toHaveBeenCalledOnce());
+    expect(onSelect).toHaveBeenCalledWith(target.sessionKey);
+    expect(openSessionInWorkspace).toHaveBeenCalledOnce();
+  });
+
+  it("cycles Session tabs with Control+J using the complete Session identity", () => {
+    enableDesktopViewport();
+    const onSelect = vi.fn();
+    const first = fixtureState.sessions.find((session) => session.sessionKey.piSessionId === fixtureWorkspace.tabs[0]!.sessionId)!;
+    render(<Workspace state={{ ...fixtureState, selectedSessionKey: first.sessionKey }} onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: "j", code: "KeyJ", ctrlKey: true });
+    const next = fixtureWorkspace.tabs[1]!;
+    expect(onSelect).toHaveBeenCalledWith({ hostId: next.projectId, piSessionId: next.sessionId });
+  });
+
   it("lets a user create the first saved Workspace", async () => {
     enableDesktopViewport();
     const user = userEvent.setup();
@@ -138,7 +165,7 @@ describe("Workspace", () => {
       ...fixtureState,
       workspaces: [
         { id: "current", name: "Current", projectIds: [fixtureState.projects[0]!.projectId], ...workspaceFields },
-        { id: "next", name: "Next", projectIds: [targetProject.projectId], ...workspaceFields, tabs: [{ id: "next-tab", kind: "session" as const, projectId: targetProject.projectId, sessionId: targetSession.sessionKey.piSessionId }], activeTabId: "next-tab" },
+        { id: "next", name: "Next", projectIds: [targetProject.projectId], ...workspaceFields, tabs: [{ id: "next-tab", kind: "session" as const, projectId: targetSession.sessionKey.hostId, sessionId: targetSession.sessionKey.piSessionId }], activeTabId: "next-tab" },
       ],
       activeWorkspaceId: "current",
     };
@@ -2015,7 +2042,7 @@ describe("Workspace", () => {
     expect(screen.getByText(/Build the first Workspace shell/u)).toBeVisible();
   });
 
-  it("leaves a retained closed Session feed for the previously viewed Open Session", () => {
+  it("keeps a closed Session tab instead of opening previously viewed work", () => {
     const onSelect = vi.fn();
     const previous = fixtureState.sessions.find((session) => (
       session.sessionKey.piSessionId === "session-client"
@@ -2037,10 +2064,10 @@ describe("Workspace", () => {
       onSelect={onSelect}
     />);
 
-    expect(onSelect).toHaveBeenLastCalledWith(previous.sessionKey);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("prefers the Open parent when the selected delegated child closes", () => {
+  it("keeps a delegated child tab selected when that Session closes", () => {
     const onSelect = vi.fn();
     const parent = fixtureState.sessions.find((session) => (
       session.sessionKey.piSessionId === "session-client"
@@ -2069,7 +2096,7 @@ describe("Workspace", () => {
       onSelect={onSelect}
     />);
 
-    expect(onSelect).toHaveBeenLastCalledWith(parent.sessionKey);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("does not navigate when a non-selected Session closes", () => {

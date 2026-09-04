@@ -19,16 +19,16 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
   onNewSession: () => void;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const sessionById = useMemo(() => new Map(sessions.map((session) => [tabIdentity(session.projectId, session.sessionKey.piSessionId), session])), [sessions]);
+  const sessionById = useMemo(() => new Map(sessions.map((session) => [identity(session.sessionKey), session])), [sessions]);
   const projectById = useMemo(() => new Map(projects.map((project) => [project.projectId, project.name])), [projects]);
   const tabs = workspace.tabs;
   const openIds = new Set(tabs.map(({ projectId, sessionId }) => tabIdentity(projectId, sessionId)));
   const selectedSession = selectedSessionKey === undefined ? undefined : sessions.find((session) => identity(session.sessionKey) === identity(selectedSessionKey));
   const selectedTabId = selectedSession === undefined
     ? workspace.activeTabId
-    : tabs.find((tab) => tabIdentity(tab.projectId, tab.sessionId) === tabIdentity(selectedSession.projectId, selectedSession.sessionKey.piSessionId))?.id;
+    : tabs.find((tab) => tabIdentity(tab.projectId, tab.sessionId) === identity(selectedSession.sessionKey))?.id;
   const savedSessions = sessions
-    .filter((session) => session.quickSession !== true && session.parentSessionKey === undefined && !openIds.has(tabIdentity(session.projectId, session.sessionKey.piSessionId)))
+    .filter((session) => session.quickSession !== true && session.parentSessionKey === undefined && !openIds.has(identity(session.sessionKey)))
     .sort((left, right) => (right.lastActivityAt ?? "").localeCompare(left.lastActivityAt ?? ""));
 
   return <nav className="workspace-navigation" aria-label="Workspace Session tabs">
@@ -39,7 +39,7 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
         const selected = tab.id === selectedTabId;
         const projectLabel = projectById.get(tab.projectId) ?? `Unknown Project (${tab.projectId})`;
         return <div className={`workspace-tab${selected ? " selected" : ""}`} key={tab.id}>
-          <button type="button" className="workspace-tab-open" disabled={session === undefined} aria-current={selected ? "page" : undefined} data-session-shortcut={index < 9 ? index + 1 : undefined} data-session-identity={session === undefined ? undefined : identity(session.sessionKey)} onClick={() => { if (session !== undefined) onSelectTab(tab, session); }}>
+          <button type="button" className="workspace-tab-open" disabled={session === undefined} aria-current={selected ? "page" : undefined} data-session-shortcut={index < 9 ? index + 1 : undefined} data-unread={session?.projection.unread.hasUnread === true ? "true" : undefined} data-session-identity={session === undefined ? undefined : identity(session.sessionKey)} onClick={() => { if (session !== undefined) onSelectTab(tab, session); }}>
             {session === undefined ? <i className="session-status-indicator status-idle" aria-label="Missing Session" /> : <SessionDot session={session} />}
             <span><strong>{session === undefined ? "Session unavailable" : label(session)}</strong><small>{projectLabel}</small>{session === undefined ? <small>Referenced Session was not found.</small> : <SessionStatus session={session} />}</span>
           </button>
@@ -57,16 +57,17 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
       {libraryOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}<Library aria-hidden="true" size={15} />Open saved Session
     </button>
     {libraryOpen && <div className="workspace-session-library" role="list" aria-label="Saved Sessions">
-      {savedSessions.map((session) => <button type="button" role="listitem" aria-label={`Open ${label(session)}`} key={identity(session.sessionKey)} onClick={() => onOpenSession(session)}><SessionDot session={session} /><span>{label(session)}</span><small>{session.displayPath?.split("/").pop()}</small></button>)}
+      {savedSessions.map((session) => <button type="button" role="listitem" aria-label={`Open ${label(session)}`} key={identity(session.sessionKey)} onClick={() => onOpenSession(session)}><SessionDot session={session} /><span>{label(session)}</span><small>{projects.find(({ projectId }) => projectId === session.sessionKey.hostId)?.name ?? "Project unavailable"}</small></button>)}
       {savedSessions.length === 0 && <p>No saved Sessions to open.</p>}
     </div>}
   </nav>;
 }
 
-const tabIdentity = (projectId: string | undefined, sessionId: string): string => `${projectId ?? ""}\0${sessionId}`;
+const tabIdentity = (projectId: string | undefined, sessionId: string): string => `${projectId ?? ""}:${sessionId}`;
 
 function statuses(session: SessionSummary): readonly string[] {
   return [
+    session.projection.availability === "closed" ? "Closed" : undefined,
     session.delegationStatus === "failed" || session.projection.synchronization === "failed" ? "Failed" : undefined,
     session.projection.run === "working" || session.delegationStatus === "working" ? "Working" : undefined,
     session.projection.unread.hasUnread ? "Unread" : undefined,

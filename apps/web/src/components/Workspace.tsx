@@ -97,6 +97,8 @@ interface WorkspaceProps {
   state: ApplicationState;
   client?: ApplicationClient | undefined;
   onSelect: (key: SessionKey) => void;
+  requestedSessionKey?: SessionKey | undefined;
+  onRequestedSessionOpened?: () => void;
   onCommand?: (
     action: ApplicationCommand["action"],
     targetSessionKey?: SessionKey,
@@ -808,6 +810,8 @@ export function Workspace({
   state: applicationState,
   client,
   onSelect,
+  requestedSessionKey,
+  onRequestedSessionOpened,
   onCommand,
   onLoadEarlier,
   onUploadImage,
@@ -914,6 +918,12 @@ export function Workspace({
     });
   };
   const [discardSharedMarkdownAction, setDiscardSharedMarkdownAction] = useState<(() => void)>();
+  const discardSharedMarkdownCancel = useRef<(() => void) | undefined>(undefined);
+  const cancelNavigation = (): void => {
+    setDiscardSharedMarkdownAction(undefined);
+    discardSharedMarkdownCancel.current?.();
+    discardSharedMarkdownCancel.current = undefined;
+  };
   const [closeSessionConfirmOpen, setCloseSessionConfirmOpen] = useState(false);
   const [commandApprovalPending, setCommandApprovalPending] = useState(false);
   const [commandApprovalError, setCommandApprovalError] = useState<string>();
@@ -947,16 +957,21 @@ export function Workspace({
   useEffect(() => {
     if (embeddedSession && state.selectedSessionKey !== undefined) setRouteState("workspace");
   }, [embeddedSession, state.selectedSessionKey]);
-  const afterSharedMarkdownCheck = (action: () => void): void => {
-    if (sharedMarkdownDirty) setDiscardSharedMarkdownAction(() => action);
-    else action();
+  const afterSharedMarkdownCheck = (action: () => void, onCancel?: () => void): void => {
+    if (sharedMarkdownDirty || images.length > 0 || files.length > 0) {
+      discardSharedMarkdownCancel.current?.();
+      discardSharedMarkdownCancel.current = onCancel;
+      setDiscardSharedMarkdownAction(() => action);
+    } else action();
   };
+  const navigationCheck = useRef(afterSharedMarkdownCheck);
+  navigationCheck.current = afterSharedMarkdownCheck;
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
   const activateWorkspace = async (id: string): Promise<void> => {
     if (client === undefined || id === state.activeWorkspaceId) return;
     const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
     const activeTab = targetWorkspace?.tabs?.find((tab) => tab.id === targetWorkspace.activeTabId) ?? targetWorkspace?.tabs?.[0];
-    const targetSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.piSessionId === activeTab.sessionId);
+    const targetSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.hostId === activeTab.projectId && session.sessionKey.piSessionId === activeTab.sessionId);
     await client.activateWorkspace(id);
     setDetailsOpen(false);
     setSelectedProjectId(undefined);
@@ -987,31 +1002,24 @@ export function Workspace({
   useEffect(() => {
     const cycleWorkspace = (event: KeyboardEvent): void => {
       if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat || (event.key !== "[" && event.key !== "]")) return;
-      const workspaces = state.workspaces ?? [];
+      if (document.querySelector("dialog[open], [role='dialog']") !== null) return;
+      const workspaces = (state.workspaces ?? []).filter(({ closedAt }) => closedAt === undefined);
       if (client === undefined || workspaces.length < 2) return;
       const current = Math.max(0, workspaces.findIndex(({ id }) => id === state.activeWorkspaceId));
       const offset = event.key === "]" ? 1 : -1;
       const target = workspaces[(current + offset + workspaces.length) % workspaces.length];
       if (target === undefined) return;
       event.preventDefault();
-      const activeTab = target.tabs.find((tab) => tab.id === target.activeTabId) ?? target.tabs[0];
-      const firstSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.piSessionId === activeTab.sessionId);
-      void client.activateWorkspace(target.id).then(() => {
-        setDetailsOpen(false);
-        setSelectedProjectId(undefined);
-        if (firstSession === undefined) setRouteState("workspace");
-        else {
-          onSelect(firstSession.sessionKey);
-          setRouteState("workspace");
-        }
-      }).catch((reason: unknown) => toast({
-        message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.",
-        variant: "error",
-      }));
+      navigationCheck.current(() => {
+        void activateWorkspace(target.id).catch((reason: unknown) => toast({
+          message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.",
+          variant: "error",
+        }));
+      });
     };
     window.addEventListener("keydown", cycleWorkspace);
     return () => window.removeEventListener("keydown", cycleWorkspace);
-  }, [applicationState.sessions, client, onSelect, state.activeWorkspaceId, state.workspaces, toast]);
+  }, [applicationState.sessions, client, onSelect, state.activeWorkspaceId, state.workspaces, sharedMarkdownDirty, toast]);
   const selectedSessionIdentity = state.selectedSessionKey === undefined
     ? undefined
     : sessionIdentity(state.selectedSessionKey);
@@ -1183,7 +1191,8 @@ export function Workspace({
   useEffect(() => {
     if (newSessionRequest?.status !== "succeeded") return;
     if (newSessionRequest.result?.status === "succeeded") {
-      openSession(newSessionRequest.result.sessionKey);
+      const createdKey = newSessionRequest.result.sessionKey;
+      afterSharedMarkdownCheck(() => openSession(createdKey));
     }
     setNewSessionProject(undefined);
     setNewSessionRequestId(undefined);
@@ -1197,7 +1206,8 @@ export function Workspace({
     focusComposerForSession.current = isDesktopViewport()
       ? resumeSessionRequest.result.sessionKey
       : undefined;
-    openSession(resumeSessionRequest.result.sessionKey);
+    const resumedKey = resumeSessionRequest.result.sessionKey;
+    afterSharedMarkdownCheck(() => openSession(resumedKey));
     setResumeSessionRequestId(undefined);
   }, [resumeSessionRequest?.result]);
 
@@ -1552,13 +1562,16 @@ export function Workspace({
 
   const openSession = (sessionKey: SessionKey, addToWorkspace = true): void => {
     const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, sessionKey));
-    const workspaceClient = client;
-    const tabAlreadyOpen = activeWorkspace?.tabs?.some(({ sessionId }) => sessionId === sessionKey.piSessionId) ?? false;
-    if (addToWorkspace && target?.projectId !== undefined && activeWorkspace !== undefined && !tabAlreadyOpen) {
-      void workspaceClient?.openSessionInWorkspace(activeWorkspace.id, target.projectId, sessionKey.piSessionId).catch((reason: unknown) => toast({
-        message: reason instanceof Error ? reason.message : "Session could not be added to this Workspace.",
+    if (addToWorkspace && client !== undefined && activeWorkspace !== undefined) {
+      const tab = activeWorkspace.tabs.find(({ projectId, sessionId }) => projectId === sessionKey.hostId && sessionId === sessionKey.piSessionId);
+      const operation = tab === undefined
+        ? client.openSessionInWorkspace(activeWorkspace.id, sessionKey.hostId, sessionKey.piSessionId)
+        : client.selectWorkspaceTab(activeWorkspace.id, tab.id);
+      void operation.then(() => openSession(sessionKey, false)).catch((reason: unknown) => toast({
+        message: reason instanceof Error ? reason.message : "Session could not be opened in this Workspace.",
         variant: "error",
       }));
+      return;
     }
     const project = target === undefined
       ? undefined
@@ -1570,8 +1583,6 @@ export function Workspace({
       if (requestId !== undefined) setResumeSessionRequestId(requestId);
       return;
     }
-    for (const image of images) discardImage(image);
-    for (const file of files) discardFile(file);
     focusComposerForSession.current = isDesktopViewport() ? sessionKey : undefined;
     onSelect(sessionKey);
     setSubmittedRequestId(undefined);
@@ -1581,6 +1592,25 @@ export function Workspace({
     setDetailsOpen(false);
     setRouteState("workspace");
   };
+
+  const handledSessionRequest = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (requestedSessionKey === undefined) { handledSessionRequest.current = undefined; return; }
+    if (client === undefined || activeWorkspace === undefined || state.connection !== "ready") return;
+    const identity = `${requestedSessionKey.hostId}:${requestedSessionKey.piSessionId}`;
+    if (handledSessionRequest.current === identity) return;
+    const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, requestedSessionKey));
+    if (target === undefined) return;
+    handledSessionRequest.current = identity;
+    afterSharedMarkdownCheck(() => {
+      void client.openSessionInWorkspace(activeWorkspace.id, requestedSessionKey.hostId, requestedSessionKey.piSessionId)
+        .then(() => { openSession(requestedSessionKey, false); onRequestedSessionOpened?.(); })
+        .catch((reason: unknown) => {
+          handledSessionRequest.current = undefined;
+          toast({ message: reason instanceof Error ? reason.message : "Session could not be opened.", variant: "error" });
+        });
+    });
+  }, [requestedSessionKey, state.connection, state.sessions, activeWorkspace, client]);
 
   const closeSessionCommand = closeSessionRequestId === undefined
     ? undefined
@@ -1678,6 +1708,8 @@ export function Workspace({
   }, [state.selectedSessionKey]);
 
   useLayoutEffect(() => {
+    // A closed Session remains a readable tab. Closing it must not open unrelated work.
+    if (activeWorkspace !== undefined) return;
     const selectedKey = state.selectedSessionKey;
     if (selectedKey === undefined) {
       handledClosedSelection.current = undefined;
@@ -1726,7 +1758,7 @@ export function Workspace({
     const redirect = parent ?? previouslyViewed ?? sameProject;
 
     if (redirect !== undefined) {
-      openSession(redirect.sessionKey);
+      afterSharedMarkdownCheck(() => openSession(redirect.sessionKey));
     } else if (
       closed?.projectId !== undefined
       && state.projects.some((project) => project.projectId === closed.projectId)
@@ -1736,7 +1768,7 @@ export function Workspace({
     } else {
       setRouteState("dashboard");
     }
-  }, [state.projects, state.selectedSessionKey, state.sessionBookmarks, state.sessions]);
+  }, [activeWorkspace, state.projects, state.selectedSessionKey, state.sessionBookmarks, state.sessions]);
 
   useEffect(() => {
     const tracking = cloneSource.current;
@@ -1902,7 +1934,7 @@ export function Workspace({
       event.stopImmediatePropagation();
       const currentIdentity = state.selectedSessionKey === undefined
         ? undefined
-        : sessionIdentity(state.selectedSessionKey);
+        : `${state.selectedSessionKey.hostId}:${state.selectedSessionKey.piSessionId}`;
       const currentIndex = options.findIndex(
         (option) => option.dataset.sessionIdentity === currentIdentity,
       );
@@ -2534,26 +2566,20 @@ export function Workspace({
     <Sidebar
       state={state}
       client={client}
-      onActivateWorkspace={(id) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => { void activateWorkspace(id).then(resolve, reject); }))}
+      onActivateWorkspace={(id) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => { void activateWorkspace(id).then(resolve, reject); }, resolve))}
       onCloseWorkspace={(workspaceId) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => {
         if (client === undefined) { reject(new Error("Workspace changes are unavailable")); return; }
         void client.closeWorkspace(workspaceId).then(resolve, reject);
-      }))}
+      }, resolve))}
       onDeleteWorkspace={(workspaceId) => new Promise<void>((resolve, reject) => afterSharedMarkdownCheck(() => {
         if (client === undefined) { reject(new Error("Workspace changes are unavailable")); return; }
         void client.deleteWorkspace(workspaceId).then(resolve, reject);
-      }))}
-      onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => {
-        const isOpen = activeWorkspace?.tabs.some(({ projectId, sessionId }) => projectId === session.projectId && sessionId === session.sessionKey.piSessionId) ?? false;
-        if (client === undefined || activeWorkspace === undefined || session.projectId === undefined || isOpen) { openSession(session.sessionKey, false); return; }
-        void client.openSessionInWorkspace(activeWorkspace.id, session.projectId, session.sessionKey.piSessionId)
-          .then(() => openSession(session.sessionKey, false))
-          .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Session could not be added to this Workspace.", variant: "error" }));
-      })}
+      }, resolve))}
+      onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}
       onSelectWorkspaceTab={(tab, session) => afterSharedMarkdownCheck(() => {
         if (client === undefined || activeWorkspace === undefined) { openSession(session.sessionKey); return; }
         void client.selectWorkspaceTab(activeWorkspace.id, tab.id)
-          .then(() => openSession(session.sessionKey))
+          .then(() => openSession(session.sessionKey, false))
           .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace tab could not be selected.", variant: "error" }));
       })}
       onCloseWorkspaceTab={(tab) => afterSharedMarkdownCheck(() => {
@@ -2720,7 +2746,7 @@ export function Workspace({
     return renderPage(
       <Dashboard
         state={state}
-        onOpen={openSession}
+        onOpen={(key) => afterSharedMarkdownCheck(() => openSession(key))}
         onOpenProject={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
@@ -2816,7 +2842,7 @@ export function Workspace({
             setNewSessionProject(project);
             setRoute("workspace");
           }}
-          onOpenSession={openSession}
+          onOpenSession={(key) => afterSharedMarkdownCheck(() => openSession(key))}
           onSetProjectBookmark={(bookmarked) => (
             onSetProjectBookmark?.(project.projectId, bookmarked) ?? undefined
           )}
@@ -3546,16 +3572,19 @@ export function Workspace({
       <Modal
         open={discardSharedMarkdownAction !== undefined}
         title="Discard unsaved changes?"
-        description="The changes to this shared Markdown file are not saved."
-        onClose={() => setDiscardSharedMarkdownAction(undefined)}
+        description="Unsaved file changes or message attachments will be discarded. Your message text is kept."
+        onClose={cancelNavigation}
         actions={(
           <>
-            <button type="button" className="modal-button secondary" onClick={() => setDiscardSharedMarkdownAction(undefined)}>Keep editing</button>
+            <button type="button" className="modal-button secondary" onClick={cancelNavigation}>Keep editing</button>
             <button type="button" className="modal-button danger" onClick={() => {
               const action = discardSharedMarkdownAction;
+              discardSharedMarkdownCancel.current = undefined;
               setDiscardSharedMarkdownAction(undefined);
               discardCurrentEditorDraft();
               setCurrentEditorDirty(false);
+              for (const image of images) discardImage(image);
+              for (const file of files) discardFile(file);
               action?.();
             }}>Discard changes</button>
           </>
@@ -3769,7 +3798,7 @@ export function Workspace({
           }}
           onOpenSession={(id) => {
             const session = state.sessions.find((candidate) => candidate.sessionKey.piSessionId === id);
-            if (session) openSession(session.sessionKey);
+            if (session) afterSharedMarkdownCheck(() => openSession(session.sessionKey));
           }}
           onSetBookmark={selectedProject === undefined || selectedSummary === undefined
             ? undefined
