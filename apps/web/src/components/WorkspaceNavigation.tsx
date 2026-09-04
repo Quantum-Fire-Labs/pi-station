@@ -112,7 +112,6 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
   });
 
   return <nav className="workspace-navigation" aria-label="Workspace Session tabs">
-    <div className="workspace-navigation-heading"><span>Open tabs</span><span>{workspace.tabs.length}</span></div>
     <div className="workspace-tab-list">
       {groups.map((group) => {
         const visibleTabs = group.tabs.filter((tab) => !nestedTabIds.has(tab.id));
