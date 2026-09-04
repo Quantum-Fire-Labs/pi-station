@@ -54,6 +54,7 @@ function Root() {
   });
   const [updating, setUpdating] = useState(false);
   const [quickSessionOpen, setQuickSessionOpen] = useState(false);
+  const [requestedSessionKey, setRequestedSessionKey] = useState<Parameters<ApplicationClient["select"]>[0]>();
   const [providerConfigured, setProviderConfigured] = useState<boolean>();
   const quickSessionTrigger = useRef<HTMLElement | null>(null);
   const changeQuickSessionOpen = (open: boolean): void => {
@@ -136,8 +137,8 @@ function Root() {
     if (deepLink === undefined) return;
     const target = findDeepLinkedSession(state.sessions, deepLink);
     if (target) {
-      client.select(target.sessionKey);
-      history.replaceState(null, "", urlAfterConsumingSessionDeepLink(new URL(location.href)));
+      setRequestedSessionKey((current) => current?.hostId === target.sessionKey.hostId && current.piSessionId === target.sessionKey.piSessionId
+        ? current : target.sessionKey);
     }
   }, [client, state.connection, state.sessions]);
 
@@ -241,6 +242,11 @@ function Root() {
       state={state}
       client={client}
       onSelect={selectSession}
+      requestedSessionKey={requestedSessionKey}
+      onRequestedSessionOpened={() => {
+        history.replaceState(null, "", urlAfterConsumingSessionDeepLink(new URL(location.href)));
+        setRequestedSessionKey(undefined);
+      }}
       onCommand={executeCommand}
       onLoadEarlier={loadEarlierHistory}
       {...(client === undefined ? {} : {

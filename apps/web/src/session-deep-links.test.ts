@@ -48,6 +48,13 @@ describe("session deep links", () => {
     expect(findDeepLinkedSession(sessions, { projectId: "beta", sessionId: "same" })?.projectId).toBe("beta");
   });
 
+  it("does not guess an ambiguous or missing Session", () => {
+    const sessions = [session("alpha", "same"), session("beta", "same")];
+    expect(findDeepLinkedSession(sessions, { sessionId: "same" })).toBeUndefined();
+    expect(findDeepLinkedSession(sessions, { sessionId: "missing" })).toBeUndefined();
+    expect(findDeepLinkedSession(sessions, { projectId: "missing", sessionId: "same" })).toBeUndefined();
+  });
+
   it("matches transient hosts when project metadata is absent or different", () => {
     const target = session("configured-project", "target", "transient-host");
     expect(findDeepLinkedSession([target], { projectId: "transient-host", sessionId: "target" })).toBe(target);

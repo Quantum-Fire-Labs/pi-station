@@ -21,10 +21,11 @@ export function findDeepLinkedSession(
   sessions: readonly SessionSummary[],
   target: SessionDeepLinkTarget,
 ): SessionSummary | undefined {
-  return sessions.find((session) => session.sessionKey.piSessionId === target.sessionId
+  const matches = sessions.filter((session) => session.sessionKey.piSessionId === target.sessionId
     && (target.projectId === undefined
       || session.projectId === target.projectId
       || session.sessionKey.hostId === target.projectId));
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /** Removes only Pi Station's consumed selectors, preserving the deployment path,
