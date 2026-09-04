@@ -154,6 +154,12 @@ export class ApplicationClientBase {
   renameWorkspace(_id: string, _name: string): Promise<void> { return Promise.reject(new Error("Workspace rename is unavailable")); }
   deleteWorkspace(_id: string): Promise<void> { return Promise.reject(new Error("Workspace deletion is unavailable")); }
   activateWorkspace(_id: string): Promise<void> { return Promise.reject(new Error("Workspace selection is unavailable")); }
+  openSessionInWorkspace(_workspaceId: string, _projectId: ProjectId, _sessionId: string): Promise<void> { return Promise.reject(new Error("Opening Sessions in Workspaces is unavailable")); }
+  closeWorkspaceTab(_workspaceId: string, _tabId: string): Promise<void> { return Promise.reject(new Error("Closing Workspace tabs is unavailable")); }
+  selectWorkspaceTab(_workspaceId: string, _tabId: string): Promise<void> { return Promise.reject(new Error("Selecting Workspace tabs is unavailable")); }
+  reorderWorkspaceTabs(_workspaceId: string, _tabIds: readonly string[]): Promise<void> { return Promise.reject(new Error("Reordering Workspace tabs is unavailable")); }
+  closeWorkspace(_workspaceId: string): Promise<void> { return Promise.reject(new Error("Closing Workspaces is unavailable")); }
+  restoreWorkspace(_workspaceId: string): Promise<void> { return Promise.reject(new Error("Restoring Workspaces is unavailable")); }
   openProjectInWorkspace(_workspaceId: string, _projectId: ProjectId): Promise<void> { return Promise.reject(new Error("Opening Projects in Workspaces is unavailable")); }
   removeProjectFromWorkspace(_workspaceId: string, _projectId: ProjectId): Promise<void> { return Promise.reject(new Error("Removing Projects from Workspaces is unavailable")); }
   configureDevelopmentServer(_projectId: ProjectId, _configuration: unknown): string | undefined { return undefined; }

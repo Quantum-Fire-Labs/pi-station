@@ -19,6 +19,7 @@ import type {
   TimelineItem as RpcTimelineItem,
   MessageStash,
   CreateMessageStashRequest,
+  Workspace,
 } from "@pi-station/application-protocol";
 import type {
   ApplicationCommand,
@@ -33,6 +34,8 @@ import type {
 type ApplicationTimelineItem = ApplicationState["selected"]["timeline"][number];
 type SucceededCommandEffect = Extract<ApplicationCommandResult["outcome"], { status: "succeeded" }>["effect"];
 import { ApplicationClientBase, type ApplicationState } from "./application-client-base";
+
+const ACTIVE_WORKSPACE_STORAGE_KEY = "pi-station:active-workspace-id";
 
 const RPC_CAPABILITIES = [
   "session.prompt.text",
@@ -108,6 +111,7 @@ export class ApplicationClient extends ApplicationClientBase {
   private markReadSignature: string | undefined;
   private readonly phaseRevisions = new Map<string, { epoch?: string; generation: number; seenEpochs: Set<string> }>();
   private wakeReconciliation: Promise<void> | undefined;
+  private localActiveWorkspaceId: string | undefined;
   private readonly reconcileOnWake = (): void => {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     this.reconcileSessionSummaries();
@@ -387,8 +391,33 @@ export class ApplicationClient extends ApplicationClientBase {
     this.updateRpcState({ projects: response.projects.map(projectSummary) });
   }
 
+  private storedActiveWorkspaceId(): string | undefined {
+    if (this.localActiveWorkspaceId !== undefined) return this.localActiveWorkspaceId;
+    try { return globalThis.localStorage?.getItem(ACTIVE_WORKSPACE_STORAGE_KEY) ?? undefined; } catch { return undefined; }
+  }
+
+  private saveActiveWorkspaceId(id: string): void {
+    this.localActiveWorkspaceId = id;
+    try { globalThis.localStorage?.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, id); } catch { /* Keep the in-memory fallback. */ }
+  }
+
   private applyWorkspaceCollection(collection: WorkspaceCollection): void {
-    this.updateRpcState({ workspaces: collection.workspaces, activeWorkspaceId: collection.activeWorkspaceId });
+    const stored = this.storedActiveWorkspaceId();
+    const activeWorkspaceId = collection.workspaces.some(({ id }) => id === stored)
+      ? stored
+      : collection.workspaces.some(({ id }) => id === collection.activeWorkspaceId)
+        ? collection.activeWorkspaceId
+        : collection.workspaces.find((workspace) => workspace.closedAt === undefined)?.id ?? collection.workspaces[0]?.id;
+    if (activeWorkspaceId !== undefined) this.saveActiveWorkspaceId(activeWorkspaceId);
+    this.updateRpcState({ workspaces: collection.workspaces, activeWorkspaceId });
+  }
+
+  private restoreWorkspaceSelection(workspace: Workspace | undefined): void {
+    const tab = workspace?.tabs?.find(({ id }) => id === workspace.activeTabId);
+    if (tab === undefined) return;
+    const session = this.rpcState.sessions.find(({ sessionKey }) => sessionKey.hostId === tab.projectId
+      && sessionKey.piSessionId === tab.sessionId);
+    if (session !== undefined) this.select(session.sessionKey);
   }
 
   private async refreshActiveWorkspaceProjects(): Promise<void> {
@@ -410,8 +439,40 @@ export class ApplicationClient extends ApplicationClientBase {
   }
 
   override async activateWorkspace(id: string): Promise<void> {
-    this.applyWorkspaceCollection(await mutate(`/v2/workspaces/${encodeURIComponent(id)}/activate`, "POST", {}) as WorkspaceCollection);
-    await this.refreshActiveWorkspaceProjects();
+    const workspace = this.rpcState.workspaces?.find((item) => item.id === id);
+    if (workspace === undefined || workspace.closedAt !== undefined) throw new Error("Workspace is not open");
+    this.saveActiveWorkspaceId(id);
+    this.updateRpcState({ activeWorkspaceId: id });
+    this.restoreWorkspaceSelection(workspace);
+  }
+
+  private async mutateWorkspace(path: string, method: "POST" | "PUT" | "DELETE", body?: unknown): Promise<void> {
+    this.applyWorkspaceCollection(await mutate(path, method, body) as WorkspaceCollection);
+  }
+
+  override async openSessionInWorkspace(workspaceId: string, projectId: ProjectId, sessionId: string): Promise<void> {
+    await this.mutateWorkspace(`/v2/workspaces/${encodeURIComponent(workspaceId)}/tabs`, "POST", { projectId, sessionId });
+  }
+
+  override async closeWorkspaceTab(workspaceId: string, tabId: string): Promise<void> {
+    await this.mutateWorkspace(`/v2/workspaces/${encodeURIComponent(workspaceId)}/tabs/${encodeURIComponent(tabId)}`, "DELETE");
+  }
+
+  override async selectWorkspaceTab(workspaceId: string, tabId: string): Promise<void> {
+    await this.mutateWorkspace(`/v2/workspaces/${encodeURIComponent(workspaceId)}/tabs/${encodeURIComponent(tabId)}/activate`, "POST", {});
+    if (this.rpcState.activeWorkspaceId === workspaceId) this.restoreWorkspaceSelection(this.rpcState.workspaces?.find(({ id }) => id === workspaceId));
+  }
+
+  override async reorderWorkspaceTabs(workspaceId: string, tabIds: readonly string[]): Promise<void> {
+    await this.mutateWorkspace(`/v2/workspaces/${encodeURIComponent(workspaceId)}/tabs`, "PUT", { tabIds });
+  }
+
+  override async closeWorkspace(workspaceId: string): Promise<void> {
+    await this.mutateWorkspace(`/v2/workspaces/${encodeURIComponent(workspaceId)}/close`, "POST", {});
+  }
+
+  override async restoreWorkspace(workspaceId: string): Promise<void> {
+    await this.mutateWorkspace(`/v2/workspaces/${encodeURIComponent(workspaceId)}/restore`, "POST", {});
   }
 
   override async openProjectInWorkspace(workspaceId: string, projectId: ProjectId): Promise<void> {
@@ -796,7 +857,8 @@ export class ApplicationClient extends ApplicationClientBase {
     ]);
     const projects = projectResponse.projects.map(projectSummary);
     const sessions = sessionResponse.sessions.map(sessionSummary);
-    this.updateRpcState({ connection: "ready", projects, projectBookmarks: projectResponse.bookmarks, sessions, sessionBookmarks: sessionResponse.bookmarks, ...(workspaceResponse === undefined ? {} : { workspaces: workspaceResponse.workspaces, activeWorkspaceId: workspaceResponse.activeWorkspaceId }) });
+    this.updateRpcState({ connection: "ready", projects, projectBookmarks: projectResponse.bookmarks, sessions, sessionBookmarks: sessionResponse.bookmarks });
+    if (workspaceResponse !== undefined) this.applyWorkspaceCollection(workspaceResponse);
     for (const phase of sessionResponse.phases ?? []) this.applySessionPhase(phase);
     this.openSessionUpdates(sessionResponse.sequence);
 
@@ -804,6 +866,9 @@ export class ApplicationClient extends ApplicationClientBase {
       this.select(selected);
       return;
     }
+    const activeWorkspace = this.rpcState.workspaces?.find(({ id }) => id === this.rpcState.activeWorkspaceId);
+    this.restoreWorkspaceSelection(activeWorkspace);
+    if (this.rpcState.selectedSessionKey !== undefined || activeWorkspace?.activeTabId !== undefined) return;
     const first = sessions.find((session) => session.projection.availability === "available");
     if (first !== undefined) this.select(first.sessionKey);
   }
