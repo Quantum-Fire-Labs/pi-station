@@ -128,7 +128,7 @@ export function WorkspaceRow({ workspaces, activeWorkspaceId, sessions, onActiva
           const active = workspace.id === activeWorkspaceId;
           const activity = workspaceActivity(workspace, sessions);
           return <div className={`workspace-row-tab${active ? " active" : ""}`} key={workspace.id}>
-            <button ref={active ? activeRef : undefined} type="button" className="workspace-row-activate" aria-current={active ? "page" : undefined} disabled={busy} onClick={() => { if (!active) void run(() => onActivate(workspace.id)); }}>
+            <button ref={active ? activeRef : undefined} type="button" className="workspace-row-activate" aria-current={active ? "page" : undefined} disabled={busy} onClick={() => { void run(() => onActivate(workspace.id)); }}>
               <span className="workspace-row-name" title={workspace.name}>{workspace.name}</span>
               {(activity.working > 0 || activity.unread > 0) && <span className="workspace-row-status">
                 {activity.working > 0 && <span>{activity.working} working</span>}

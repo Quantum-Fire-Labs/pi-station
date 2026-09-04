@@ -473,8 +473,10 @@ body.sidebar-resizing {
 .workspace-navigation { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .workspace-navigation-heading { display: flex; justify-content: space-between; padding: 6px 8px; color: var(--faint); font-size: 10px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
 .workspace-tab-list { min-height: 0; flex: 1; overflow-y: auto; }
-.workspace-tab { position: relative; display: flex; flex-wrap: wrap; align-items: stretch; border-radius: 7px; }
-.workspace-tab > .delegated-children { width: 100%; padding: 0 8px 5px 29px; }
+.workspace-tab { position: relative; display: flex; align-items: stretch; border-radius: 7px; }
+.workspace-session-branch { min-width: 0; }
+.workspace-session-branch > .delegated-children,
+.delegated-branch > .delegated-children { padding: 0 0 2px 16px; }
 .workspace-tab:hover, .workspace-tab.selected { background: var(--raised); }
 .workspace-tab.selected::before { position: absolute; inset: 6px auto 6px 0; width: 2px; background: var(--accent); content: ""; }
 .workspace-tab-open { display: flex; min-width: 0; min-height: 45px; flex: 1; align-items: center; gap: 9px; border: 0; background: transparent; color: var(--text); padding: 5px 4px 5px 10px; text-align: left; }
@@ -483,7 +485,7 @@ body.sidebar-resizing {
 .workspace-tab-open strong { font-size: 12px; font-weight: 600; }
 .workspace-tab-open small { color: var(--faint); font-size: 10px; }
 .workspace-tab-close { width: 28px; border: 0; background: transparent; color: transparent; }
-.workspace-tab:hover .workspace-tab-close, .workspace-tab-close:focus-visible { color: var(--muted); }
+.workspace-tab:hover > .workspace-tab-close, .workspace-tab-close:focus-visible { color: var(--muted); }
 .workspace-tabs-empty, .workspace-session-library p { margin: 8px; color: var(--faint); font-size: 11px; }
 .workspace-navigation-action { display: flex; min-height: 34px; align-items: center; gap: 7px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); padding: 5px 8px; font-size: 11px; text-align: left; }
 .workspace-navigation-action:hover { background: var(--raised); color: var(--text); }

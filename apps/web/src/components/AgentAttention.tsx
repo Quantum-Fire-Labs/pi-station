@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { SessionKey, SessionSummary } from "../application/workspace-model";
 import "./agent-attention.css";
 
@@ -52,7 +53,7 @@ export function AgentAttention({
       <h2 id={headingId} className="agent-attention__heading">{heading}</h2>
       {attention.length === 0 ? <p className="agent-attention__empty">{emptyLabel}</p> : (
         <ul className="agent-attention__list">
-          {attention.map((session) => <AgentButton key={keyOf(session.sessionKey)} session={session} onSelect={onSelect} />)}
+          {attention.map((session) => <li key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} /></li>)}
         </ul>
       )}
     </section>
@@ -93,10 +94,10 @@ function DelegatedBranch({ parentSessionKey, sessions, onSelect, expandedIdentit
   const summary = [`${children.length} ${children.length === 1 ? "agent" : "agents"}`, working > 0 ? `${working} working` : undefined, failed > 0 ? `${failed} failed` : undefined].filter(Boolean).join(" · ");
   const nextAncestors = new Set(ancestors).add(parentId);
   return <div className="delegated-children">
-    <button type="button" className="delegated-children__summary" aria-expanded={isExpanded} onClick={() => onToggle(parentId, !isExpanded)}>{summary}</button>
+    <button type="button" className="delegated-children__summary" aria-expanded={isExpanded} onClick={() => onToggle(parentId, !isExpanded)}>{isExpanded ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}<span>{summary}</span></button>
     {isExpanded && <ul className="agent-attention__list" aria-label="Delegated agents">{children.map((session) => {
       const navigationIndex = counter === undefined ? undefined : counter.value++;
-      return <div key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} navigationIndex={navigationIndex} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} removable={openSessionIdentities?.has(keyOf(session.sessionKey)) === true} onCloseTab={onCloseTab} /><DelegatedBranch parentSessionKey={session.sessionKey} sessions={sessions} onSelect={onSelect} expandedIdentities={expandedIdentities} onToggle={onToggle} counter={counter} selectedSessionKey={selectedSessionKey} openSessionIdentities={openSessionIdentities} onCloseTab={onCloseTab} ancestors={nextAncestors} /></div>;
+      return <li className="delegated-branch" key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} navigationIndex={navigationIndex} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} removable={openSessionIdentities?.has(keyOf(session.sessionKey)) === true} onCloseTab={onCloseTab} /><DelegatedBranch parentSessionKey={session.sessionKey} sessions={sessions} onSelect={onSelect} expandedIdentities={expandedIdentities} onToggle={onToggle} counter={counter} selectedSessionKey={selectedSessionKey} openSessionIdentities={openSessionIdentities} onCloseTab={onCloseTab} ancestors={nextAncestors} /></li>;
     })}</ul>}
   </div>;
 }
@@ -111,7 +112,7 @@ function AgentButton({ session, onSelect, navigationIndex, selected = false, rem
   const label = sessionAttentionLabel(session);
   const statusText = statuses.length > 0 ? statuses.join(", ") : "Idle";
   return (
-    <li className={`${navigationIndex === undefined ? "" : "workspace-tab"}${selected ? " selected" : ""}`}>
+    <div className={`${navigationIndex === undefined ? "" : "workspace-tab"}${selected ? " selected" : ""}`}>
       <button className={`agent-attention__agent${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${statusText}`} aria-current={selected ? "page" : undefined} data-session-identity={navigationIndex === undefined ? undefined : keyOf(session.sessionKey)} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={navigationIndex !== undefined && session.projection.unread.hasUnread ? "true" : undefined}>
         <span className="agent-attention__name">{label}</span>
         <span className="agent-attention__statuses" aria-hidden="true">
@@ -119,7 +120,7 @@ function AgentButton({ session, onSelect, navigationIndex, selected = false, rem
         </span>
       </button>
       {removable && <button type="button" className="workspace-tab-close" aria-label={`Remove ${label} tab`} title="Remove tab (does not close Session)" onClick={() => onCloseTab?.(session.sessionKey)}>×</button>}
-    </li>
+    </div>
   );
 }
 

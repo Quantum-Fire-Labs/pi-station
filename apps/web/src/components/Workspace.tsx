@@ -950,7 +950,7 @@ export function Workspace({
     afterSharedMarkdownCheck(() => { void Promise.resolve().then(action).then(resolve, reject); }, () => reject(new WorkspaceActionCancelled()));
   });
   const activateWorkspace = async (id: string): Promise<void> => {
-    if (client === undefined || id === state.activeWorkspaceId) return;
+    if (client === undefined) return;
     const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
     const activeTab = targetWorkspace?.tabs?.find((tab) => tab.id === targetWorkspace.activeTabId) ?? targetWorkspace?.tabs?.[0];
     const targetSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.hostId === activeTab.projectId && session.sessionKey.piSessionId === activeTab.sessionId);
@@ -2597,7 +2597,7 @@ export function Workspace({
       workspaces={applicationState.workspaces ?? []}
       activeWorkspaceId={applicationState.activeWorkspaceId}
       sessions={sessionsVisibleInWorkspace(applicationState.sessions)}
-      onActivate={(id) => guardedWorkspaceAction(() => activateWorkspace(id))}
+      onActivate={(id) => id === state.activeWorkspaceId && route === "workspace" ? Promise.resolve() : guardedWorkspaceAction(() => activateWorkspace(id))}
       onCreate={(name) => guardedWorkspaceAction(async () => {
         const workspaceClient = requireWorkspaceClient();
         const createdId = await workspaceClient.createWorkspace(name);

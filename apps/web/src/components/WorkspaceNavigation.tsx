@@ -136,12 +136,14 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
               const shortcut = session === undefined ? undefined : ++visibleIndex;
               const childStartIndex = visibleIndex + 1;
               if (session !== undefined) visibleIndex += visibleDelegatedCount(session.sessionKey, sessions, expandedDelegations);
-              return <div className={`workspace-tab${selected ? " selected" : ""}`} key={tab.id}>
+              return <div className="workspace-session-branch" key={tab.id}>
+                <div className={`workspace-tab${selected ? " selected" : ""}`}>
                 <button type="button" className="workspace-tab-open" disabled={session === undefined} aria-current={selected ? "page" : undefined} data-session-shortcut={shortcut !== undefined && shortcut < 10 ? shortcut : undefined} data-unread={session?.projection.unread.hasUnread === true ? "true" : undefined} data-session-identity={session === undefined ? undefined : identity(session.sessionKey)} onClick={() => { if (session !== undefined) onSelectTab(tab, session); }}>
                   {session === undefined ? <i className="session-status-indicator status-idle" aria-label="Missing Session" /> : <SessionDot session={session} />}
                   <span><strong>{session === undefined ? "Session unavailable" : label(session)}</strong>{session === undefined ? <small>Referenced Session was not found.</small> : <SessionStatus session={session} />}</span>
                 </button>
                 <button type="button" className="workspace-tab-close" aria-label={`Remove ${session === undefined ? "unavailable Session" : label(session)} tab`} title="Remove tab (does not close Session)" onClick={() => onCloseTab(tab, session)}><X aria-hidden="true" size={14} /></button>
+                </div>
                 {session !== undefined && <DelegatedChildren parentSessionKey={session.sessionKey} sessions={sessions} onSelect={(key) => { const child = sessionById.get(identity(key)); if (child !== undefined) onOpenSession(child); }} expandedIdentities={expandedDelegations} navigationStartIndex={childStartIndex} selectedSessionKey={selectedSession?.sessionKey} openSessionIdentities={openIds} onCloseTab={(key) => { const childTab = openTabByIdentity.get(identity(key)); const child = sessionById.get(identity(key)); if (childTab !== undefined) onCloseTab(childTab, child); }} onToggleIdentity={(sessionIdentity, expanded) => setExpandedDelegations((current) => { const next = new Set(current); if (expanded) next.add(sessionIdentity); else next.delete(sessionIdentity); return next; })} />}
               </div>;
             })}
