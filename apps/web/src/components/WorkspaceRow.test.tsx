@@ -8,7 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@pi-station/application-protocol";
 import type { SessionSummary } from "../application/workspace-model";
-import { WorkspaceRow, workspaceActivity } from "./WorkspaceRow";
+import { WorkspaceActionCancelled, WorkspaceRow, workspaceActivity } from "./WorkspaceRow";
 
 afterEach(cleanup);
 
@@ -116,6 +116,32 @@ describe("WorkspaceRow", () => {
     await waitFor(() => expect(actions.onClose).toHaveBeenCalledTimes(2));
     await userEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
     expect(screen.getByRole("dialog", { name: "Create Workspace" })).toBeInTheDocument();
+  });
+
+  it("preserves create and rename input when a parent guard cancels", async () => {
+    const actions = callbacks();
+    actions.onCreate.mockRejectedValueOnce(new WorkspaceActionCancelled());
+    actions.onRename.mockRejectedValueOnce(new WorkspaceActionCancelled());
+    render(<WorkspaceRow workspaces={[workspace("one", "One")]} activeWorkspaceId="one" sessions={[]} {...actions} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Workspace name" }), "New name");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect(screen.getByRole("textbox", { name: "Workspace name" })).toHaveValue("New name");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(actions.onCreate).toHaveBeenCalledTimes(2));
+
+    await userEvent.click(screen.getByRole("button", { name: "Actions for One" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
+    const input = screen.getByRole("textbox", { name: "Workspace name" });
+    await userEvent.clear(input);
+    await userEvent.type(input, "Renamed");
+    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
+    expect(screen.getByRole("textbox", { name: "Workspace name" })).toHaveValue("Renamed");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
+    await waitFor(() => expect(actions.onRename).toHaveBeenCalledTimes(2));
   });
 
   it("reports dialog callback errors and enables a retry", async () => {

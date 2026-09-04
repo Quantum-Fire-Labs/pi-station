@@ -12,6 +12,14 @@ export interface WorkspaceActivity {
   readonly unread: number;
 }
 
+/** Signals that a parent guard cancelled an action without an application error. */
+export class WorkspaceActionCancelled extends Error {
+  constructor() {
+    super("Workspace action cancelled");
+    this.name = "WorkspaceActionCancelled";
+  }
+}
+
 function sessionIdentity(session: SessionSummary): string {
   return `${session.sessionKey.hostId}\0${session.sessionKey.piSessionId}`;
 }
@@ -87,7 +95,9 @@ export function WorkspaceRow({ workspaces, activeWorkspaceId, sessions, onActiva
       await operation();
       if (mounted.current && closeOnSuccess) { setDialog(undefined); setName(""); }
     } catch (reason) {
-      if (mounted.current) setError(reason instanceof Error ? reason.message : "Workspace could not be changed.");
+      if (mounted.current && !(reason instanceof WorkspaceActionCancelled)) {
+        setError(reason instanceof Error ? reason.message : "Workspace could not be changed.");
+      }
     } finally {
       if (mounted.current) setBusy(false);
     }
