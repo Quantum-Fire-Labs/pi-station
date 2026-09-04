@@ -222,13 +222,13 @@ export function ProjectPage({
           }}
         >
           <TabsList className="project-page-tabs-list" variant="line" aria-label={`${project.name} sections`}>
-            <TabsTrigger value="sessions">Sessions</TabsTrigger>
+            <TabsTrigger value="sessions">Previous Sessions</TabsTrigger>
             <TabsTrigger value="scheduled-jobs">Scheduled Jobs</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="project-page-tab-content">
-            <section className="project-page-section project-sessions-section" aria-label="Sessions">
+            <section className="project-page-section project-sessions-section" aria-label="Previous Sessions">
               <div className="project-sessions-toolbar">
                 <AlertDialog open={confirmCloseAll} onOpenChange={setConfirmCloseAll}>
                   <AlertDialogTrigger

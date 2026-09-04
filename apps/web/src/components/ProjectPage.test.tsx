@@ -46,9 +46,9 @@ describe("ProjectPage navigation", () => {
 
     const tabs = screen.getByRole("tablist", { name: `${project.name} sections` });
     expect(tabs).toHaveAttribute("data-slot", "tabs-list");
-    expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("region", { name: "Sessions" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Sessions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Previous Sessions" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("region", { name: "Previous Sessions" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Previous Sessions" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
 
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
@@ -98,7 +98,7 @@ describe("ProjectPage navigation", () => {
     const nextProject = fixtureState.projects[1]!;
     rerender(<ProjectPage {...baseProps} project={nextProject} />);
 
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true"));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Previous Sessions" })).toHaveAttribute("aria-selected", "true"));
     expect(screen.getByRole("heading", { name: nextProject.name, level: 1 })).toBeVisible();
     expect(screen.queryByLabelText("Project name")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
@@ -289,7 +289,7 @@ describe("ProjectPage structure", () => {
     expect(screen.getByRole("tablist")).toHaveAttribute("aria-label", `${project.name} sections`);
     for (const control of [
       screen.getByRole("link", { name: "Projects" }),
-      screen.getByRole("tab", { name: "Sessions" }),
+      screen.getByRole("tab", { name: "Previous Sessions" }),
       screen.getByRole("tab", { name: "Scheduled Jobs" }),
       screen.getByRole("tab", { name: "Settings" }),
     ]) {

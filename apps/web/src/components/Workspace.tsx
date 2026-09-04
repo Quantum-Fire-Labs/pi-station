@@ -2842,9 +2842,6 @@ export function Workspace({
     return renderPage(
       <ProjectsPage
         state={applicationState}
-        activeWorkspace={activeWorkspace}
-        onOpenInWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.openProjectInWorkspace(activeWorkspace.id, projectId)}
-        onRemoveFromWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.removeProjectFromWorkspace(activeWorkspace.id, projectId)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
@@ -2912,9 +2909,6 @@ export function Workspace({
     return renderPage(
       <ProjectsPage
         state={applicationState}
-        activeWorkspace={activeWorkspace}
-        onOpenInWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.openProjectInWorkspace(activeWorkspace.id, projectId)}
-        onRemoveFromWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.removeProjectFromWorkspace(activeWorkspace.id, projectId)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
