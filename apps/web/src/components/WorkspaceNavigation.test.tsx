@@ -143,6 +143,21 @@ describe("WorkspaceNavigation", () => {
     expect(screen.getByText("Child").closest("button")).toHaveClass("workspace-tab-open");
   });
 
+  it("keeps a delegated group collapsed on status changes and restores it on Workspace switch", async () => {
+    const parent = session("session-1", "Parent");
+    const child = { ...session("child", "Child"), parentSessionKey: parent.sessionKey };
+    const tabs: Workspace["tabs"] = [...workspace.tabs, { id: "child-tab", kind: "session", projectId: "project-1", sessionId: "child" }];
+    const props = { projects, selectedSessionKey: child.sessionKey, onSelectTab: vi.fn(), onCloseTab: vi.fn(), onOpenSession: vi.fn(), onNewSession: vi.fn() };
+    const view = render(<WorkspaceNavigation workspace={{ ...workspace, tabs }} sessions={[parent, child]} {...props} />);
+    await userEvent.click(await screen.findByRole("button", { name: "1 agent" }));
+    expect(screen.getByRole("button", { name: "1 agent" })).toHaveAttribute("aria-expanded", "false");
+    const workingChild = { ...child, projection: { ...projection, run: "working" as const } };
+    view.rerender(<WorkspaceNavigation workspace={{ ...workspace, tabs }} sessions={[parent, workingChild]} {...props} />);
+    expect(screen.getByRole("button", { name: "1 agent · 1 working" })).toHaveAttribute("aria-expanded", "false");
+    view.rerender(<WorkspaceNavigation workspace={{ ...workspace, id: "another", tabs }} sessions={[parent, workingChild]} {...props} />);
+    expect(await screen.findByRole("button", { name: "Child: Working" })).toBeVisible();
+  });
+
   it("shows collapsed Project activity and starts a Session in that Project", async () => {
     const working = { ...session("session-1", "Open work"), projection: { ...projection, run: "working" as const, unread: { hasUnread: true } } };
     const actions = renderNavigation([working, working]);

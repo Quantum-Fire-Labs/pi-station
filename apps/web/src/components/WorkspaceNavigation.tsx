@@ -52,6 +52,7 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
   const selectedTab = workspace.tabs.find((tab) => tab.id === selectedTabId);
   const selectedSession = requestedSelectedSession ?? (selectedTab === undefined ? undefined : sessionById.get(tabIdentity(selectedTab.projectId, selectedTab.sessionId)));
   const selectedProjectId = selectedTab?.projectId ?? selectedSession?.projectId;
+  const selectedParentIdentity = selectedSession?.parentSessionKey === undefined ? undefined : identity(selectedSession.parentSessionKey);
 
   useEffect(() => {
     setCollapsedProjects(readCollapsed(workspace.id));
@@ -68,9 +69,9 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
     });
   }, [selectedIdentity, selectedProjectId, workspace.id]);
   useEffect(() => {
-    if (selectedSession?.parentSessionKey === undefined) return;
-    setExpandedDelegations((current) => new Set(current).add(identity(selectedSession.parentSessionKey!)));
-  }, [selectedIdentity, selectedSession]);
+    if (selectedParentIdentity === undefined) return;
+    setExpandedDelegations((current) => current.has(selectedParentIdentity) ? current : new Set(current).add(selectedParentIdentity));
+  }, [selectedIdentity, selectedParentIdentity, workspace.id]);
 
   const openIds = new Set(workspace.tabs.map(({ projectId, sessionId }) => tabIdentity(projectId, sessionId)));
   const openTabByIdentity = new Map(workspace.tabs.map((tab) => [tabIdentity(tab.projectId, tab.sessionId), tab]));

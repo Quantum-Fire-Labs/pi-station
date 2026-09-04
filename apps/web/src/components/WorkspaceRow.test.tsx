@@ -67,7 +67,7 @@ describe("WorkspaceRow", () => {
   });
 
   it("keeps the active Workspace visible after a viewport resize", () => {
-    const original = HTMLElement.prototype.scrollIntoView;
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
     const scrollIntoView = vi.fn();
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
     try {
@@ -77,7 +77,7 @@ describe("WorkspaceRow", () => {
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
     } finally {
       if (original === undefined) Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
-      else HTMLElement.prototype.scrollIntoView = original;
+      else Object.defineProperty(HTMLElement.prototype, "scrollIntoView", original);
     }
   });
 
