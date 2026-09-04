@@ -10,6 +10,8 @@
 .workspace-navigation .workspace-tab,
 .workspace-navigation .workspace-tab-open { border-radius: 0; }
 .workspace-navigation .workspace-tab-open { position: relative; min-height: 44px; padding-right: 28px; }
+.sidebar .workspace-tab-open strong,
+.sidebar .agent-attention__name { font-size: 11px; }
 .workspace-navigation .workspace-tab-open[data-session-shortcut]::after { position: absolute; right: 5px; display: grid; width: 18px; height: 18px; place-items: center; visibility: hidden; border: 1px solid var(--line); border-radius: 4px; background: var(--input); color: var(--faint); content: attr(data-session-shortcut); font: 600 9px var(--mono); pointer-events: none; }
 .sidebar.shortcuts-visible .workspace-tab-open[data-session-shortcut]::after { visibility: visible; }
 .workspace-navigation .workspace-tab-close { min-width: 44px; min-height: 44px; }
