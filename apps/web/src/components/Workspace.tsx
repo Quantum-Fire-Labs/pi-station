@@ -620,6 +620,7 @@ const writeSessionEditorFiles = (files: Readonly<Record<string, SharedMarkdownFi
 function Sidebar({
   state,
   onDashboard,
+  onQuickSession,
   onGeneralNewSession,
   onNewSession,
   onProjects,
@@ -634,6 +635,7 @@ function Sidebar({
 }: {
   state: ApplicationState;
   onDashboard: () => void;
+  onQuickSession?: (() => void) | undefined;
   onNewSession: (project: ProjectSummary) => void;
   onGeneralNewSession: () => void;
   onProjects: () => void;
@@ -657,6 +659,7 @@ function Sidebar({
           <svg className="sidebar-brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 12 5M5 12h14M19 12l-7 7" /><circle cx="5" cy="12" r="2.5" /><circle cx="12" cy="5" r="2.5" /><circle cx="19" cy="12" r="2.5" /><circle cx="12" cy="19" r="2.5" /></svg>
           Pi Station
         </button>
+        {onQuickSession !== undefined && <button type="button" className="sidebar-quick-session" aria-label="Quick Session" title="Quick Session (Ctrl/⌘+Shift+Space)" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onQuickSession}><Zap aria-hidden="true" size={16} /></button>}
         <button type="button" aria-label="Hide sidebar" aria-keyshortcuts="Control+B Meta+B" onClick={onCollapse}><PanelLeftClose aria-hidden="true" size={17} /></button>
       </header>
       <div className="workspace-sidebar-navigation">
@@ -2558,6 +2561,7 @@ export function Workspace({
   const sidebar = (
     <Sidebar
       state={state}
+      onQuickSession={onOpenQuickSession}
       onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}
       onSelectWorkspaceTab={(tab, session) => afterSharedMarkdownCheck(() => {
         if (client === undefined || activeWorkspace === undefined) { openSession(session.sessionKey); return; }
