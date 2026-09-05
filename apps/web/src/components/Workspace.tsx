@@ -628,6 +628,7 @@ function Sidebar({
   shortcutsVisible,
   onCollapse,
   onCloseWorkspaceTab,
+  onCloseProjectTabs,
   onOpenSessionInWorkspace,
   onSelectWorkspaceTab,
 }: {
@@ -644,6 +645,7 @@ function Sidebar({
   shortcutsVisible: boolean;
   onCollapse: () => void;
   onCloseWorkspaceTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
+  onCloseProjectTabs: (project: ProjectSummary) => void;
   onOpenSessionInWorkspace: (session: SessionSummary) => void;
   onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
 }) {
@@ -668,8 +670,9 @@ function Sidebar({
           onOpenSession={onOpenSessionInWorkspace}
           onSelectTab={onSelectWorkspaceTab}
           onCloseTab={onCloseWorkspaceTab}
+          onCloseProjectTabs={onCloseProjectTabs}
         />}
-        <AgentAttention sessions={sessionsVisibleInWorkspace(state.sessions)} onSelect={(key) => {
+        <AgentAttention sessions={state.sessions} projects={state.projects} onSelect={(key) => {
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
           if (session !== undefined) onOpenSessionInWorkspace(session);
         }} />
@@ -2562,6 +2565,13 @@ export function Workspace({
           variant: "error",
         }));
       })}
+      onCloseProjectTabs={(project) => afterSharedMarkdownCheck(() => {
+        if (client === undefined || activeWorkspace === undefined) return;
+        void client.closeProjectTabs(activeWorkspace.id, project.projectId).catch((reason: unknown) => toast({
+          message: reason instanceof Error ? reason.message : "Project tabs could not be closed.",
+          variant: "error",
+        }));
+      })}
       onDashboard={() => setRoute("dashboard")}
       onGeneralNewSession={() => setRoute("new-session")}
       onProjects={() => setRoute("projects")}
@@ -2645,6 +2655,12 @@ export function Workspace({
           onCloseTab={(tab) => afterSharedMarkdownCheck(() => {
             void client?.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
               message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
+              variant: "error",
+            }));
+          })}
+          onCloseProjectTabs={(project) => afterSharedMarkdownCheck(() => {
+            void client?.closeProjectTabs(activeWorkspace.id, project.projectId).catch((reason: unknown) => toast({
+              message: reason instanceof Error ? reason.message : "Project tabs could not be closed.",
               variant: "error",
             }));
           })}

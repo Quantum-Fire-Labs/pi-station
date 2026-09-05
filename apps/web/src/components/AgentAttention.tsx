@@ -11,6 +11,7 @@ export interface AgentAttentionProps {
   readonly onSelect: (sessionKey: SessionKey) => void;
   readonly heading?: string;
   readonly emptyLabel?: string;
+  readonly projects?: readonly { readonly projectId: string; readonly name: string }[];
 }
 
 export interface DelegatedChildrenProps {
@@ -39,23 +40,39 @@ export function sessionAttentionLabel(session: SessionSummary): string {
   return session.name?.trim() || session.displayPath?.trim() || session.sessionKey.piSessionId;
 }
 
-export function AgentAttention({
-  sessions,
-  onSelect,
-  heading = "Agent Activity",
-  emptyLabel = "No agent activity",
-}: AgentAttentionProps) {
-  const attention = sessions.filter((session) => agentAttentionStatuses(session).length > 0);
+export function primaryAgentStatus(session: SessionSummary): AgentAttentionStatus | "Idle" {
+  const statuses = agentAttentionStatuses(session);
+  if (statuses.includes("Failed")) return "Failed";
+  if (statuses.includes("Working")) return "Working";
+  if (statuses.includes("Unread")) return "Unread";
+  return "Idle";
+}
+
+export function agentActivitySessions(sessions: readonly SessionSummary[]): readonly SessionSummary[] {
+  const unique = [...new Map(sessions.map((session) => [keyOf(session.sessionKey), session])).values()]
+    .filter((session) => agentAttentionStatuses(session).length > 0);
+  const priority = (session: SessionSummary) => {
+    const status = primaryAgentStatus(session);
+    return status === "Failed" ? 0 : status === "Unread" ? 1 : 2;
+  };
+  return unique.sort((left, right) => priority(left) - priority(right));
+}
+
+export function AgentAttention({ sessions, onSelect, heading = "Agent Activity", projects = [] }: AgentAttentionProps) {
+  const attention = agentActivitySessions(sessions);
+  const [expanded, setExpanded] = useState(true);
   const headingId = useId();
+  const projectNames = new Map(projects.map((project) => [project.projectId, project.name]));
+  if (attention.length === 0) return null;
 
   return (
     <section className="agent-attention" aria-labelledby={headingId}>
-      <h2 id={headingId} className="agent-attention__heading">{heading}</h2>
-      {attention.length === 0 ? <p className="agent-attention__empty">{emptyLabel}</p> : (
-        <ul className="agent-attention__list">
-          {attention.map((session) => <li key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} /></li>)}
-        </ul>
-      )}
+      <button type="button" className="agent-attention__heading" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+        {expanded ? <ChevronDown aria-hidden="true" size={13} /> : <ChevronRight aria-hidden="true" size={13} />}<span id={headingId}>{heading}</span><small>{attention.length}</small>
+      </button>
+      {expanded && <ul className="agent-attention__list agent-attention__list--activity">
+        {attention.map((session) => <li key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} {...(projectNames.get(session.projectId ?? session.sessionKey.hostId) === undefined ? {} : { context: projectNames.get(session.projectId ?? session.sessionKey.hostId)! })} activity /></li>)}
+      </ul>}
     </section>
   );
 }
@@ -107,17 +124,15 @@ function directChildren(parentSessionKey: SessionKey, sessions: readonly Session
   return sessions.filter((session) => session.parentSessionKey !== undefined && sameKey(session.parentSessionKey, parentSessionKey) && !seen.has(keyOf(session.sessionKey)) && Boolean(seen.add(keyOf(session.sessionKey))));
 }
 
-function AgentButton({ session, onSelect, navigationIndex, selected = false, removable = false, onCloseTab }: { readonly session: SessionSummary; readonly onSelect: (key: SessionKey) => void; readonly navigationIndex?: number | undefined; readonly selected?: boolean; readonly removable?: boolean; readonly onCloseTab?: ((key: SessionKey) => void) | undefined }) {
-  const statuses = agentAttentionStatuses(session);
+function AgentButton({ session, onSelect, navigationIndex, selected = false, removable = false, onCloseTab, context, activity = false }: { readonly session: SessionSummary; readonly onSelect: (key: SessionKey) => void; readonly navigationIndex?: number | undefined; readonly selected?: boolean; readonly removable?: boolean; readonly onCloseTab?: ((key: SessionKey) => void) | undefined; readonly context?: string; readonly activity?: boolean }) {
   const label = sessionAttentionLabel(session);
-  const statusText = statuses.length > 0 ? statuses.join(", ") : "Idle";
+  const status = primaryAgentStatus(session);
   return (
     <div className={`${navigationIndex === undefined ? "" : "workspace-tab"}${selected ? " selected" : ""}`}>
-      <button className={`agent-attention__agent${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${statusText}`} aria-current={selected ? "page" : undefined} data-session-identity={navigationIndex === undefined ? undefined : keyOf(session.sessionKey)} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={navigationIndex !== undefined && session.projection.unread.hasUnread ? "true" : undefined}>
-        <span className="agent-attention__name">{label}</span>
-        <span className="agent-attention__statuses" aria-hidden="true">
-          {statuses.length > 0 ? statuses.map((status) => <span className={`agent-attention__status agent-attention__status--${status.toLowerCase()}`} key={status}>{status}</span>) : <span className="agent-attention__status">Idle</span>}
-        </span>
+      <button className={`agent-attention__agent${activity ? " agent-attention__agent--activity" : ""}${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${status}`} aria-current={selected ? "page" : undefined} data-session-identity={navigationIndex === undefined ? undefined : keyOf(session.sessionKey)} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={navigationIndex !== undefined && session.projection.unread.hasUnread ? "true" : undefined}>
+        {activity && <i className={`agent-attention__marker agent-attention__marker--${status.toLowerCase()}`} aria-hidden="true" />}
+        <span className="agent-attention__identity"><span className="agent-attention__name">{label}</span>{context && <small>{context}</small>}</span>
+        <span className={`agent-attention__status agent-attention__status--${status.toLowerCase()}`} aria-hidden="true">{status}</span>
       </button>
       {removable && <button type="button" className="workspace-tab-close" aria-label={`Remove ${label} tab`} title="Remove tab (does not close Session)" onClick={() => onCloseTab?.(session.sessionKey)}>×</button>}
     </div>

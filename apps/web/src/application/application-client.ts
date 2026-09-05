@@ -477,6 +477,11 @@ export class ApplicationClient extends ApplicationClientBase {
     if (this.rpcState.activeWorkspaceId === workspaceId) this.restoreOrClearActiveWorkspace();
   }
 
+  override async closeProjectTabs(workspaceId: string, projectId: ProjectId): Promise<void> {
+    await this.mutateWorkspace(`/v2/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}/tabs`, "DELETE");
+    if (this.rpcState.activeWorkspaceId === workspaceId) this.restoreOrClearActiveWorkspace();
+  }
+
   override async selectWorkspaceTab(workspaceId: string, tabId: string): Promise<void> {
     await this.mutateWorkspace(`/v2/workspaces/${encodeURIComponent(workspaceId)}/tabs/${encodeURIComponent(tabId)}/activate`, "POST", {});
     if (this.rpcState.activeWorkspaceId === workspaceId) this.restoreWorkspaceSelection(this.rpcState.workspaces?.find(({ id }) => id === workspaceId));

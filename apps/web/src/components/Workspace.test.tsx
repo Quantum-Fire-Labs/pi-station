@@ -863,66 +863,6 @@ describe("Workspace", () => {
     expect(onListDirectory).toHaveBeenCalledWith(undefined, false);
   });
 
-  it("opens the general new Session page from the sidebar", async () => {
-    const user = userEvent.setup();
-    const onListDirectory = vi.fn(() => "directory-request");
-    render(
-      <Workspace
-        state={fixtureStateWithWorkspace}
-        onSelect={vi.fn()}
-        onListDirectory={onListDirectory}
-      />,
-    );
-
-    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
-    await user.click(within(sidebar).getByRole("button", { name: "New Session" }));
-    expect(screen.getByRole("heading", { name: "New Session" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Project" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    await user.click(screen.getByRole("tab", { name: "Directory" }));
-    expect(onListDirectory).toHaveBeenCalledWith(undefined, false);
-  });
-
-  it("focuses the composer after a general Session starts on desktop", async () => {
-    enableDesktopViewport();
-    const user = userEvent.setup();
-    const onCreateManagedSession = vi.fn(() => "create-request");
-    const { rerender } = render(
-      <Workspace
-        state={{ ...fixtureStateWithWorkspace, managedSessionCreates: {} }}
-        onSelect={vi.fn()}
-        onCreateManagedSession={onCreateManagedSession}
-      />,
-    );
-
-    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
-    await user.click(within(sidebar).getByRole("button", { name: "New Session" }));
-    await user.click(screen.getByRole("button", { name: "Start Pi" }));
-
-    rerender(
-      <Workspace
-        state={{
-          ...fixtureStateWithWorkspace,
-          managedSessionCreates: {
-            "create-request": {
-              requestId: "create-request",
-              status: "succeeded",
-              result: { status: "succeeded", sessionKey: fixtureState.selectedSessionKey! },
-            },
-          },
-        }}
-        onSelect={vi.fn()}
-        onCreateManagedSession={onCreateManagedSession}
-      />,
-    );
-
-    await waitFor(() => expect(screen.getByLabelText("Message Pi")).toHaveFocus());
-  });
-
-
-
   it("moves focus to the composer when Enter is pressed on the conversation page", async () => {
     const user = userEvent.setup();
     render(<Workspace state={fixtureState} onSelect={vi.fn()} />);

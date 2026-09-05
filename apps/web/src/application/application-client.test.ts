@@ -692,6 +692,7 @@ describe("Pi Station incremental Session summaries", () => {
     await client.selectWorkspaceTab("workspace", "tab one");
     await client.reorderWorkspaceTabs("workspace", ["tab-two", "tab-one"]);
     await client.closeWorkspaceTab("workspace", "tab one");
+    await client.closeProjectTabs("workspace", "project/one");
     await client.closeWorkspace("workspace");
     await client.restoreWorkspace("workspace");
 
@@ -700,6 +701,7 @@ describe("Pi Station incremental Session summaries", () => {
       ["/v2/workspaces/workspace/tabs/tab%20one/activate", "POST", "{}"],
       ["/v2/workspaces/workspace/tabs", "PUT", JSON.stringify({ tabIds: ["tab-two", "tab-one"] })],
       ["/v2/workspaces/workspace/tabs/tab%20one", "DELETE", undefined],
+      ["/v2/workspaces/workspace/projects/project%2Fone/tabs", "DELETE", undefined],
       ["/v2/workspaces/workspace/close", "POST", "{}"],
       ["/v2/workspaces/workspace/restore", "POST", "{}"],
     ]);

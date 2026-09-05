@@ -786,6 +786,15 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.setWorkspaceClosed(workspaceId, workspaceLifecycleRoute[2] === "close", await projectStore.read(), await sessions()) })
         return
       }
+      const workspaceProjectTabsRoute = /^\/v2\/workspaces\/([^/]+)\/projects\/([^/]+)\/tabs$/u.exec(url.pathname)
+      if (request.method === "DELETE" && workspaceProjectTabsRoute !== null) {
+        const workspaceId = decodeURIComponent(workspaceProjectTabsRoute[1]!)
+        const projectId = decodeURIComponent(workspaceProjectTabsRoute[2]!)
+        if (!isProtocolId(workspaceId) || !isProtocolId(projectId)) throw new HttpError(404, "Not found")
+        const projects = await projectStore.read()
+        sendJson(response, 200, { version: PROTOCOL_VERSION, ...await workspaceStore.closeProjectTabs(workspaceId, projectId, projects, await sessions()) })
+        return
+      }
       const workspaceProjectRoute = /^\/v2\/workspaces\/([^/]+)\/projects\/([^/]+)(?:\/(open))?$/u.exec(url.pathname)
       if (workspaceProjectRoute !== null && ((request.method === "POST" && workspaceProjectRoute[3] === "open") || (request.method === "DELETE" && workspaceProjectRoute[3] === undefined))) {
         const workspaceId = decodeURIComponent(workspaceProjectRoute[1]!)

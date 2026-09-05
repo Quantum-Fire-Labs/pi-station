@@ -127,6 +127,22 @@ describe("WorkspaceStore", () => {
     await expect(store.reorderTabs(workspace.id, [workspace.tabs[0]!.id, workspace.tabs[0]!.id], projects, many.slice(0, 1))).rejects.toMatchObject({ code: "invalid" })
   })
 
+  it("atomically closes only matching Project tabs in one Workspace and selects the next tab", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const store = new WorkspaceStore(data)
+    const first = (await store.list(projects)).workspaces[0]!.id
+    const second = (await store.create({ name: "Other" }, projects)).workspaces[1]!.id
+    await store.openSession(first, "project-1", "one", projects)
+    await store.openSession(first, "project-2", "keep", projects)
+    const before = await store.openSession(first, "project-1", "two", projects)
+    await store.openSession(second, "project-1", "other-workspace", projects)
+
+    const result = await store.closeProjectTabs(first, "project-1", projects)
+    expect(result.workspaces[0]).toMatchObject({ activeTabId: before.workspaces[0]!.tabs[1]!.id, projectIds: before.workspaces[0]!.projectIds })
+    expect(result.workspaces[0]!.tabs.map((tab) => tab.sessionId)).toEqual(["keep"])
+    expect(result.workspaces[1]!.tabs.map((tab) => tab.sessionId)).toEqual(["other-workspace"])
+  })
+
   it("manages scoped tabs and Workspace lifecycle without changing Session state", async () => {
     const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
     const store = new WorkspaceStore(data)
