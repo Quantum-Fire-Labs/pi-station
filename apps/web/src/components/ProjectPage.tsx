@@ -225,13 +225,11 @@ export function ProjectPage({
           <TabsContent value="sessions" className="project-page-tab-content">
             <section className="project-page-section project-sessions-section" aria-label="Previous Sessions">
               <div className="project-sessions-heading">
-                <div><h2>Previous Sessions</h2><p>Open a recent Session or start a new one.</p></div>
                 <div className="project-session-search">
                   <Search aria-hidden="true" />
                   <Input value={sessionQuery} onChange={(event) => setSessionQuery(event.target.value)} placeholder="Search Previous Sessions" aria-label="Search Previous Sessions" />
                 </div>
-              </div>
-              <div className="project-sessions-toolbar">
+                <div className="project-sessions-toolbar">
                 <AlertDialog open={confirmCloseAll} onOpenChange={setConfirmCloseAll}>
                   <AlertDialogTrigger
                     disabled={closable.length === 0 || onCloseSessions === undefined}
@@ -269,6 +267,7 @@ export function ProjectPage({
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+                </div>
               </div>
               {visibleBookmarked.length > 0 && (
                 <SessionGroup
