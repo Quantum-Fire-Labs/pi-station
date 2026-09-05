@@ -22,8 +22,9 @@
 .global-session-row > div { flex: 1; min-width: 0; }
 .global-session-row .agent-attention__agent { min-height: 44px; border-radius: 0; }
 .global-session-row .agent-attention__agent[aria-current="page"] { background: var(--raised); }
-.global-session-remove { width: 44px; min-height: 44px; flex: none; border: 0; padding: 0; border-radius: 0; background: transparent; color: var(--faint); font-size: 14px; cursor: pointer; }
-.global-session-remove:hover, .global-session-remove:focus-visible { color: var(--text); background: var(--raised); }
+.global-session-remove { display: grid; place-items: center; width: 44px; min-height: 44px; flex: none; border: 0; padding: 0; border-radius: 0; background: transparent; color: transparent; cursor: pointer; }
+.global-session-row:hover > .global-session-remove, .global-session-remove:focus-visible { color: var(--muted); }
+@media (hover: none) { .global-session-remove { color: var(--muted); } }
 .global-sessions-empty { margin: 8px 0; color: var(--faint); font-size: 11px; }
 .agent-attention__list { display: grid; gap: 0; margin: 2px 0 0; padding: 0; list-style: none; }
 .agent-attention__list--activity { min-height: 0; flex: 1; grid-auto-rows: min-content; align-content: start; overflow-y: auto; overscroll-behavior: contain; }

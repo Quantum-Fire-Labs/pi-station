@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import type { SessionKey, SessionSummary } from "../application/workspace-model";
 import "./agent-attention.css";
 
@@ -85,7 +85,7 @@ export function AgentAttention({ sessions, onSelect, heading = "Agent Activity",
         {attention.map((session) => {
           const projectName = projectNames.get(session.projectId ?? session.sessionKey.hostId);
           const context = projectName ?? session.displayPath?.trim();
-          return <li className={persistent ? "global-session-row" : undefined} key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} {...(context === undefined ? {} : { context })} activity />{onRemove !== undefined && <button type="button" className="global-session-remove" aria-label={`Remove ${sessionAttentionLabel(session)} from Sessions`} title="Remove from list only; the agent and Workspace tabs stay open" onClick={() => onRemove(session.sessionKey)}>×</button>}</li>;
+          return <li className={persistent ? "global-session-row" : undefined} key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} {...(context === undefined ? {} : { context })} activity />{onRemove !== undefined && <button type="button" className="global-session-remove" aria-label={`Remove ${sessionAttentionLabel(session)} from Sessions`} title="Remove from list only; the agent and Workspace tabs stay open" onClick={() => onRemove(session.sessionKey)}><X aria-hidden="true" size={14} /></button>}</li>;
         })}
       </ul>}
     </section>
