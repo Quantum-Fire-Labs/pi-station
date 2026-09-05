@@ -257,13 +257,14 @@ textarea:focus-visible {
 }
 .pairing-error { color: var(--danger); }
 .workspace-application {
+  --workspace-top-offset: 0px;
   display: flex;
   min-width: 0;
   min-height: 100dvh;
   flex-direction: column;
   overflow-x: clip;
 }
-.workspace-application:has(> .workspace-row) { padding-top: 44px; }
+.workspace-application:has(> .workspace-row) { --workspace-top-offset: 44px; padding-top: 44px; }
 .workspace-application:has(> .workspace-row) .session { min-height: calc(100dvh - 44px); }
 .workspace-application > .workspace-row {
   position: fixed;
@@ -849,7 +850,7 @@ body.sidebar-resizing {
 .session-header {
   position: sticky;
   z-index: 10;
-  top: 0;
+  top: var(--workspace-top-offset, 0px);
   display: grid;
   min-height: 72px;
   grid-template-columns: 72px minmax(0, 1fr) 72px;
@@ -913,7 +914,7 @@ body.sidebar-resizing {
 .connection-notice {
   position: sticky;
   z-index: 9;
-  top: 72px;
+  top: calc(var(--workspace-top-offset, 0px) + 72px);
   border-block: 1px solid var(--line);
   background: color-mix(in srgb, var(--page) 96%, var(--accent));
   color: var(--muted);
@@ -924,7 +925,7 @@ body.sidebar-resizing {
 .working-strip {
   position: fixed;
   z-index: 9;
-  top: 72px;
+  top: calc(var(--workspace-top-offset, 0px) + 72px);
   right: 0;
   left: var(--rail);
   height: 46px;
@@ -4412,6 +4413,7 @@ body.sidebar-resizing {
     flex: 0 0 44px;
     background: var(--page);
   }
+  .workspace-application:has(> .mobile-workspace-navigation) { --workspace-top-offset: 88px; }
   .workspace-application:has(> .mobile-workspace-navigation) .session,
   .workspace-application:has(> .mobile-workspace-navigation) .workspace-page { min-height: calc(100dvh - 88px); }
   .mobile-workspace-navigation > summary {
@@ -4486,7 +4488,7 @@ body.sidebar-resizing {
   }
   .connection-notice,
   .working-strip {
-    top: 70px;
+    top: calc(var(--workspace-top-offset, 0px) + 70px);
   }
   .working-strip {
     left: 0;
