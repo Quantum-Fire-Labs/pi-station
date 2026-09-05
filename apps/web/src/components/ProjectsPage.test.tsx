@@ -18,6 +18,61 @@ const pageProps = {
 };
 
 describe("ProjectsPage", () => {
+  it("expands Projects independently, limits recent work to five roots, and opens exact Session keys", async () => {
+    const user = userEvent.setup();
+    const project = fixtureState.projects[0]!;
+    const second = fixtureState.projects[1]!;
+    const source = fixtureState.sessions[0]!;
+    const onOpenSession = vi.fn();
+    const onOpen = vi.fn();
+    const sessions = Array.from({ length: 7 }, (_, i) => ({ ...source, name: `Task ${i}`, projectId: project.projectId, sessionKey: { ...source.sessionKey, piSessionId: `task-${i}` }, lastActivityAt: `2026-09-0${i + 1}T00:00:00Z` }));
+    const child = { ...sessions[6]!, name: "Hidden delegate", sessionKey: { ...source.sessionKey, piSessionId: "child" }, parentSessionKey: source.sessionKey };
+    render(<ProjectsPage {...pageProps} state={{ ...fixtureState, sessions: [...sessions, child] }} onOpen={onOpen} onOpenSession={onOpenSession} />);
+    const disclosure = screen.getByRole("button", { name: `Recent Sessions in ${project.name}` });
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    await user.click(disclosure);
+    const list = screen.getByRole("list", { name: `Recent Sessions in ${project.name}` });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
+    expect([...list.querySelectorAll(".project-recent-session-name")].map((node) => node.textContent)).toEqual(["Task 6", "Task 5", "Task 4", "Task 3", "Task 2"]);
+    expect(screen.queryByText("Hidden delegate")).not.toBeInTheDocument();
+    await user.click(within(list).getByRole("button", { name: /^Task 6/ }));
+    expect(onOpenSession).toHaveBeenCalledExactlyOnceWith(sessions[6]!.sessionKey);
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: `Recent Sessions in ${second.name}` }));
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("No Sessions yet.")).toBeVisible();
+    await user.click(screen.getAllByRole("button", { name: "View all sessions" })[0]!);
+    expect(onOpen).toHaveBeenCalled();
+    await user.type(screen.getByRole("textbox", { name: "Search Projects" }), "not-a-project");
+    await user.clear(screen.getByRole("textbox", { name: "Search Projects" }));
+    expect(screen.getByRole("button", { name: `Recent Sessions in ${project.name}` })).toHaveAttribute("aria-expanded", "true");
+  });
+  it("orders recent work before older work and keeps Session creation separate from opening a Project", async () => {
+    const user = userEvent.setup();
+    const recent = fixtureState.projects[0]!;
+    const other = fixtureState.projects[1]!;
+    const source = fixtureState.sessions[0]!;
+    const onNewSession = vi.fn();
+    const onOpen = vi.fn();
+    const state = { ...fixtureState, projectBookmarks: [], sessions: [
+      { ...source, projectId: recent.projectId, lastActivityAt: "2026-09-05T10:00:00Z", name: "Latest task" },
+      { ...source, projectId: other.projectId, lastActivityAt: "2026-08-01T10:00:00Z", name: "Older task" },
+    ] };
+    render(<ProjectsPage {...pageProps} state={state} onOpen={onOpen} onNewSession={onNewSession} />);
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[0]!).getByRole("heading", { name: recent.name })).toBeVisible();
+    expect(screen.queryByText("Latest task")).not.toBeInTheDocument();
+    await user.click(within(rows[0]!).getByRole("button", { name: `Recent Sessions in ${recent.name}` }));
+    expect(within(rows[0]!).getByText("Latest task")).toBeVisible();
+    await user.click(within(rows[0]!).getByRole("button", { name: `Recent Sessions in ${recent.name}` }));
+    await user.click(within(rows[0]!).getByRole("button", { name: `New Session in ${recent.name}` }));
+    expect(onNewSession).toHaveBeenCalledExactlyOnceWith(recent);
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Sort Projects" }), "name");
+    expect(screen.getAllByRole("listitem").map((row) => row.querySelector("h3")?.textContent)).toEqual([other.name, recent.name].sort());
+    await user.click(screen.getByRole("button", { name: "Open directory" }));
+    expect(onNewSession).toHaveBeenLastCalledWith();
+  });
   it("does not show a header back button", () => {
     render(
       <ProjectsPage

@@ -1,0 +1,46 @@
+.projects-index-page .projects-page-shell, .project-page-view .project-page-shell { max-width: 1080px; }
+.projects-index-page .projects-page-toolbar { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+.projects-index-page .projects-page-toolbar > svg { top: 22px; }
+:root .projects-index-page .projects-page-toolbar > input { min-height: 44px; }
+:root .projects-index-page .projects-page-header-actions button { min-height: 44px; }
+:root .projects-index-page .projects-page-header-actions button:first-child { background: transparent; }
+.projects-index-page .projects-page-toolbar > input { flex: 1; min-width: 160px; width: auto; }
+.projects-sort { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+:root .projects-index-page .projects-sort select { min-height: 44px; max-width: 170px; border: 0; background: var(--input); color: var(--text); padding: 0 10px; font: inherit; }
+.projects-index-page .projects-page-row { padding-block: 8px; }
+.projects-index-page .projects-page-row-open { gap: 12px; min-height: 76px; }
+.projects-index-page .projects-page-row-copy { flex: 1; min-width: 0; }
+.projects-index-page .projects-page-row-copy h3 { font-size: 14px; font-weight: 600; }
+.projects-index-page .projects-page-row-copy > span { font-size: 11px; }
+.project-work-status { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
+.projects-index-page .project-work-status > i, .project-page-view .project-work-status > i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.project-work-status.status-working { color: var(--accent2); }
+.project-work-status.status-unread { color: var(--success); }
+.project-work-status.status-failed { color: var(--danger); }
+.project-page-view .project-sessions-section { gap: 12px; }
+.project-work-intro, .project-work-empty { margin: 0; color: var(--muted); font-size: 12px; }
+.project-section-count { margin-left: 6px; color: var(--faint); font-size: 11px; }
+.project-session-filters { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 4px; }
+:root .project-page-view .project-session-filters > button { background: transparent; min-height: 44px; padding-inline: 14px; font-size: 11px; color: var(--muted); border-radius: 0; }
+:root .project-page-view .project-session-filters > button[aria-pressed="true"] { background: var(--raised); color: var(--text); box-shadow: inset 0 -2px var(--accent2); }
+.project-session-management { position: relative; color: var(--muted); font-size: 11px; }
+.project-session-management summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; padding-inline: 10px; }
+.project-session-management[open] { background: var(--raised); }
+.project-page-view .project-session-open-view { min-height: 76px; height: auto; padding-block: 14px; white-space: normal; }
+.project-page-view .project-session-open-copy { display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 20px; width: 100%; min-width: 0; }
+.project-page-view .project-session-name { display: grid; gap: 5px; min-width: 0; }
+.project-page-view .project-session-name strong { font-size: 13px; font-weight: 500; }
+.project-page-view .project-session-context { color: var(--faint); font-size: 10px; font-weight: 400; }
+.project-session-work-meta { display: grid; justify-items: end; gap: 5px; flex: none; }
+.project-session-work-meta time { color: var(--faint); font-size: 10px; font-weight: 400; }
+.project-page-view .project-session-action-button { min-width: 44px; min-height: 44px; }
+@media (max-width: 700px) {
+  .projects-index-page .projects-page-row { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .projects-index-page .projects-page-row-open { flex-wrap: wrap; gap: 8px 12px; padding: 8px 0; }
+  .projects-index-page .projects-page-row-actions { justify-content: flex-start; padding: 0 0 6px 30px; }
+  .projects-index-page .projects-page-row-actions button { min-height: 44px; }
+  .projects-sort { width: 100%; }
+  .project-page-view .project-session-open-copy { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .project-session-work-meta { display: flex; flex-wrap: wrap; justify-items: start; gap: 6px 12px; }
+  .project-page-view .project-session-bookmark-actions { flex-wrap: wrap; max-width: 88px; }
+}

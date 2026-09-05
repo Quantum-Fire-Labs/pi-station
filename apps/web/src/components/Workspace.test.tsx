@@ -783,7 +783,7 @@ describe("Workspace", () => {
     }));
     expect(await screen.findByRole("heading", { name: bookmarkedProject.name, level: 1 }))
       .toBeVisible();
-    expect(screen.getByRole("region", { name: "Previous Sessions" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Sessions" })).toBeVisible();
     await user.click(within(screen.getByRole("tablist", { name: `${bookmarkedProject.name} sections` })).getByRole("tab", { name: "Settings" }));
     expect(screen.getByRole("heading", { name: "Settings" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Remove Project Bookmark" }));
@@ -839,7 +839,7 @@ describe("Workspace", () => {
     await user.click(screen.getByRole("button", { name: /Projects/ }));
     const emptyState = screen.getByText("No Projects yet.").closest<HTMLElement>("div");
     if (emptyState === null) throw new Error("Projects empty state is missing");
-    expect(within(emptyState).getByText("Add a Project to give Pi a working directory."))
+    expect(within(emptyState).getByText("Save a directory here for easy access, or open a directory without adding a Project."))
       .toBeVisible();
     expect(within(emptyState).getByRole("button", { name: "Add Project" }))
       .toHaveAttribute("data-slot", "button");

@@ -39,6 +39,19 @@ function projectSessionId(id: string, source = fixtureState.sessions[0]!) {
 }
 
 describe("ProjectPage navigation", () => {
+  it("finds closed Sessions without expanding history and opens the exact existing key", async () => {
+    const user = userEvent.setup();
+    const onOpenSession = vi.fn();
+    const closed = projectSessionId("closed-search");
+    closed.name = "Review typography";
+    const state = { ...fixtureState, sessionBookmarks: [], sessions: [{ ...closed, projection: { ...closed.projection, availability: "closed" as const, run: "idle" as const, unread: { hasUnread: true } } }] };
+    renderProjectPage({ state, onOpenSession });
+    await user.type(screen.getByRole("textbox", { name: "Search Sessions" }), "typography");
+    await user.click(screen.getByRole("button", { name: "Review typography Unread" }));
+    expect(onOpenSession).toHaveBeenCalledExactlyOnceWith(closed.sessionKey);
+    await user.click(screen.getByRole("button", { name: "Working" }));
+    expect(screen.getByRole("status")).toHaveTextContent("No matching Sessions");
+  });
   it("uses controlled stock Tabs with Sessions as the default and keeps the breadcrumb navigation link", async () => {
     const user = userEvent.setup();
     const onBack = vi.fn();
@@ -46,10 +59,10 @@ describe("ProjectPage navigation", () => {
 
     const tabs = screen.getByRole("tablist", { name: `${project.name} sections` });
     expect(tabs).toHaveAttribute("data-slot", "tabs-list");
-    expect(screen.getByRole("tab", { name: "Previous Sessions" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("region", { name: "Previous Sessions" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Previous Sessions" })).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Search Previous Sessions" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("region", { name: "Sessions" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Sessions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search Sessions" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
 
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
@@ -100,7 +113,7 @@ describe("ProjectPage navigation", () => {
     const nextProject = fixtureState.projects[1]!;
     rerender(<ProjectPage {...baseProps} project={nextProject} />);
 
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Previous Sessions" })).toHaveAttribute("aria-selected", "true"));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true"));
     expect(screen.getByRole("heading", { name: nextProject.name, level: 1 })).toBeVisible();
     expect(screen.queryByLabelText("Project name")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
@@ -178,7 +191,7 @@ describe("ProjectPage Sessions", () => {
     expect(onSetSessionBookmark).toHaveBeenCalledWith(first.sessionKey, false);
     await user.click(screen.getByRole("button", { name: "Show Closed Sessions" }));
     expect(screen.getByRole("button", { name: "Bookmark Unknown status" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: /Unknown status\s*Closed/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Unknown status\s*Unavailable/ })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Bookmark Unknown status" }));
     expect(onSetSessionBookmark).toHaveBeenCalledWith(unknown.sessionKey, true);
   });
@@ -193,6 +206,7 @@ describe("ProjectPage Sessions", () => {
         : session),
     };
     renderProjectPage({ state, onCloseSessions });
+    await user.click(screen.getByText("Session actions", { exact: true }));
 
     await user.click(screen.getByRole("button", { name: "Close all Sessions" }));
     expect(onCloseSessions).not.toHaveBeenCalled();
@@ -291,7 +305,7 @@ describe("ProjectPage structure", () => {
     expect(screen.getByRole("tablist")).toHaveAttribute("aria-label", `${project.name} sections`);
     for (const control of [
       screen.getByRole("link", { name: "Projects" }),
-      screen.getByRole("tab", { name: "Previous Sessions" }),
+      screen.getByRole("tab", { name: "Sessions" }),
       screen.getByRole("tab", { name: "Scheduled Jobs" }),
       screen.getByRole("tab", { name: "Settings" }),
     ]) {
