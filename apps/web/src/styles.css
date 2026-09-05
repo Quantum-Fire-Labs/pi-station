@@ -425,7 +425,7 @@ textarea:focus-visible {
   stroke-linejoin: round;
 }
 .sidebar-header .sidebar-home.selected { color: var(--accent-strong); }
-.sidebar-header .sidebar-quick-session { margin-left: 6px; margin-right: auto; }
+.sidebar-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; margin-left: auto; }
 .sidebar-header button:hover,
 .sidebar-expand-control:hover { background: var(--raised); color: var(--text); }
 .sidebar-resize-handle {
