@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionSummary } from "../application/workspace-model";
-import { AgentAttention, agentAttentionStatuses, DelegatedChildren } from "./AgentAttention";
+import { AgentAttention, agentActivitySessions, agentAttentionStatuses, DelegatedChildren, primaryAgentStatus } from "./AgentAttention";
+
+afterEach(cleanup);
 
 function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
@@ -21,18 +23,19 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
 }
 
 describe("AgentAttention", () => {
-  it("shows only agents with projected attention states and keeps input order", () => {
+  it("deduplicates agents and puts failed and ready-review activity before working", () => {
     const working = session("working", { projection: { ...session("x").projection, run: "working" } });
     const idle = session("idle");
     const unreadFailed = session("unread-failed", {
       projection: { ...session("x").projection, synchronization: "failed", unread: { hasUnread: true, unreadCount: 2 } },
     });
 
-    render(<AgentAttention sessions={[working, idle, unreadFailed]} onSelect={vi.fn()} />);
+    render(<AgentAttention sessions={[working, idle, working, unreadFailed]} onSelect={vi.fn()} />);
 
     expect(screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      null,
+      "unread-failed: Failed",
       "working: Working",
-      "unread-failed: Failed, Unread",
     ]);
     expect(screen.queryByText("idle")).not.toBeInTheDocument();
   });
@@ -45,9 +48,24 @@ describe("AgentAttention", () => {
     expect(onSelect).toHaveBeenCalledWith({ hostId: "host", piSessionId: "agent" });
   });
 
-  it("shows an explicit empty state", () => {
-    render(<AgentAttention sessions={[session("idle")]} onSelect={vi.fn()} />);
-    expect(screen.getByText("No agent activity")).toBeInTheDocument();
+  it("hides when empty and provides a collapsible heading with Project context", () => {
+    const view = render(<AgentAttention sessions={[session("idle")]} onSelect={vi.fn()} />);
+    expect(view.container).toBeEmptyDOMElement();
+    view.rerender(<AgentAttention sessions={[session("ready", { projectId: "project", projection: { ...session("x").projection, unread: { hasUnread: true } } })]} projects={[{ projectId: "project", name: "Pi Station" }]} onSelect={vi.fn()} />);
+    const heading = screen.getByRole("button", { name: /Agent Activity/ });
+    expect(heading).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Pi Station")).toBeVisible();
+    fireEvent.click(heading);
+    expect(heading).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "ready: Unread" })).not.toBeInTheDocument();
+  });
+
+  it("uses failed, working, unread, then idle status precedence", () => {
+    const base = session("agent");
+    expect(primaryAgentStatus({ ...base, delegationStatus: "working", projection: { ...base.projection, unread: { hasUnread: true } } })).toBe("Working");
+    expect(primaryAgentStatus({ ...base, delegationStatus: "failed", projection: { ...base.projection, run: "working" } })).toBe("Failed");
+    expect(primaryAgentStatus({ ...base, projection: { ...base.projection, unread: { hasUnread: true } } })).toBe("Unread");
+    expect(agentActivitySessions([base])).toEqual([]);
   });
 });
 

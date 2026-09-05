@@ -33,12 +33,25 @@ const project = (projectId: string, name: string): ProjectSummary => ({ projectI
 const projects = [project("project-1", "Pi Station"), project("project-2", "Client")];
 
 const renderNavigation = (sessions = [session("session-1", "Open work"), session("session-2", "Saved work")]) => {
-  const actions = { onSelectTab: vi.fn(), onCloseTab: vi.fn(), onOpenSession: vi.fn(), onNewSession: vi.fn(), onNewSessionInProject: vi.fn() };
+  const actions = { onSelectTab: vi.fn(), onCloseTab: vi.fn(), onOpenSession: vi.fn(), onNewSession: vi.fn(), onNewSessionInProject: vi.fn(), onCloseProjectTabs: vi.fn() };
   render(<WorkspaceNavigation workspace={workspace} projects={projects} sessions={sessions} {...actions} />);
   return actions;
 };
 
 describe("WorkspaceNavigation", () => {
+  it("omits the standalone New Session row", () => {
+    renderNavigation();
+    expect(screen.queryByRole("button", { name: "New Session" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New Session in Pi Station" })).toBeVisible();
+  });
+
+  it("offers the secondary action to close all Project tabs", async () => {
+    const actions = renderNavigation();
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Pi Station" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Close project tabs" }));
+    expect(actions.onCloseProjectTabs).toHaveBeenCalledWith(projects[0]);
+  });
+
   it("removes a tab without requesting Session close", async () => {
     const actions = renderNavigation();
     await userEvent.click(screen.getByRole("button", { name: "Remove Open work tab" }));
@@ -63,7 +76,8 @@ describe("WorkspaceNavigation", () => {
   it("shows the configured Project and visible status", () => {
     renderNavigation([{ ...session("session-1", "Open work"), projection: { ...projection, run: "working", unread: { hasUnread: true } } }]);
     expect(screen.getByText("Pi Station")).toBeVisible();
-    expect(screen.getByText("Working · Unread")).toBeVisible();
+    expect(screen.getByText("Working")).toBeVisible();
+    expect(screen.queryByText("Working · Unread")).not.toBeInTheDocument();
   });
 
   it("keeps a missing Session reference inert and explains it", () => {
@@ -178,7 +192,7 @@ describe("WorkspaceNavigation", () => {
     const working = { ...session("session-1", "Open work"), projection: { ...projection, run: "working" as const, unread: { hasUnread: true } } };
     const actions = renderNavigation([working, working]);
     await userEvent.click(screen.getByRole("button", { name: "Pi Station" }));
-    expect(screen.getByText("1 working · 1 unread")).toBeVisible();
+    expect(screen.getByText("1 working")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "New Session in Pi Station" }));
     expect(actions.onNewSessionInProject).toHaveBeenCalledWith(projects[0]);
   });

@@ -156,6 +156,7 @@ export class ApplicationClientBase {
   activateWorkspace(_id: string): Promise<void> { return Promise.reject(new Error("Workspace selection is unavailable")); }
   openSessionInWorkspace(_workspaceId: string, _projectId: ProjectId, _sessionId: string): Promise<void> { return Promise.reject(new Error("Opening Sessions in Workspaces is unavailable")); }
   closeWorkspaceTab(_workspaceId: string, _tabId: string): Promise<void> { return Promise.reject(new Error("Closing Workspace tabs is unavailable")); }
+  closeProjectTabs(_workspaceId: string, _projectId: ProjectId): Promise<void> { return Promise.reject(new Error("Closing Project tabs is unavailable")); }
   selectWorkspaceTab(_workspaceId: string, _tabId: string): Promise<void> { return Promise.reject(new Error("Selecting Workspace tabs is unavailable")); }
   reorderWorkspaceTabs(_workspaceId: string, _tabIds: readonly string[]): Promise<void> { return Promise.reject(new Error("Reordering Workspace tabs is unavailable")); }
   closeWorkspace(_workspaceId: string): Promise<void> { return Promise.reject(new Error("Closing Workspaces is unavailable")); }

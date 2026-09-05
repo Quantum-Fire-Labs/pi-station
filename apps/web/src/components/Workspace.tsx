@@ -620,6 +620,7 @@ const writeSessionEditorFiles = (files: Readonly<Record<string, SharedMarkdownFi
 function Sidebar({
   state,
   onDashboard,
+  onQuickSession,
   onGeneralNewSession,
   onNewSession,
   onProjects,
@@ -628,11 +629,13 @@ function Sidebar({
   shortcutsVisible,
   onCollapse,
   onCloseWorkspaceTab,
+  onCloseProjectTabs,
   onOpenSessionInWorkspace,
   onSelectWorkspaceTab,
 }: {
   state: ApplicationState;
   onDashboard: () => void;
+  onQuickSession?: (() => void) | undefined;
   onNewSession: (project: ProjectSummary) => void;
   onGeneralNewSession: () => void;
   onProjects: () => void;
@@ -644,6 +647,7 @@ function Sidebar({
   shortcutsVisible: boolean;
   onCollapse: () => void;
   onCloseWorkspaceTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
+  onCloseProjectTabs: (project: ProjectSummary) => void;
   onOpenSessionInWorkspace: (session: SessionSummary) => void;
   onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
 }) {
@@ -655,6 +659,7 @@ function Sidebar({
           <svg className="sidebar-brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 12 5M5 12h14M19 12l-7 7" /><circle cx="5" cy="12" r="2.5" /><circle cx="12" cy="5" r="2.5" /><circle cx="19" cy="12" r="2.5" /><circle cx="12" cy="19" r="2.5" /></svg>
           Pi Station
         </button>
+        {onQuickSession !== undefined && <button type="button" className="sidebar-quick-session" aria-label="Quick Session" title="Quick Session (Ctrl/⌘+Shift+Space)" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onQuickSession}><Zap aria-hidden="true" size={16} /></button>}
         <button type="button" aria-label="Hide sidebar" aria-keyshortcuts="Control+B Meta+B" onClick={onCollapse}><PanelLeftClose aria-hidden="true" size={17} /></button>
       </header>
       <div className="workspace-sidebar-navigation">
@@ -668,8 +673,9 @@ function Sidebar({
           onOpenSession={onOpenSessionInWorkspace}
           onSelectTab={onSelectWorkspaceTab}
           onCloseTab={onCloseWorkspaceTab}
+          onCloseProjectTabs={onCloseProjectTabs}
         />}
-        <AgentAttention sessions={sessionsVisibleInWorkspace(state.sessions)} onSelect={(key) => {
+        <AgentAttention sessions={state.sessions} projects={state.projects} onSelect={(key) => {
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
           if (session !== undefined) onOpenSessionInWorkspace(session);
         }} />
@@ -936,6 +942,14 @@ export function Workspace({
   useEffect(() => {
     mobileWorkspaceNavigationRef.current?.removeAttribute("open");
   }, [state.activeWorkspaceId, state.selectedSessionKey?.hostId, state.selectedSessionKey?.piSessionId, route]);
+  useEffect(() => {
+    const closeMobileNavigationOutside = (event: PointerEvent): void => {
+      const navigation = mobileWorkspaceNavigationRef.current;
+      if (navigation?.hasAttribute("open") === true && !navigation.contains(event.target as Node)) navigation.removeAttribute("open");
+    };
+    document.addEventListener("pointerdown", closeMobileNavigationOutside);
+    return () => document.removeEventListener("pointerdown", closeMobileNavigationOutside);
+  }, []);
   const afterSharedMarkdownCheck = (action: () => void, onCancel?: () => void): void => {
     if (sharedMarkdownDirty || images.length > 0 || files.length > 0) {
       discardSharedMarkdownCancel.current?.();
@@ -2547,6 +2561,7 @@ export function Workspace({
   const sidebar = (
     <Sidebar
       state={state}
+      onQuickSession={onOpenQuickSession}
       onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}
       onSelectWorkspaceTab={(tab, session) => afterSharedMarkdownCheck(() => {
         if (client === undefined || activeWorkspace === undefined) { openSession(session.sessionKey); return; }
@@ -2559,6 +2574,13 @@ export function Workspace({
         if (workspaceClient === undefined || activeWorkspace === undefined) return;
         void workspaceClient.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
           message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
+          variant: "error",
+        }));
+      })}
+      onCloseProjectTabs={(project) => afterSharedMarkdownCheck(() => {
+        if (client === undefined || activeWorkspace === undefined) return;
+        void client.closeProjectTabs(activeWorkspace.id, project.projectId).catch((reason: unknown) => toast({
+          message: reason instanceof Error ? reason.message : "Project tabs could not be closed.",
           variant: "error",
         }));
       })}
@@ -2628,6 +2650,7 @@ export function Workspace({
             setNewSessionRequestId(undefined);
             setNewSessionProject(project);
             setRouteState("workspace");
+            closeMobileWorkspaceNavigation();
           })}
           onOpenSession={(session) => afterSharedMarkdownCheck(() => {
             openSession(session.sessionKey);
@@ -2645,6 +2668,12 @@ export function Workspace({
           onCloseTab={(tab) => afterSharedMarkdownCheck(() => {
             void client?.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
               message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
+              variant: "error",
+            }));
+          })}
+          onCloseProjectTabs={(project) => afterSharedMarkdownCheck(() => {
+            void client?.closeProjectTabs(activeWorkspace.id, project.projectId).catch((reason: unknown) => toast({
+              message: reason instanceof Error ? reason.message : "Project tabs could not be closed.",
               variant: "error",
             }));
           })}

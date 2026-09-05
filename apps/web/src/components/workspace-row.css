@@ -16,7 +16,10 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  touch-action: pan-x;
   white-space: nowrap;
 }
 
@@ -31,6 +34,7 @@
   width: clamp(140px, 18vw, 240px);
   min-width: 140px;
   max-width: 240px;
+  scroll-snap-align: nearest;
   border-right: 1px solid var(--line);
 }
 
@@ -72,6 +76,7 @@
   min-width: 24px;
   flex: 1 1 auto;
   overflow: hidden;
+  font-size: 11px;
   font-weight: 600;
   text-overflow: ellipsis;
 }
@@ -104,6 +109,7 @@
   flex: 0 0 auto;
   padding: 0 12px;
   border-left: 1px solid var(--line);
+  font-size: 11px;
 }
 
 .workspace-row button:focus-visible {

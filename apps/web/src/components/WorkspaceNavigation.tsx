@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { ChevronDown, ChevronRight, Library, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Library, MoreHorizontal, Plus, X } from "lucide-react";
 import type { Workspace, WorkspaceSessionTab } from "@pi-station/application-protocol";
 import type { ProjectSummary, SessionKey, SessionSummary } from "../application/workspace-model";
 import { DelegatedChildren, visibleDelegatedCount } from "./AgentAttention";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import "./workspace-navigation.css";
 
 const identity = (key: SessionKey): string => `${key.hostId}:${key.piSessionId}`;
@@ -28,7 +29,7 @@ export function groupWorkspaceTabs(tabs: readonly WorkspaceSessionTab[], project
   return [...groups].map(([projectId, groupTabs]) => ({ projectId, project: projectById.get(projectId), tabs: groupTabs }));
 }
 
-export function WorkspaceNavigation({ workspace, projects, sessions, selectedSessionKey, onSelectTab, onCloseTab, onOpenSession, onNewSession, onNewSessionInProject }: {
+export function WorkspaceNavigation({ workspace, projects, sessions, selectedSessionKey, onSelectTab, onCloseTab, onOpenSession, onNewSessionInProject, onCloseProjectTabs }: {
   workspace: Workspace;
   projects: readonly ProjectSummary[];
   sessions: readonly SessionSummary[];
@@ -36,8 +37,9 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
   onSelectTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
   onCloseTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
   onOpenSession: (session: SessionSummary) => void;
-  onNewSession: () => void;
+  onNewSession?: () => void;
   onNewSessionInProject?: (project: ProjectSummary) => void;
+  onCloseProjectTabs?: (project: ProjectSummary) => void;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [expandedDelegations, setExpandedDelegations] = useState<ReadonlySet<string>>(new Set());
@@ -126,7 +128,10 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
               <span>{projectLabel}</span>
               {collapsed && activity.length > 0 && <small>{activity.join(" · ")}</small>}
             </button>
-            {group.project !== undefined && <button type="button" className="workspace-project-new" aria-label={`New Session in ${projectLabel}`} disabled={onNewSessionInProject === undefined} onClick={() => onNewSessionInProject?.(group.project!)}><Plus aria-hidden="true" size={16} /></button>}
+            {group.project !== undefined && <>
+              <button type="button" className="workspace-project-new" aria-label={`New Session in ${projectLabel}`} disabled={onNewSessionInProject === undefined} onClick={() => onNewSessionInProject?.(group.project!)}><Plus aria-hidden="true" size={16} /></button>
+              <DropdownMenu><DropdownMenuTrigger className="workspace-project-menu" aria-label={`Actions for ${projectLabel}`}><MoreHorizontal aria-hidden="true" size={16} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onCloseProjectTabs?.(group.project!)} disabled={onCloseProjectTabs === undefined}>Close project tabs</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+            </>}
           </div>
           {!collapsed && <div className="workspace-project-tabs">
             {visibleTabs.map((tab) => {
@@ -151,7 +156,6 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
       })}
       {workspace.tabs.length === 0 && <p className="workspace-tabs-empty">No open tabs</p>}
     </div>
-    <button type="button" className="workspace-navigation-action" onClick={onNewSession}><Plus aria-hidden="true" size={15} />New Session</button>
     <button type="button" className="workspace-navigation-action" aria-expanded={libraryOpen} onClick={() => setLibraryOpen((open) => !open)}>
       {libraryOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}<Library aria-hidden="true" size={15} />Previous Sessions
     </button>
@@ -191,7 +195,11 @@ function groupActivity(tabs: readonly WorkspaceSessionTab[], sessionById: Readon
 }
 
 function statuses(session: SessionSummary): readonly string[] {
-  return [session.projection.availability === "closed" ? "Closed" : undefined, session.delegationStatus === "failed" || session.projection.synchronization === "failed" ? "Failed" : undefined, session.projection.run === "working" || session.delegationStatus === "working" ? "Working" : undefined, session.projection.unread.hasUnread ? "Unread" : undefined].filter((status): status is string => status !== undefined);
+  if (session.delegationStatus === "failed" || session.projection.synchronization === "failed") return ["Failed"];
+  if (session.projection.run === "working" || session.delegationStatus === "working") return ["Working"];
+  if (session.projection.unread.hasUnread) return ["Unread"];
+  if (session.projection.availability === "closed") return ["Closed"];
+  return [];
 }
 function SessionStatus({ session }: { session: SessionSummary }) { const values = statuses(session); return <small className="workspace-tab-status">{values.length === 0 ? "Idle" : values.join(" · ")}</small>; }
 function SessionDot({ session }: { session: SessionSummary }) { const values = statuses(session); const status = values.includes("Failed") ? "failed" : values.includes("Working") ? "working" : values.includes("Unread") ? "unread" : "idle"; return <i className={`session-status-indicator status-${status}`} aria-label={`${values.length === 0 ? "Idle" : values.join(", ")} Session`} style={{ "--session-depth": 0 } as CSSProperties} />; }

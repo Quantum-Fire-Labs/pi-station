@@ -66,7 +66,7 @@ export function ProjectsPage({
         <header className="projects-page-header">
           <div className="projects-page-heading">
             <h1>Projects</h1>
-            <p>Find and manage your Project working directories.</p>
+            <p>Choose a Project to continue or start work.</p>
           </div>
           <div className="projects-page-header-actions">
             <Button type="button" onClick={onAdd}><Plus data-icon="inline-start" aria-hidden="true" />Add Project</Button>
@@ -133,9 +133,8 @@ function ProjectGroup({ title, projects, onOpen, onNewSession, saving, onReorder
               onOpen(project.projectId);
             }}>
               <span className="projects-page-row-icon"><Folder aria-hidden="true" size={18} /></span>
-              <div className="projects-page-row-copy"><h3>{project.name}</h3><span title={project.displayPath}>{project.displayPath}</span></div>
+              <div className="projects-page-row-copy"><h3>{project.name}</h3><span title={project.displayPath}>{project.displayPath}</span>{!project.available && <Badge variant="outline">Unavailable</Badge>}</div>
             </div>
-            <div className="projects-page-row-status">{project.available ? <Badge variant="outline">Available</Badge> : <Badge variant="outline">Unavailable</Badge>}</div>
             <div className="projects-page-row-actions">
               {project.closed === true && onSetClosed !== undefined ? <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button> : <Button type="button" disabled={!project.available} onClick={() => onNewSession(project)}><Plus data-icon="inline-start" aria-hidden="true" />New Session</Button>}
               {onReorder !== undefined && <span className="projects-page-order" role="group" aria-label={`Change ${project.name} order`}>

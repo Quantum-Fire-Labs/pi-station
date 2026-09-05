@@ -48,7 +48,8 @@ describe("ProjectPage navigation", () => {
     expect(tabs).toHaveAttribute("data-slot", "tabs-list");
     expect(screen.getByRole("tab", { name: "Previous Sessions" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("region", { name: "Previous Sessions" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Previous Sessions" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Previous Sessions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search Previous Sessions" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
 
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });

@@ -71,6 +71,22 @@ export class WorkspaceStore {
       return { ...withoutActiveTab, tabs, ...(activeTabId === undefined ? {} : { activeTabId }) }
     }))
   }
+  closeProjectTabs(workspaceId: string, projectId: string, projects: readonly Project[], sessions: readonly SavedSession[] = []): Promise<WorkspaceState> {
+    return this.#update(projects, [], sessions, (current) => mapWorkspace(current, workspaceId, (workspace) => {
+      requireProject(projects, projectId)
+      const removed = workspace.tabs.filter((tab) => tab.projectId === projectId)
+      if (removed.length === 0) return workspace
+      const tabs = workspace.tabs.filter((tab) => tab.projectId !== projectId)
+      const activeIndex = workspace.tabs.findIndex((tab) => tab.id === workspace.activeTabId)
+      const activeRemoved = removed.some((tab) => tab.id === workspace.activeTabId)
+      const activeTabId = activeRemoved
+        ? (workspace.tabs.slice(activeIndex + 1).find((tab) => tab.projectId !== projectId) ?? [...workspace.tabs.slice(0, activeIndex)].reverse().find((tab) => tab.projectId !== projectId))?.id
+        : workspace.activeTabId
+      const { activeTabId: ignored, ...withoutActiveTab } = workspace
+      void ignored
+      return { ...withoutActiveTab, tabs, ...(activeTabId === undefined ? {} : { activeTabId }) }
+    }))
+  }
   selectTab(workspaceId: string, tabId: string, projects: readonly Project[], sessions: readonly SavedSession[] = []): Promise<WorkspaceState> {
     return this.#update(projects, [], sessions, (current) => mapWorkspace(current, workspaceId, (workspace) => {
       if (!workspace.tabs.some(({ id }) => id === tabId)) throw new WorkspaceStoreError("not-found", "Workspace tab not found")
