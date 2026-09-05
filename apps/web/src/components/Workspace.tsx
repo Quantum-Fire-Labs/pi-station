@@ -2939,6 +2939,7 @@ export function Workspace({
   if (route === "projects") {
     return renderPage(
       <ProjectsPage
+        onOpenDirectory={() => afterSharedMarkdownCheck(() => setRoute("new-directory-session"))}
         state={applicationState}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
@@ -3012,6 +3013,7 @@ export function Workspace({
     }
     return renderPage(
       <ProjectsPage
+        onOpenDirectory={() => afterSharedMarkdownCheck(() => setRoute("new-directory-session"))}
         state={applicationState}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);

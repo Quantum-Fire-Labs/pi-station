@@ -18,6 +18,29 @@ const pageProps = {
 };
 
 describe("ProjectsPage", () => {
+  it("orders recent work before older work and keeps Session creation separate from opening a Project", async () => {
+    const user = userEvent.setup();
+    const recent = fixtureState.projects[0]!;
+    const other = fixtureState.projects[1]!;
+    const source = fixtureState.sessions[0]!;
+    const onNewSession = vi.fn();
+    const onOpen = vi.fn();
+    const state = { ...fixtureState, projectBookmarks: [], sessions: [
+      { ...source, projectId: recent.projectId, lastActivityAt: "2026-09-05T10:00:00Z", name: "Latest task" },
+      { ...source, projectId: other.projectId, lastActivityAt: "2026-08-01T10:00:00Z", name: "Older task" },
+    ] };
+    render(<ProjectsPage {...pageProps} state={state} onOpen={onOpen} onNewSession={onNewSession} />);
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[0]!).getByRole("heading", { name: recent.name })).toBeVisible();
+    expect(within(rows[0]!).getByText("Latest task")).toBeVisible();
+    await user.click(within(rows[0]!).getByRole("button", { name: "New Session" }));
+    expect(onNewSession).toHaveBeenCalledExactlyOnceWith(recent);
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Sort Projects" }), "name");
+    expect(screen.getAllByRole("listitem").map((row) => row.querySelector("h3")?.textContent)).toEqual([other.name, recent.name].sort());
+    await user.click(screen.getByRole("button", { name: "Open directory" }));
+    expect(onNewSession).toHaveBeenLastCalledWith();
+  });
   it("does not show a header back button", () => {
     render(
       <ProjectsPage

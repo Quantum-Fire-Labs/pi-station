@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./project-work-hub.css";
 import {
   ArrowDown,
   ArrowUp,
@@ -12,6 +13,7 @@ import {
 import type { ProjectSummary, SessionKey, SessionSummary } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
 import type { ApplicationClient } from "../application/application-client";
+import { activityDate, sessionWorkStatus } from "./project-work-summary";
 import { ScheduledJobs } from "./ScheduledJobs";
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
 import { Badge } from "./ui/badge";
@@ -57,6 +59,7 @@ export function ProjectPage({
 }) {
   const [view, setView] = useState<"sessions" | "scheduled-jobs" | "settings">("sessions");
   const [sessionQuery, setSessionQuery] = useState("");
+  const [sessionFilter, setSessionFilter] = useState("all");
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(project.name);
   const [nameSaving, setNameSaving] = useState(false);
@@ -124,7 +127,8 @@ export function ProjectPage({
   const workingCount = closable.filter((session) => session.projection.run === "working").length;
   const sessionMatchesQuery = (session: SessionSummary): boolean => {
     const search = sessionQuery.trim().toLocaleLowerCase();
-    return search.length === 0 || (session.name || "Untitled Session").toLocaleLowerCase().includes(search);
+    return (sessionFilter === "all" || sessionWorkStatus(session).toLowerCase() === sessionFilter)
+      && (search.length === 0 || (session.name || "Untitled Session").toLocaleLowerCase().includes(search));
   };
   const visibleBookmarked = bookmarked.filter(sessionMatchesQuery);
   const visibleRunning = running.filter(sessionMatchesQuery);
@@ -141,6 +145,7 @@ export function ProjectPage({
   useEffect(() => {
     setView("sessions");
     setSessionQuery("");
+    setSessionFilter("all");
     setEditingName(false);
     setName(project.name);
     setNameError("");
@@ -217,19 +222,21 @@ export function ProjectPage({
           }}
         >
           <TabsList className="project-page-tabs-list" variant="line" aria-label={`${project.name} sections`}>
-            <TabsTrigger value="sessions">Previous Sessions</TabsTrigger>
+            <TabsTrigger value="sessions">Sessions <span className="project-section-count" aria-hidden="true">{sessions.length}</span></TabsTrigger>
             <TabsTrigger value="scheduled-jobs">Scheduled Jobs</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="project-page-tab-content">
-            <section className="project-page-section project-sessions-section" aria-label="Previous Sessions">
+            <section className="project-page-section project-sessions-section" aria-label="Sessions">
+              <p className="project-work-intro">Continue a conversation or start a new Session in this directory.</p>
               <div className="project-sessions-heading">
                 <div className="project-session-search">
                   <Search aria-hidden="true" />
-                  <Input value={sessionQuery} onChange={(event) => setSessionQuery(event.target.value)} placeholder="Search Previous Sessions" aria-label="Search Previous Sessions" />
+                  <Input value={sessionQuery} onChange={(event) => setSessionQuery(event.target.value)} placeholder="Find a Session" aria-label="Search Sessions" />
                 </div>
                 <div className="project-sessions-toolbar">
+                <details className="project-session-management"><summary>Session actions</summary>
                 <AlertDialog open={confirmCloseAll} onOpenChange={setConfirmCloseAll}>
                   <AlertDialogTrigger
                     disabled={closable.length === 0 || onCloseSessions === undefined}
@@ -267,8 +274,13 @@ export function ProjectPage({
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+                </details>
                 </div>
               </div>
+              <div className="project-session-filters" role="group" aria-label="Filter Sessions by status">
+                {["all", "working", "unread", "failed"].map((filter) => <Button key={filter} type="button" variant="ghost" aria-pressed={sessionFilter === filter} onClick={() => setSessionFilter(filter)}>{filter === "all" ? "All" : filter[0]!.toUpperCase() + filter.slice(1)}</Button>)}
+              </div>
+              {visibleBookmarked.length + visibleRunning.length + visibleClosed.length === 0 && <p className="project-work-empty" role="status">{sessions.length === 0 ? "No Sessions yet. Start a new Session to work in this directory." : "No matching Sessions. Try another name or status."}</p>}
               {visibleBookmarked.length > 0 && (
                 <SessionGroup
                   title="Bookmarked"
@@ -284,7 +296,7 @@ export function ProjectPage({
                   )}
                 />
               )}
-              <SessionGroup
+              {visibleRunning.length > 0 && <SessionGroup
                 title="Open"
                 sessions={visibleRunning}
                 empty={sessionQuery.trim() === "" ? "No Sessions are open in this Project." : "No matching open Sessions."}
@@ -296,11 +308,11 @@ export function ProjectPage({
                 onReorder={(session, direction) => track(
                   onReorderSessionBookmark(session.sessionKey, direction),
                 )}
-              />
+              />}
               {visibleClosed.length > 0 && (
                 <ClosedSessionGroup
                   sessions={visibleClosed}
-                  open={closedOpen}
+                  open={closedOpen || sessionQuery.trim() !== "" || sessionFilter !== "all"}
                   onOpenChange={setClosedOpen}
                   saving={saving}
                   onOpenSession={onOpenSession}
@@ -631,11 +643,8 @@ function SessionRow({
   const closed = session.projection.availability === "closed";
   const openable = available || reconnecting || closed;
   const label = session.name || "Untitled Session";
-  const status = reconnecting
-    ? "Reconnecting"
-    : available
-      ? session.projection.run === "working" ? "Working" : "Idle"
-      : "Closed";
+  const status = sessionWorkStatus(session);
+  const time = sessionTime(session);
   return (
     <div className="project-session-row-view">
       <Button
@@ -643,6 +652,7 @@ function SessionRow({
         variant="ghost"
         type="button"
         disabled={!openable}
+        aria-label={`${label} ${status}`}
         onClick={() => onOpen(session.sessionKey)}
         title={reconnecting
           ? "Session is reconnecting"
@@ -654,10 +664,10 @@ function SessionRow({
       >
         <span className="project-session-open-copy">
           <span className="project-session-name">
-            <i className={session.projection.run === "working" ? "working" : ""} aria-hidden="true" />
             <strong>{label}</strong>
+            <span className="project-session-context">{session.parentSessionKey === undefined ? "Session" : "Delegated Session"}</span>
           </span>
-          <Badge variant="outline" className="project-session-state">{status}</Badge>
+          <span className="project-session-work-meta"><span className={`project-work-status status-${status.toLowerCase()}`}><i aria-hidden="true" />{status}</span><time dateTime={time === 0 ? undefined : new Date(time).toISOString()} title={time === 0 ? undefined : new Date(time).toLocaleString()}>{activityDate(time)}</time></span>
         </span>
       </Button>
       <div className="project-session-bookmark-actions" role="group" aria-label={`Bookmark controls for ${label}`}>
