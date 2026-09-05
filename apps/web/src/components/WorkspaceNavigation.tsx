@@ -12,24 +12,29 @@ const label = (session: SessionSummary): string => session.name?.trim() || "Unti
 const collapseStorageKey = (workspaceId: string): string => `pi-station:workspace-navigation:${workspaceId}:collapsed-projects`;
 
 interface ProjectGroup {
+  readonly key: string;
   readonly projectId: string;
-  readonly project: ProjectSummary | undefined;
+  readonly project?: ProjectSummary;
+  readonly directory?: string;
   readonly tabs: readonly WorkspaceSessionTab[];
 }
 
-export function groupWorkspaceTabs(tabs: readonly WorkspaceSessionTab[], projects: readonly ProjectSummary[]): readonly ProjectGroup[] {
+export function groupWorkspaceTabs(tabs: readonly WorkspaceSessionTab[], projects: readonly ProjectSummary[], sessions: readonly SessionSummary[] = []): readonly ProjectGroup[] {
   const projectById = new Map(projects.map((project) => [project.projectId, project]));
-  const groups = new Map<string, WorkspaceSessionTab[]>();
+  const sessionById = new Map(sessions.map((session) => [identity(session.sessionKey), session]));
+  const groups = new Map<string, { projectId: string; project?: ProjectSummary; directory?: string; tabs: WorkspaceSessionTab[] }>();
   for (const tab of tabs) {
-    const projectId = tab.projectId ?? "";
-    const group = groups.get(projectId);
-    if (group === undefined) groups.set(projectId, [tab]);
-    else group.push(tab);
+    const project = projectById.get(tab.projectId);
+    const directory = project === undefined ? sessionById.get(tabIdentity(tab.projectId, tab.sessionId))?.displayPath : undefined;
+    const key = project === undefined && directory !== undefined ? `directory:${directory}` : `project:${tab.projectId}`;
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, { projectId: tab.projectId, ...(project === undefined ? {} : { project }), ...(directory === undefined ? {} : { directory }), tabs: [tab] });
+    else group.tabs.push(tab);
   }
-  return [...groups].map(([projectId, groupTabs]) => ({ projectId, project: projectById.get(projectId), tabs: groupTabs }));
+  return [...groups].map(([key, group]) => ({ key, ...group }));
 }
 
-export function WorkspaceNavigation({ workspace, projects, sessions, selectedSessionKey, onSelectTab, onCloseTab, onOpenSession, onNewSessionInProject, onCloseProjectTabs }: {
+export function WorkspaceNavigation({ workspace, projects, sessions, selectedSessionKey, onSelectTab, onCloseTab, onOpenSession, onNewSessionInProject, onCloseProjectTabs, onAddDirectoryAsProject }: {
   workspace: Workspace;
   projects: readonly ProjectSummary[];
   sessions: readonly SessionSummary[];
@@ -40,12 +45,13 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
   onNewSession?: () => void;
   onNewSessionInProject?: (project: ProjectSummary) => void;
   onCloseProjectTabs?: (project: ProjectSummary) => void;
+  onAddDirectoryAsProject?: (directory: string) => void;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [expandedDelegations, setExpandedDelegations] = useState<ReadonlySet<string>>(new Set());
   const [collapsedProjects, setCollapsedProjects] = useState<ReadonlySet<string>>(() => readCollapsed(workspace.id));
   const sessionById = useMemo(() => new Map(sessions.map((session) => [identity(session.sessionKey), session])), [sessions]);
-  const groups = useMemo(() => groupWorkspaceTabs(workspace.tabs, projects), [workspace.tabs, projects]);
+  const groups = useMemo(() => groupWorkspaceTabs(workspace.tabs, projects, sessions), [workspace.tabs, projects, sessions]);
   const selectedIdentity = selectedSessionKey === undefined ? undefined : identity(selectedSessionKey);
   const requestedSelectedSession = selectedIdentity === undefined ? undefined : sessionById.get(selectedIdentity);
   const selectedTabId = requestedSelectedSession === undefined
@@ -119,19 +125,19 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
         const visibleTabs = group.tabs.filter((tab) => !nestedTabIds.has(tab.id));
         if (visibleTabs.length === 0) return null;
         const collapsed = collapsedProjects.has(group.projectId);
-        const projectLabel = group.project?.name ?? (group.projectId ? `Unknown Project (${group.projectId})` : "Project unavailable");
+        const projectLabel = group.project?.name ?? (group.directory === undefined ? "Directory unavailable" : directoryName(group.directory));
         const activity = groupActivity(group.tabs, sessionById, sessions);
-        return <section className="workspace-project-group" key={group.projectId || "missing-project"}>
+        return <section className="workspace-project-group" key={group.key}>
           <div className="workspace-project-heading">
             <button type="button" className="workspace-project-toggle" aria-expanded={!collapsed} onClick={() => toggleProject(group.projectId)}>
               {collapsed ? <ChevronRight aria-hidden="true" size={16} /> : <ChevronDown aria-hidden="true" size={16} />}
-              <span>{projectLabel}</span>
+              <span title={group.directory}>{projectLabel}</span>
               {collapsed && activity.length > 0 && <small>{activity.join(" · ")}</small>}
             </button>
-            {group.project !== undefined && <>
+            {group.project !== undefined ? <>
               <button type="button" className="workspace-project-new" aria-label={`New Session in ${projectLabel}`} disabled={onNewSessionInProject === undefined} onClick={() => onNewSessionInProject?.(group.project!)}><Plus aria-hidden="true" size={16} /></button>
               <DropdownMenu><DropdownMenuTrigger className="workspace-project-menu" aria-label={`Actions for ${projectLabel}`}><MoreHorizontal aria-hidden="true" size={16} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onCloseProjectTabs?.(group.project!)} disabled={onCloseProjectTabs === undefined}>Close project tabs</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
-            </>}
+            </> : group.directory !== undefined && <DropdownMenu><DropdownMenuTrigger className="workspace-project-menu" aria-label={`Actions for ${projectLabel}`}><MoreHorizontal aria-hidden="true" size={16} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onAddDirectoryAsProject?.(group.directory!)} disabled={onAddDirectoryAsProject === undefined}>Add as Project</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
           </div>
           {!collapsed && <div className="workspace-project-tabs">
             {visibleTabs.map((tab) => {
@@ -160,10 +166,15 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
       {libraryOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}<Library aria-hidden="true" size={15} />Previous Sessions
     </button>
     {libraryOpen && <div className="workspace-session-library" role="list" aria-label="Previous Sessions">
-      {savedSessions.map((session) => <button type="button" role="listitem" aria-label={`Open ${label(session)}`} key={identity(session.sessionKey)} onClick={() => onOpenSession(session)}><SessionDot session={session} /><span>{label(session)}</span><small>{projects.find(({ projectId }) => projectId === session.projectId)?.name ?? "Project unavailable"}</small></button>)}
+      {savedSessions.map((session) => { const project = projects.find(({ projectId }) => projectId === session.projectId); const location = project?.name ?? (session.displayPath === undefined ? "Directory unavailable" : directoryName(session.displayPath)); return <button type="button" role="listitem" aria-label={`Open ${label(session)}`} key={identity(session.sessionKey)} onClick={() => onOpenSession(session)}><SessionDot session={session} /><span>{label(session)}</span><small title={project === undefined ? session.displayPath : undefined}>{location}</small></button>; })}
       {savedSessions.length === 0 && <p>No previous Sessions to open.</p>}
     </div>}
   </nav>;
+}
+
+function directoryName(path: string): string {
+  const normalized = path.replace(/[\\/]+$/u, "");
+  return normalized.split(/[\\/]/u).pop() || path;
 }
 
 function readCollapsed(workspaceId: string): ReadonlySet<string> {

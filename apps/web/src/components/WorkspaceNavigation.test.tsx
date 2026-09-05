@@ -73,6 +73,17 @@ describe("WorkspaceNavigation", () => {
     expect(screen.getByText("Open work").closest("button")).not.toHaveAttribute("aria-current");
   });
 
+  it("groups an unconfigured Session by folder and exposes its full path", async () => {
+    const directorySession = { ...session("session-1", "Open work", "directory-host"), displayPath: "/work/client/api" };
+    const directoryWorkspace: Workspace = { ...workspace, tabs: [{ ...workspace.tabs[0]!, projectId: "directory-host" }] };
+    const onAddDirectoryAsProject = vi.fn();
+    render(<WorkspaceNavigation workspace={directoryWorkspace} projects={projects} sessions={[directorySession]} onSelectTab={vi.fn()} onCloseTab={vi.fn()} onOpenSession={vi.fn()} onAddDirectoryAsProject={onAddDirectoryAsProject} />);
+    expect(screen.getByText("api")).toHaveAttribute("title", "/work/client/api");
+    await userEvent.click(screen.getByRole("button", { name: "Actions for api" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Add as Project" }));
+    expect(onAddDirectoryAsProject).toHaveBeenCalledWith("/work/client/api");
+  });
+
   it("shows the configured Project and visible status", () => {
     renderNavigation([{ ...session("session-1", "Open work"), projection: { ...projection, run: "working", unread: { hasUnread: true } } }]);
     expect(screen.getByText("Pi Station")).toBeVisible();

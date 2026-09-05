@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
@@ -125,6 +126,26 @@ describe("WorkspaceStore", () => {
     const state = await store.list(projects)
     const workspace = state.workspaces[0]!
     await expect(store.reorderTabs(workspace.id, [workspace.tabs[0]!.id, workspace.tabs[0]!.id], projects, many.slice(0, 1))).rejects.toMatchObject({ code: "invalid" })
+  })
+
+  it("safely adopts a directory tab and deduplicates its configured identity", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const cwd = "/two/subdirectory"
+    const hostId = createHash("sha256").update(cwd).digest("hex").slice(0, 16)
+    await writeFile(join(data, "workspaces.json"), JSON.stringify({ version: 4, workspaces: [{ id: "one", name: "One", tabs: [{ id: "directory-tab", kind: "session", projectId: hostId, sessionId: "session" }, { id: "project-tab", kind: "session", projectId: "project-2", sessionId: "session" }], activeTabId: "project-tab", projectIds: ["project-2"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "one" }))
+    const sessions = [{ id: "session", projectId: "project-2", path: "/history/session", cwd, modifiedAt: "2026-01-01", state: "open" as const }]
+    const state = await new WorkspaceStore(data).list(projects, [], sessions)
+    expect(state.workspaces[0]).toMatchObject({ tabs: [{ id: "directory-tab", projectId: "project-2", sessionId: "session" }], activeTabId: "directory-tab" })
+  })
+
+  it("preserves an ambiguous directory tab instead of attaching the wrong Session", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const cwd = "/two/subdirectory"
+    const hostId = createHash("sha256").update(cwd).digest("hex").slice(0, 16)
+    const tab = { id: "directory-tab", kind: "session", projectId: hostId, sessionId: "session" }
+    await writeFile(join(data, "workspaces.json"), JSON.stringify({ version: 4, workspaces: [{ id: "one", name: "One", tabs: [tab], activeTabId: tab.id, projectIds: ["project-2"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "one" }))
+    const sessions = [{ id: "session", projectId: "project-2", path: "/history/one", cwd, modifiedAt: "2026-01-01", state: "open" as const }, { id: "session", projectId: "project-1", path: "/history/two", cwd: "/one", modifiedAt: "2026-01-01", state: "open" as const }]
+    expect((await new WorkspaceStore(data).list(projects, [], sessions)).workspaces[0]?.tabs).toEqual([tab])
   })
 
   it("atomically closes only matching Project tabs in one Workspace and selects the next tab", async () => {

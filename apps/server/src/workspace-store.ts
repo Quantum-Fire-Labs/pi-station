@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto"
-import { join } from "node:path"
+import { createHash, randomUUID } from "node:crypto"
+import { join, relative, resolve } from "node:path"
 import { isProtocolId, isWorkspaceName, isWorkspaceState, MAX_WORKSPACE_PROJECTS, MAX_WORKSPACE_TABS, MAX_WORKSPACES, type Project, type SavedSession, type Workspace, type WorkspaceCreateMutation, type WorkspaceUpdateMutation, type WorkspaceState } from "@pi-station/application-protocol"
 import { AtomicJsonStore } from "./atomic-json-store.js"
 
@@ -132,7 +132,7 @@ export class WorkspaceStore {
 function reconcile(stored: StoredData, projects: readonly Project[], bookmarks: readonly string[], sessions: readonly SavedSession[]): StoredWorkspaceData {
   const configured = new Set(projects.map(({ id }) => id))
   let source: readonly Workspace[]
-  if (stored.version === 4 || (stored.version === 3 && isTabData(stored))) source = stored.workspaces
+  if (stored.version === 4 || (stored.version === 3 && isTabData(stored))) source = stored.workspaces.map((workspace) => reconcileTabHosts(workspace, projects, sessions))
   else {
     const old = stored.workspaces.length === 0
       ? [{ ...emptyWorkspace(DEFAULT_NAME), projectIds: migratedDefaultProjectIds(projects, bookmarks) }]
@@ -153,6 +153,28 @@ function reconcile(stored: StoredData, projects: readonly Project[], bookmarks: 
   const activeWorkspaceId = stored.activeWorkspaceId !== undefined && workspaces.some(({ id }) => id === stored.activeWorkspaceId) ? stored.activeWorkspaceId : workspaces[0]!.id
   return { version: 4, workspaces, activeWorkspaceId }
 }
+function reconcileTabHosts(workspace: Workspace, projects: readonly Project[], sessions: readonly SavedSession[]): Workspace {
+  const configured = new Map(projects.map((project) => [project.id, project]))
+  const sessionsById = new Map<string, SavedSession[]>()
+  for (const session of sessions) sessionsById.set(session.id, [...(sessionsById.get(session.id) ?? []), session])
+  const mapped = workspace.tabs.map((tab) => {
+    if (configured.has(tab.projectId)) return tab
+    const candidates = sessionsById.get(tab.sessionId) ?? []
+    if (candidates.length !== 1) return tab
+    const candidate = candidates[0]!
+    const project = configured.get(candidate.projectId)
+    if (project === undefined || candidate.cwd === undefined || directoryHostId(candidate.cwd) !== tab.projectId || !contains(project.root, candidate.cwd)) return tab
+    return { ...tab, projectId: candidate.projectId }
+  })
+  const seen = new Set<string>()
+  const tabs = mapped.filter((tab) => { const identity = `${tab.projectId}\0${tab.sessionId}`; if (seen.has(identity)) return false; seen.add(identity); return true })
+  const activeTabId = workspace.activeTabId !== undefined && tabs.some(({ id }) => id === workspace.activeTabId) ? workspace.activeTabId : tabs[0]?.id
+  const { activeTabId: ignored, ...rest } = workspace
+  void ignored
+  return { ...rest, tabs, ...(activeTabId === undefined ? {} : { activeTabId }) }
+}
+function directoryHostId(root: string): string { return createHash("sha256").update(resolve(root)).digest("hex").slice(0, 16) }
+function contains(root: string, child: string): boolean { const path = relative(resolve(root), resolve(child)); return path === "" || (!path.startsWith("..") && !path.startsWith("/")) }
 function migratedDefaultProjectIds(projects: readonly Project[], bookmarks: readonly string[]): string[] { const marked = new Set(bookmarks); return projects.filter(({ id, closed }) => closed !== true || marked.has(id)).map(({ id }) => id) }
 function emptyWorkspace(name: string): Workspace { return { id: randomUUID(), name, tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] } }
 function requireWorkspace(state: StoredWorkspaceData, id: string): Workspace { const value = state.workspaces.find((item) => item.id === id); if (!value) throw new WorkspaceStoreError("not-found", "Workspace not found"); return value }

@@ -58,6 +58,7 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Sheet, SheetTrigger } from "./ui/sheet";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -622,6 +623,7 @@ function Sidebar({
   onDashboard,
   onQuickSession,
   onGeneralNewSession,
+  onDirectorySession,
   onNewSession,
   onProjects,
   onSettings,
@@ -630,6 +632,7 @@ function Sidebar({
   onCollapse,
   onCloseWorkspaceTab,
   onCloseProjectTabs,
+  onAddDirectoryAsProject,
   onOpenSessionInWorkspace,
   onSelectWorkspaceTab,
 }: {
@@ -638,16 +641,18 @@ function Sidebar({
   onQuickSession?: (() => void) | undefined;
   onNewSession: (project: ProjectSummary) => void;
   onGeneralNewSession: () => void;
+  onDirectorySession: () => void;
   onProjects: () => void;
   onSettings: () => void;
   onOpenProject: (projectId: ProjectId) => void;
   onSessionContextMenu: (session: SessionSummary, x: number, y: number) => void;
-  activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers" | "update";
+  activeRoute: "workspace" | "dashboard" | "new-session" | "new-directory-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers" | "update";
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
   onCollapse: () => void;
   onCloseWorkspaceTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
   onCloseProjectTabs: (project: ProjectSummary) => void;
+  onAddDirectoryAsProject: (directory: string) => void;
   onOpenSessionInWorkspace: (session: SessionSummary) => void;
   onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
 }) {
@@ -660,6 +665,7 @@ function Sidebar({
           Pi Station
         </button>
         {onQuickSession !== undefined && <button type="button" className="sidebar-quick-session" aria-label="Quick Session" title="Quick Session (Ctrl/⌘+Shift+Space)" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onQuickSession}><Zap aria-hidden="true" size={16} /></button>}
+        <DropdownMenu><DropdownMenuTrigger className="sidebar-quick-session" aria-label="New Session options" title="New Session options"><Ellipsis aria-hidden="true" size={16} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={onGeneralNewSession}>New Session</DropdownMenuItem><DropdownMenuItem onClick={onDirectorySession}>New Session in Directory</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
         <button type="button" aria-label="Hide sidebar" aria-keyshortcuts="Control+B Meta+B" onClick={onCollapse}><PanelLeftClose aria-hidden="true" size={17} /></button>
       </header>
       <div className="workspace-sidebar-navigation">
@@ -674,6 +680,7 @@ function Sidebar({
           onSelectTab={onSelectWorkspaceTab}
           onCloseTab={onCloseWorkspaceTab}
           onCloseProjectTabs={onCloseProjectTabs}
+          onAddDirectoryAsProject={onAddDirectoryAsProject}
         />}
         <AgentAttention sessions={state.sessions} projects={state.projects} onSelect={(key) => {
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
@@ -826,6 +833,7 @@ export function Workspace({
   };
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteInitialFlow, setPaletteInitialFlow] = useState<CommandPaletteInitialFlow>("actions");
+  const [addProjectInitialDirectory, setAddProjectInitialDirectory] = useState<string>();
   const { toast } = useToast();
   const [sessionShortcutsVisible, setSessionShortcutsVisible] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(408);
@@ -933,7 +941,7 @@ export function Workspace({
   const [newSessionName, setNewSessionName] = useState("");
   const [newSessionRequestId, setNewSessionRequestId] = useState<string>();
   const [resumeSessionRequestId, setResumeSessionRequestId] = useState<string>();
-  type Route = "workspace" | "dashboard" | "new-session" | "projects" | "project"
+  type Route = "workspace" | "dashboard" | "new-session" | "new-directory-session" | "projects" | "project"
     | "add-project" | "settings" | SettingsRoute;
   const [route, setRouteState] = useState<Route>("workspace");
   useEffect(() => {
@@ -2569,6 +2577,7 @@ export function Workspace({
           .then(() => openSession(session.sessionKey, false))
           .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace tab could not be selected.", variant: "error" }));
       })}
+      onAddDirectoryAsProject={(directory) => afterSharedMarkdownCheck(() => { setAddProjectInitialDirectory(directory); setRoute("add-project"); })}
       onCloseWorkspaceTab={(tab) => afterSharedMarkdownCheck(() => {
         const workspaceClient = client;
         if (workspaceClient === undefined || activeWorkspace === undefined) return;
@@ -2586,7 +2595,8 @@ export function Workspace({
       })}
       onDashboard={() => setRoute("dashboard")}
       onGeneralNewSession={() => setRoute("new-session")}
-      onProjects={() => setRoute("projects")}
+      onDirectorySession={() => afterSharedMarkdownCheck(() => setRoute("new-directory-session"))}
+      onProjects={() => { setAddProjectInitialDirectory(undefined); setRoute("projects"); }}
       onSettings={() => setRoute("settings")}
       onOpenProject={(projectId) => {
         setSelectedProjectId(projectId);
@@ -2671,6 +2681,7 @@ export function Workspace({
               variant: "error",
             }));
           })}
+          onAddDirectoryAsProject={(directory) => afterSharedMarkdownCheck(() => { setAddProjectInitialDirectory(directory); setRoute("add-project"); closeMobileWorkspaceNavigation(); })}
           onCloseProjectTabs={(project) => afterSharedMarkdownCheck(() => {
             void client?.closeProjectTabs(activeWorkspace.id, project.projectId).catch((reason: unknown) => toast({
               message: reason instanceof Error ? reason.message : "Project tabs could not be closed.",
@@ -2978,7 +2989,9 @@ export function Workspace({
         onCreate={(name, directory) => (
           onCreateProject?.(name, directory) ?? undefined
         )}
+        {...(addProjectInitialDirectory === undefined ? {} : { initialDirectory: addProjectInitialDirectory })}
         onCreated={(projectId) => {
+          setAddProjectInitialDirectory(undefined);
           setSelectedProjectId(projectId);
           setRoute("project");
         }}
@@ -2986,7 +2999,7 @@ export function Workspace({
     );
   }
 
-  if (route === "new-session") {
+  if (route === "new-session" || route === "new-directory-session") {
     return renderPage(
       <NewSessionPage
         state={state}
@@ -2999,8 +3012,9 @@ export function Workspace({
         )}
         onStarted={(sessionKey) => {
           focusComposerForSession.current = isDesktopViewport() ? sessionKey : undefined;
-          setRoute("workspace");
+          openSession(sessionKey);
         }}
+        directoryOnly={route === "new-directory-session"}
       />,
     );
   }

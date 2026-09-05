@@ -162,7 +162,10 @@ export function CommandPalette(props: CommandPaletteProps) {
     if (props.onOpenSession) items.push({ glyph: <History aria-hidden="true" size={16} />, name: "Sessions", run: () => { setFlow({ kind: "sessions" }); setQuery(""); } });
     if (props.workspaces?.length && props.onSelectWorkspace) items.push({ glyph: <PanelsTopLeft aria-hidden="true" size={16} />, name: "Workspaces", run: () => { setFlow({ kind: "workspaces" }); setQuery(""); } });
     if (props.sessionId && props.onRestoreStash) items.push({ glyph: <Archive aria-hidden="true" size={16} />, name: "Stashed messages", run: () => { setFlow({ kind: "stashes" }); setQuery(""); } });
-    if (props.canCreateSession && props.onCreateSession) items.push({ glyph: <Plus aria-hidden="true" size={16} />, name: "New Session", run: () => setFlow({ kind: "new-location" }) });
+    if (props.canCreateSession && props.onCreateSession) {
+      items.push({ glyph: <Plus aria-hidden="true" size={16} />, name: "New Session", run: () => setFlow({ kind: "new-location" }) });
+      items.push({ glyph: <Folder aria-hidden="true" size={16} />, name: "New Session in Directory", run: () => openDirectory("session") });
+    }
     if (props.projectName && props.onOpenProject) items.push({ glyph: <FolderKanban aria-hidden="true" size={16} />, name: `Open Project: ${props.projectName}`, run: () => closeAfter(props.onOpenProject) });
     if (props.projectName && props.projectPath && props.canCreateSession && props.onCreateSession) items.push({ glyph: <Plus aria-hidden="true" size={16} />, name: `New Session in ${props.projectName}`, run: () => startNameFlow({ path: props.projectPath!, displayPath: props.projectPath! }, "actions") });
     if (props.onSessionDetails) items.push({ glyph: <Info aria-hidden="true" size={16} />, name: "Session details", run: () => closeAfter(props.onSessionDetails) });
