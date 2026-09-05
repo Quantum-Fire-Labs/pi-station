@@ -16,7 +16,7 @@
 @media (pointer: coarse), (max-width: 1099px) { .delegated-children__summary { min-height: 44px; } }
 
 .agent-attention__list { display: grid; gap: 0; margin: 2px 0 0; padding: 0; list-style: none; }
-.agent-attention__list--activity { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.agent-attention__list--activity { min-height: 0; flex: 1; grid-auto-rows: min-content; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
 .agent-attention__agent { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 6px; border: 0; border-radius: 4px; padding: 4px 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .agent-attention__agent--activity { min-height: 34px; padding-left: 0; }
 .agent-attention__agent:hover,
