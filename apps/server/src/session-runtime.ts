@@ -545,7 +545,10 @@ async function createSdkSession(input: {
     ? SessionManager.open(requiredSessionPath(input), undefined, input.cwd)
     : SessionManager.create(input.cwd, undefined, { id: input.sessionId })
   const parent = { session: undefined as RuntimeSession | undefined }
-  const delegationTools = input.delegated === true || input.projectId === undefined ? [] : [defineTool({
+  const associatedProjectId = input.projectId !== undefined && (options.listProjects === undefined || (await options.listProjects()).some(({ id }) => id === input.projectId))
+    ? input.projectId
+    : undefined
+  const delegationTools = input.delegated === true || associatedProjectId === undefined ? [] : [defineTool({
     name: DELEGATION_TOOL_NAME,
     label: "Delegate",
     description: "Start an independent Pi Station child Session for a bounded task. The optional model must use provider/model-id format. The optional thinkingLevel can be off, minimal, low, medium, high, xhigh, or max. Each supplied override requires explicit user approval. Omitted arguments use openai-codex/gpt-5.6-sol and low, independently of the parent Session.",
@@ -556,7 +559,7 @@ async function createSdkSession(input: {
       thinkingLevel: Type.Optional(Type.String({ enum: ["off", "minimal", "low", "medium", "high", "xhigh", "max"], description: "Child thinking level" })),
     }, { additionalProperties: false }),
     execute: async (toolCallId, parameters, signal) => {
-      if (input.projectId === undefined) throw new Error("Delegation requires a Project")
+      if (associatedProjectId === undefined) throw new Error("Delegation requires a configured Project")
       if (parent.session === undefined) throw new Error("Delegation requires an active parent Session")
       const settings = resolveDelegatedSessionSettings(parent.session.modelRuntime, {
         ...(parameters.model === undefined ? {} : { model: parameters.model }),
@@ -565,7 +568,7 @@ async function createSdkSession(input: {
       if (delegationOverridesRequireApproval(parameters)) {
         if (options.commandApprovals === undefined) throw new Error("Delegation setting approval is unavailable")
         const approved = await options.commandApprovals.requestDelegation(
-          { projectId: input.projectId, sessionId: input.sessionId },
+          { projectId: associatedProjectId, sessionId: input.sessionId },
           `${settings.provider}/${settings.modelId}`,
           settings.thinkingLevel,
           signal,
@@ -574,7 +577,7 @@ async function createSdkSession(input: {
       }
       signal?.throwIfAborted()
       const record = await delegate({
-        projectId: input.projectId,
+        projectId: associatedProjectId,
         parentSessionId: input.sessionId,
         cwd: input.cwd,
         prompt: parameters.prompt,
@@ -596,10 +599,10 @@ async function createSdkSession(input: {
       prompt: Type.String({ description: "Instructions for the resumed child Session" }),
     }),
     execute: async (toolCallId, parameters) => {
-      if (input.projectId === undefined) throw new Error("Recovering a delegated agent requires a Project")
+      if (associatedProjectId === undefined) throw new Error("Recovering a delegated agent requires a configured Project")
       if (parent.session === undefined) throw new Error("Recovery requires an active parent Session")
       if (options.recoverDelegatedAgent === undefined) throw new Error("Recovering delegated agents is unavailable")
-      const record = await options.recoverDelegatedAgent({ projectId: input.projectId, parentSessionId: input.sessionId, childSessionId: parameters.sessionId })
+      const record = await options.recoverDelegatedAgent({ projectId: associatedProjectId, parentSessionId: input.sessionId, childSessionId: parameters.sessionId })
       const working = await recover({
         record,
         cwd: input.cwd,
@@ -618,9 +621,9 @@ async function createSdkSession(input: {
       sessionId: Type.String({ description: "Child Session ID returned by delegate_to_agent" }),
     }),
     execute: async (_toolCallId, parameters) => {
-      if (input.projectId === undefined) throw new Error("Closing a delegated agent requires a Project")
+      if (associatedProjectId === undefined) throw new Error("Closing a delegated agent requires a configured Project")
       if (options.closeDelegatedAgent === undefined) throw new Error("Closing delegated agents is unavailable")
-      await options.closeDelegatedAgent({ projectId: input.projectId, parentSessionId: input.sessionId, childSessionId: parameters.sessionId })
+      await options.closeDelegatedAgent({ projectId: associatedProjectId, parentSessionId: input.sessionId, childSessionId: parameters.sessionId })
       return { content: [{ type: "text", text: `Closed delegated agent Session ${parameters.sessionId}` }], details: { childSessionId: parameters.sessionId } }
     },
   })]
@@ -645,8 +648,8 @@ async function createSdkSession(input: {
       }
     },
   })]
-  const sessionMoveTools = options.sessionMoves === undefined ? [] : moveSessionTools(options.sessionMoves, input.sessionId, input.projectId, input.delegated === true)
-  const scheduledJobTools = input.projectId === undefined || options.scheduledJobs === undefined ? [] : scheduledTools(options.scheduledJobs, input.projectId, input.sessionId)
+  const sessionMoveTools = options.sessionMoves === undefined ? [] : moveSessionTools(options.sessionMoves, input.sessionId, associatedProjectId, input.delegated === true)
+  const scheduledJobTools = associatedProjectId === undefined || options.scheduledJobs === undefined ? [] : scheduledTools(options.scheduledJobs, associatedProjectId, input.sessionId)
   const projectListingTools = input.projectId === undefined || options.listProjects === undefined
     ? []
     : listProjectsTools(options.listProjects, input.projectId, input.delegated === true)

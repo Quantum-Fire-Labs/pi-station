@@ -7,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
-export function AddProjectPage({ state, onBack, onListDirectory, onCreate, onCreated }: {
+export function AddProjectPage({ state, onBack, onListDirectory, onCreate, onCreated, initialDirectory }: {
   state: ApplicationState;
   onBack: () => void;
   onListDirectory: (path?: string, showHidden?: boolean) => string | undefined;
   onCreate: (name: string, directory: string) => string | undefined;
   onCreated: (projectId: ProjectId) => void;
+  initialDirectory?: string;
 }) {
   const [directoryRequestId, setDirectoryRequestId] = useState<string>();
   const [showHidden, setShowHidden] = useState(false);
@@ -24,7 +25,7 @@ export function AddProjectPage({ state, onBack, onListDirectory, onCreate, onCre
   const saving = createRequest?.status === "saving";
   const error = createRequest?.result?.status === "rejected" || createRequest?.result?.status === "retryable" ? createRequest.result.error.message : directoryRequest?.result?.status === "rejected" || directoryRequest?.result?.status === "retryable" ? directoryRequest.result.error.message : undefined;
   const loadDirectory = (path?: string, hidden = showHidden): void => { const id = onListDirectory(path, hidden); if (id !== undefined) setDirectoryRequestId(id); };
-  useEffect(() => { loadDirectory(undefined, false); }, []);
+  useEffect(() => { loadDirectory(initialDirectory, false); }, [initialDirectory]);
   useEffect(() => { if (createRequest?.result?.status === "succeeded") onCreated(createRequest.result.project.projectId); }, [createRequest?.result, onCreated]);
 
   return <main className="creation-page"><div className="creation-page-shell">

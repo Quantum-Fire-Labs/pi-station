@@ -598,9 +598,12 @@ export class ApplicationClient extends ApplicationClientBase {
         },
       } as unknown as ApplicationState;
       this.emitRpcState();
-      void mutate("/v2/session-hosts", "POST", { root: workingDirectory }).then((result) => {
-        const response = result as { project: Project };
-        this.completeDraftSession(requestId, projectSummary(response.project), optionalName);
+      void mutate("/v2/directory-sessions", "POST", {
+        cwd: workingDirectory,
+        ...(optionalName === undefined ? {} : { name: optionalName }),
+      }).then((result) => {
+        const response = result as { session: SavedSession };
+        this.completeCreatedSession(requestId, response.session);
       }).catch((error: unknown) => {
         this.rpcState = {
           ...this.rpcState,
@@ -661,21 +664,7 @@ export class ApplicationClient extends ApplicationClientBase {
     void mutate(`/v2/projects/${encodeURIComponent(project.projectId)}/sessions`, "POST", {
       cwd: project.displayPath,
       ...(optionalName === undefined ? {} : { name: optionalName }),
-    }).then((result) => {
-      const response = result as { session: SavedSession };
-      const summary = sessionSummary(response.session);
-      const key = summary.sessionKey;
-      this.rpcState = {
-        ...this.rpcState,
-        sessions: [summary, ...this.rpcState.sessions.filter((item) => item.sessionKey.piSessionId !== key.piSessionId)],
-        managedSessionCreates: {
-          ...this.rpcState.managedSessionCreates,
-          [requestId]: { requestId, status: "succeeded", result: { status: "succeeded", sessionKey: key } },
-        },
-      };
-      this.emitRpcState();
-      this.select(key);
-    }).catch((error: unknown) => {
+    }).then((result) => this.completeCreatedSession(requestId, (result as { session: SavedSession }).session)).catch((error: unknown) => {
       this.rpcState = {
         ...this.rpcState,
         managedSessionCreates: {
@@ -685,6 +674,21 @@ export class ApplicationClient extends ApplicationClientBase {
       };
       this.emitRpcState();
     });
+  }
+
+  private completeCreatedSession(requestId: string, saved: SavedSession): void {
+    const summary = sessionSummary(saved);
+    const key = summary.sessionKey;
+    this.rpcState = {
+      ...this.rpcState,
+      sessions: [summary, ...this.rpcState.sessions.filter((item) => item.sessionKey.piSessionId !== key.piSessionId)],
+      managedSessionCreates: {
+        ...this.rpcState.managedSessionCreates,
+        [requestId]: { requestId, status: "succeeded", result: { status: "succeeded", sessionKey: key } },
+      },
+    };
+    this.emitRpcState();
+    this.select(key);
   }
 
   override executeCommand(

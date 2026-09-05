@@ -9,15 +9,16 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 
-export function NewSessionPage({ state, onBack, onListDirectory, onCreate, onStarted }: {
+export function NewSessionPage({ state, onBack, onListDirectory, onCreate, onStarted, directoryOnly = false }: {
   state: ApplicationState;
   onBack: () => void;
   onListDirectory: (path?: string, showHidden?: boolean) => string | undefined;
   onCreate: (workingDirectory: string, optionalName?: string) => string | undefined;
   onStarted: (sessionKey: SessionKey) => void;
+  directoryOnly?: boolean;
 }) {
   const availableProjects = state.projects.filter((project) => project.available);
-  const [source, setSource] = useState<"project" | "directory">(availableProjects.length > 0 ? "project" : "directory");
+  const [source, setSource] = useState<"project" | "directory">(directoryOnly || availableProjects.length === 0 ? "directory" : "project");
   const [project, setProject] = useState<ProjectSummary | undefined>(availableProjects[0]);
   const [directoryRequestId, setDirectoryRequestId] = useState<string>();
   const [showHidden, setShowHidden] = useState(false);
@@ -39,10 +40,10 @@ export function NewSessionPage({ state, onBack, onListDirectory, onCreate, onSta
   const workingDirectory = source === "project" ? project?.displayPath : directory?.current.path;
 
   return <main className="creation-page"><div className="creation-page-shell">
-    <header className="creation-page-header"><Button type="button" variant="outline" size="icon" onClick={onBack} aria-label="Back to Workspace"><ArrowLeft aria-hidden="true" /></Button><div><h1>New Session</h1><p>Choose where Pi will work.</p></div></header>
-    <Tabs value={source} onValueChange={(value) => setSource(value as "project" | "directory")}>
+    <header className="creation-page-header"><Button type="button" variant="outline" size="icon" onClick={onBack} aria-label="Back to Workspace"><ArrowLeft aria-hidden="true" /></Button><div><h1>{directoryOnly ? "New Session in Directory" : "New Session"}</h1><p>{directoryOnly ? "Choose the directory where Pi will work." : "Choose where Pi will work."}</p></div></header>
+    {!directoryOnly && <Tabs value={source} onValueChange={(value) => setSource(value as "project" | "directory")}>
       <TabsList aria-label="Session source"><TabsTrigger value="project" disabled={starting || availableProjects.length === 0}>Project</TabsTrigger><TabsTrigger value="directory" disabled={starting}>Directory</TabsTrigger></TabsList>
-    </Tabs>
+    </Tabs>}
     <div className="creation-page-content">
       <Card className="creation-picker gap-0 bg-transparent py-0">
         <CardHeader><CardTitle>{source === "project" ? "Projects" : "Directory"}</CardTitle></CardHeader>

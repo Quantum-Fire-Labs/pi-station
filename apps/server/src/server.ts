@@ -913,6 +913,20 @@ export function createPiStationServer(options: PiStationServerOptions): Server {
         sendJson(response, 200, await listDirectories(url.searchParams.get("path"), url.searchParams.get("hidden") === "true"))
         return
       }
+      if (request.method === "POST" && url.pathname === "/v2/directory-sessions") {
+        assertJsonMutation(request)
+        const value = await readJsonBody(request)
+        if (!isDirectorySessionCreateRequest(value)) throw new HttpError(400, "Directory Session request is invalid")
+        const root = await realpath(value.cwd)
+        const project = { id: stableProjectId(root), root }
+        const sessionId = randomUUID()
+        initializeSession(root, sessionId, value.name)
+        const indexed = await options.index.refreshSession({ projectId: project.id, sessionId }, project)
+        if (indexed === undefined) throw new Error("Created directory Session was not indexed")
+        await metadata.set({ projectId: project.id, sessionId }, "open")
+        sendJson(response, 201, { version: PROTOCOL_VERSION, session: await publishSession({ ...indexed, state: "open" }) })
+        return
+      }
       if (url.pathname === "/v2/quick-session" && request.method === "GET") {
         const record = await quickSessions.read()
         const session = record === undefined ? undefined : await findSession({ projectId: QUICK_SESSION_PROJECT_ID, sessionId: record.sessionId })
@@ -1483,6 +1497,10 @@ function isSessionCreateRequest(value: unknown): value is { readonly cwd?: strin
   return keys.every((key) => key === "cwd" || key === "name")
     && (record.cwd === undefined || typeof record.cwd === "string")
     && (record.name === undefined || (typeof record.name === "string" && record.name.trim().length > 0 && record.name.length <= 120))
+}
+
+function isDirectorySessionCreateRequest(value: unknown): value is { readonly cwd: string; readonly name?: string } {
+  return isSessionCreateRequest(value) && typeof value.cwd === "string" && value.cwd.length > 0
 }
 
 function isSessionNameRequest(value: unknown): value is { readonly name: string } {
