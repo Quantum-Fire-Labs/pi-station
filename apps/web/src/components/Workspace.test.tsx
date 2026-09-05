@@ -734,7 +734,7 @@ describe("Workspace", () => {
     }));
     expect(await screen.findByRole("heading", { name: bookmarkedProject.name, level: 1 }))
       .toBeVisible();
-    expect(screen.getByRole("region", { name: "Sessions" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Previous Sessions" })).toBeVisible();
     await user.click(within(screen.getByRole("tablist", { name: `${bookmarkedProject.name} sections` })).getByRole("tab", { name: "Settings" }));
     expect(screen.getByRole("heading", { name: "Settings" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Remove Project Bookmark" }));
@@ -2120,7 +2120,7 @@ describe("Workspace", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("gates unsupported palette actions and navigates to Projects", async () => {
+  it("gates unsupported palette actions and opens the Project browser", async () => {
     const user = userEvent.setup();
     const state = {
       ...fixtureState,
@@ -2139,7 +2139,8 @@ describe("Workspace", () => {
     expect(screen.queryByRole("option", { name: /Close Session/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /^Abort$/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("option", { name: /^Projects$/ }));
-    expect(screen.getByRole("heading", { name: "Projects", level: 1 })).toBeVisible();
+    expect(screen.getByRole("listbox", { name: "Projects" })).toBeVisible();
+    expect(screen.getByPlaceholderText("Search Projects…")).toBeVisible();
   });
 
   it("clones an idle Session from Session details", async () => {

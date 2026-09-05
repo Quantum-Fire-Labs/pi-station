@@ -47,7 +47,7 @@ describe("AgentAttention", () => {
 
   it("shows an explicit empty state", () => {
     render(<AgentAttention sessions={[session("idle")]} onSelect={vi.fn()} />);
-    expect(screen.getByText("No agents need attention")).toBeInTheDocument();
+    expect(screen.getByText("No agent activity")).toBeInTheDocument();
   });
 });
 

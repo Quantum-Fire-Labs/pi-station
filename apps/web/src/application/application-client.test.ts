@@ -562,8 +562,8 @@ describe("Pi Station incremental Session summaries", () => {
       const path = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
       if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [], bookmarks: [] }));
-      if (path === "/v2/projects/project/close" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project", closed: true }], bookmarks: [], workspaces: [{ id: "workspace", name: "Main", projectIds: ["project"], closedProjectIds: ["project"], bookmarkedProjectIds: [] }], activeWorkspaceId: "workspace" }));
-      if (path === "/v2/projects/project/open" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [], workspaces: [{ id: "workspace", name: "Main", projectIds: ["project"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "workspace" }));
+      if (path === "/v2/projects/project/close" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project", closed: true }], bookmarks: [] }));
+      if (path === "/v2/projects/project/open" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
       return Promise.reject(new Error(`Unexpected request: ${path}`));
     });
     globalThis.fetch = fetchMock;
@@ -573,7 +573,7 @@ describe("Pi Station incremental Session summaries", () => {
 
     await client.setProjectClosed("project", true);
     expect(client.snapshot.projects[0]?.closed).toBe(true);
-    expect(client.snapshot.workspaces?.[0]?.closedProjectIds).toEqual(["project"]);
+    expect(client.snapshot.workspaces).toEqual([]);
     await client.setProjectClosed("project", false);
     expect(client.snapshot.projects[0]?.closed).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith("/v2/projects/project/close", expect.objectContaining({ method: "POST", body: "{}" }));
