@@ -1,14 +1,18 @@
 import { randomUUID } from "node:crypto"
 import { join } from "node:path"
-import { isWorkspaceState, MAX_WORKSPACE_PROJECTS, MAX_WORKSPACE_TABS, MAX_WORKSPACES, type Project, type SavedSession, type Workspace, type WorkspaceCreateMutation, type WorkspaceUpdateMutation, type WorkspaceState } from "@pi-station/application-protocol"
+import { isProtocolId, isWorkspaceName, isWorkspaceState, MAX_WORKSPACE_PROJECTS, MAX_WORKSPACE_TABS, MAX_WORKSPACES, type Project, type SavedSession, type Workspace, type WorkspaceCreateMutation, type WorkspaceUpdateMutation, type WorkspaceState } from "@pi-station/application-protocol"
 import { AtomicJsonStore } from "./atomic-json-store.js"
 
-interface StoredWorkspaceData extends WorkspaceState { readonly version: 3 }
+interface StoredWorkspaceData extends WorkspaceState { readonly version: 4 }
+interface V3TabData extends WorkspaceState { readonly version: 3 }
+interface WorkspaceSession { readonly projectId: string; readonly sessionId: string }
+interface V3MembershipWorkspace { readonly id: string; readonly name: string; readonly projectIds: readonly string[]; readonly closedProjectIds: readonly string[]; readonly bookmarkedProjectIds: readonly string[]; readonly lastSession?: WorkspaceSession }
+interface V3MembershipData { readonly version: 3; readonly workspaces: readonly V3MembershipWorkspace[]; readonly activeWorkspaceId: string }
 interface V2Workspace { readonly id: string; readonly name: string; readonly projectIds: readonly string[]; readonly closedProjectIds: readonly string[]; readonly bookmarkedProjectIds: readonly string[] }
 interface V2Data { readonly version: 2; readonly workspaces: readonly V2Workspace[]; readonly activeWorkspaceId: string }
 interface LegacyWorkspace { readonly id: string; readonly name: string; readonly projectIds: readonly string[] }
 interface LegacyData { readonly version: 1; readonly workspaces: readonly LegacyWorkspace[]; readonly activeWorkspaceId?: string }
-type StoredData = StoredWorkspaceData | V2Data | LegacyData
+type StoredData = StoredWorkspaceData | V3TabData | V3MembershipData | V2Data | LegacyData
 const FALLBACK: StoredData = { version: 1, workspaces: [] }
 const DEFAULT_NAME = "Default"
 
@@ -112,22 +116,26 @@ export class WorkspaceStore {
 function reconcile(stored: StoredData, projects: readonly Project[], bookmarks: readonly string[], sessions: readonly SavedSession[]): StoredWorkspaceData {
   const configured = new Set(projects.map(({ id }) => id))
   let source: readonly Workspace[]
-  if (stored.version === 3) source = stored.workspaces
+  if (stored.version === 4 || (stored.version === 3 && isTabData(stored))) source = stored.workspaces
   else {
     const old = stored.workspaces.length === 0
       ? [{ ...emptyWorkspace(DEFAULT_NAME), projectIds: migratedDefaultProjectIds(projects, bookmarks) }]
       : stored.workspaces.map((workspace) => ({ ...workspace, closedProjectIds: "closedProjectIds" in workspace ? workspace.closedProjectIds : [], bookmarkedProjectIds: "bookmarkedProjectIds" in workspace ? workspace.bookmarkedProjectIds : [], tabs: [] }))
     source = old.map((workspace) => {
-      const eligible = sessions.filter((session) => session.state === "open" && session.quickSession !== true && session.parentSessionId === undefined && workspace.projectIds.includes(session.projectId))
+      const eligible = workspace.projectIds.flatMap((projectId) => sessions.filter((session) => session.projectId === projectId && session.state === "open" && session.quickSession !== true && session.parentSessionId === undefined))
       if (eligible.length > MAX_WORKSPACE_TABS) throw new WorkspaceStoreError("limit", `Workspace migration found more than ${MAX_WORKSPACE_TABS} open Sessions`)
       const tabs = eligible.map((session) => ({ id: randomUUID(), kind: "session" as const, projectId: session.projectId, sessionId: session.id }))
-      return { ...workspace, tabs, ...(tabs[0] === undefined ? {} : { activeTabId: tabs[0].id }) }
+      const lastSession = "lastSession" in workspace ? workspace.lastSession : undefined
+      const selected = lastSession === undefined ? undefined : tabs.find((tab) => tab.projectId === lastSession.projectId && tab.sessionId === lastSession.sessionId)
+      const { lastSession: ignored, ...migrated } = { ...workspace, lastSession }
+      void ignored
+      return { ...migrated, tabs, ...((selected ?? tabs[0]) === undefined ? {} : { activeTabId: (selected ?? tabs[0])!.id }) }
     })
   }
   let workspaces = source.map((workspace) => { const projectIds = workspace.projectIds.filter((id) => configured.has(id)); const bookmarked = workspace.bookmarkedProjectIds.filter((id) => projectIds.includes(id)); return { ...workspace, projectIds, closedProjectIds: workspace.closedProjectIds.filter((id) => projectIds.includes(id)), bookmarkedProjectIds: [...bookmarked, ...bookmarks.filter((id) => projectIds.includes(id) && !bookmarked.includes(id))] } })
   if (stored.workspaces.length === 0) { const projectIds = migratedDefaultProjectIds(projects, bookmarks); const marked = new Set(bookmarks); workspaces = [{ ...workspaces[0]!, projectIds, closedProjectIds: projects.filter(({ id, closed }) => closed === true && marked.has(id)).map(({ id }) => id), bookmarkedProjectIds: bookmarks.filter((id) => projectIds.includes(id)) }] }
   const activeWorkspaceId = stored.activeWorkspaceId !== undefined && workspaces.some(({ id }) => id === stored.activeWorkspaceId) ? stored.activeWorkspaceId : workspaces[0]!.id
-  return { version: 3, workspaces, activeWorkspaceId }
+  return { version: 4, workspaces, activeWorkspaceId }
 }
 function migratedDefaultProjectIds(projects: readonly Project[], bookmarks: readonly string[]): string[] { const marked = new Set(bookmarks); return projects.filter(({ id, closed }) => closed !== true || marked.has(id)).map(({ id }) => id) }
 function emptyWorkspace(name: string): Workspace { return { id: randomUUID(), name, tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] } }
@@ -137,4 +145,36 @@ function mapWorkspace(state: StoredWorkspaceData, id: string, change: (workspace
 function addToWorkspace(state: StoredWorkspaceData, workspaceId: string, projectId: string): StoredWorkspaceData { const workspace = requireWorkspace(state, workspaceId); if (workspace.projectIds.includes(projectId)) return state; if (workspace.projectIds.length >= MAX_WORKSPACE_PROJECTS) throw new WorkspaceStoreError("limit", "A maximum of 100 Projects per Workspace is allowed"); return mapWorkspace(state, workspaceId, (value) => ({ ...value, projectIds: [...value.projectIds, projectId] })) }
 function removeFromWorkspace(workspace: Workspace, id: string): Workspace { return { ...workspace, projectIds: workspace.projectIds.filter((item) => item !== id), closedProjectIds: workspace.closedProjectIds.filter((item) => item !== id), bookmarkedProjectIds: workspace.bookmarkedProjectIds.filter((item) => item !== id) } }
 function publicState({ workspaces, activeWorkspaceId }: StoredWorkspaceData): WorkspaceState { return { workspaces, activeWorkspaceId } }
-function isStoredData(value: unknown): value is StoredData { if (typeof value !== "object" || value === null || Array.isArray(value)) return false; const record = value as Record<string, unknown>; if (record.version === 3) return isWorkspaceState({ workspaces: record.workspaces, activeWorkspaceId: record.activeWorkspaceId }); if ((record.version !== 1 && record.version !== 2) || !Array.isArray(record.workspaces)) return false; return record.workspaces.every((item) => typeof item === "object" && item !== null && typeof (item as LegacyWorkspace).id === "string" && typeof (item as LegacyWorkspace).name === "string" && Array.isArray((item as LegacyWorkspace).projectIds)) }
+function isStoredData(value: unknown): value is StoredData {
+  if (!isRecord(value)) return false
+  if (value.version === 4) return isExactRecord(value, ["version", "workspaces", "activeWorkspaceId"]) && isWorkspaceState({ workspaces: value.workspaces, activeWorkspaceId: value.activeWorkspaceId })
+  if (value.version === 3) {
+    if (!Array.isArray(value.workspaces)) return false
+    const hasTabShape = value.workspaces.some((workspace) => isRecord(workspace) && ("tabs" in workspace || "activeTabId" in workspace || "closedAt" in workspace))
+    return hasTabShape
+      ? isExactRecord(value, ["version", "workspaces", "activeWorkspaceId"]) && isWorkspaceState({ workspaces: value.workspaces, activeWorkspaceId: value.activeWorkspaceId })
+      : isV3MembershipData(value)
+  }
+  if ((value.version !== 1 && value.version !== 2) || !Array.isArray(value.workspaces)) return false
+  return value.workspaces.every((item) => isRecord(item) && typeof item.id === "string" && typeof item.name === "string" && Array.isArray(item.projectIds))
+}
+function isTabData(value: V3TabData | V3MembershipData): value is V3TabData { return value.workspaces.some((workspace) => "tabs" in workspace) }
+function isV3MembershipData(value: unknown): value is V3MembershipData {
+  if (!isExactRecord(value, ["version", "workspaces", "activeWorkspaceId"]) || !Array.isArray(value.workspaces) || value.workspaces.length === 0 || value.workspaces.length > MAX_WORKSPACES) return false
+  if (typeof value.activeWorkspaceId !== "string" || !isProtocolId(value.activeWorkspaceId) || !value.workspaces.every(isV3MembershipWorkspace)) return false
+  const ids = value.workspaces.map((workspace) => workspace.id)
+  return new Set(ids).size === ids.length && ids.includes(value.activeWorkspaceId)
+}
+function isV3MembershipWorkspace(value: unknown): value is V3MembershipWorkspace {
+  if (!isExactRecord(value, ["id", "name", "projectIds", "closedProjectIds", "bookmarkedProjectIds", "lastSession"])) return false
+  if (typeof value.id !== "string" || !isProtocolId(value.id) || !isWorkspaceName(value.name)) return false
+  if (!isIds(value.projectIds) || !isIds(value.closedProjectIds) || !isIds(value.bookmarkedProjectIds)) return false
+  const projects = new Set(value.projectIds)
+  if (!value.closedProjectIds.every((id) => projects.has(id)) || !value.bookmarkedProjectIds.every((id) => projects.has(id))) return false
+  return value.lastSession === undefined || (isExactRecord(value.lastSession, ["projectId", "sessionId"])
+    && typeof value.lastSession.projectId === "string" && isProtocolId(value.lastSession.projectId) && projects.has(value.lastSession.projectId)
+    && typeof value.lastSession.sessionId === "string" && isProtocolId(value.lastSession.sessionId))
+}
+function isIds(value: unknown): value is readonly string[] { return Array.isArray(value) && value.length <= MAX_WORKSPACE_PROJECTS && value.every((id) => typeof id === "string" && isProtocolId(id)) && new Set(value).size === value.length }
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value) }
+function isExactRecord(value: unknown, keys: readonly string[]): value is Record<string, unknown> { return isRecord(value) && Object.keys(value).every((key) => keys.includes(key)) }
