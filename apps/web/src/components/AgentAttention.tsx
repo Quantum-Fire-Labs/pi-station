@@ -11,6 +11,8 @@ export interface AgentAttentionProps {
   readonly onSelect: (sessionKey: SessionKey) => void;
   readonly heading?: string;
   readonly emptyLabel?: string;
+  readonly persistent?: boolean;
+  readonly onRemove?: ((sessionKey: SessionKey) => void) | undefined;
   readonly projects?: readonly { readonly projectId: string; readonly name: string }[];
   readonly selectedSessionKey?: SessionKey | undefined;
 }
@@ -64,25 +66,26 @@ export function agentActivitySessions(sessions: readonly SessionSummary[], selec
   });
 }
 
-export function AgentAttention({ sessions, onSelect, heading = "Agent Activity", projects = [], selectedSessionKey }: AgentAttentionProps) {
+export function AgentAttention({ sessions, onSelect, heading = "Agent Activity", projects = [], selectedSessionKey, persistent = false, onRemove }: AgentAttentionProps) {
   const order = useRef<readonly string[]>([]);
-  const attention = agentActivitySessions(sessions, selectedSessionKey, order.current);
+  const attention = persistent ? sessions : agentActivitySessions(sessions, selectedSessionKey, order.current);
   order.current = attention.map((session) => keyOf(session.sessionKey));
   const [expanded, setExpanded] = useState(true);
   const headingId = useId();
   const projectNames = new Map(projects.map((project) => [project.projectId, project.name]));
-  if (attention.length === 0) return null;
+  if (attention.length === 0 && !persistent) return null;
 
   return (
-    <section className="agent-attention" aria-labelledby={headingId}>
+    <section className="agent-attention" aria-labelledby={persistent ? undefined : headingId} aria-label={persistent ? "Global Sessions" : undefined}>
       <button type="button" className="agent-attention__heading" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
         {expanded ? <ChevronDown aria-hidden="true" size={13} /> : <ChevronRight aria-hidden="true" size={13} />}<span id={headingId}>{heading}</span><small>{attention.length}</small>
       </button>
+      {expanded && attention.length === 0 && <p className="global-sessions-empty">Open a Session from Projects or start a new one.</p>}
       {expanded && <ul className="agent-attention__list agent-attention__list--activity">
         {attention.map((session) => {
           const projectName = projectNames.get(session.projectId ?? session.sessionKey.hostId);
           const context = projectName ?? session.displayPath?.trim();
-          return <li key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} {...(context === undefined ? {} : { context })} activity /></li>;
+          return <li className={persistent ? "global-session-row" : undefined} key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} {...(context === undefined ? {} : { context })} activity />{onRemove !== undefined && <button type="button" className="global-session-remove" aria-label={`Remove ${sessionAttentionLabel(session)} from Sessions`} title="Remove from list only; the agent and Workspace tabs stay open" onClick={() => onRemove(session.sessionKey)}>×</button>}</li>;
         })}
       </ul>}
     </section>
@@ -141,7 +144,7 @@ function AgentButton({ session, onSelect, navigationIndex, selected = false, rem
   const status = primaryAgentStatus(session);
   return (
     <div className={`${navigationIndex === undefined ? "" : "workspace-tab"}${selected ? " selected" : ""}`}>
-      <button className={`agent-attention__agent${activity ? " agent-attention__agent--activity" : ""}${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${status}`} aria-current={selected ? "page" : undefined} data-activity-session={activity ? "true" : undefined} data-session-identity={activity || navigationIndex !== undefined ? keyOf(session.sessionKey) : undefined} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={navigationIndex !== undefined && session.projection.unread.hasUnread ? "true" : undefined}>
+      <button className={`agent-attention__agent${activity ? " agent-attention__agent--activity" : ""}${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${status}`} aria-current={selected ? "page" : undefined} data-activity-session={activity ? "true" : undefined} data-session-identity={activity || navigationIndex !== undefined ? keyOf(session.sessionKey) : undefined} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={(activity || navigationIndex !== undefined) && session.projection.unread.hasUnread ? "true" : undefined}>
         <span className="agent-attention__identity"><span className="agent-attention__name">{label}</span>{context && <small>{context}</small>}</span>
         <span className={`agent-attention__status agent-attention__status--${status.toLowerCase()}`} aria-hidden="true"><i className={`agent-attention__marker agent-attention__marker--${status.toLowerCase()}`} />{status}</span>
       </button>

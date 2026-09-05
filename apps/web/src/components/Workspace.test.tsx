@@ -80,6 +80,24 @@ const swipe = (
 };
 
 describe("Workspace", () => {
+  it("removes only the global list entry, keeps the selected conversation and tabs, and restores it when opened again", async () => {
+    enableDesktopViewport();
+    const onCommand = vi.fn();
+    const onSelect = vi.fn();
+    const target = fixtureState.sessions[0]!;
+    render(<Workspace state={fixtureState} onSelect={onSelect} onCommand={onCommand} />);
+    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
+    const tabsBefore = sidebar.querySelectorAll(".workspace-tab-open").length;
+    await userEvent.click(within(sidebar).getByRole("button", { name: `Remove ${target.name} from Sessions` }));
+    expect(sidebar.querySelectorAll(".workspace-tab-open")).toHaveLength(tabsBefore);
+    expect(within(sidebar).queryByRole("button", { name: `Remove ${target.name} from Sessions` })).not.toBeInTheDocument();
+    expect(onCommand).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+    const tab = [...sidebar.querySelectorAll<HTMLButtonElement>(".workspace-tab-open")].find((button) => button.textContent?.includes(target.name!))!;
+    await userEvent.click(tab);
+    expect(within(sidebar).getByRole("button", { name: `Remove ${target.name} from Sessions` })).toBeVisible();
+    expect(onSelect).toHaveBeenCalledWith(target.sessionKey);
+  });
   it("opens a requested Session tab before consuming its deep link", async () => {
     let finish!: () => void;
     const openSessionInWorkspace = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
@@ -97,7 +115,20 @@ describe("Workspace", () => {
     expect(openSessionInWorkspace).toHaveBeenCalledOnce();
   });
 
-  it("cycles the exact visible Activity order with Control+J and ignores project tab order", () => {
+  it("keeps idle Sessions in keyboard order after completion and tab removal", () => {
+    enableDesktopViewport();
+    const onSelect = vi.fn();
+    const first = fixtureState.sessions[0]!;
+    const second = fixtureState.sessions[1]!;
+    const initial = { ...fixtureState, sessions: [first, second], selectedSessionKey: first.sessionKey };
+    const view = render(<Workspace state={initial} onSelect={onSelect} />);
+    const settled = { ...initial, workspaces: [], sessions: initial.sessions.map((session) => ({ ...session, projection: { ...session.projection, run: "idle" as const, unread: { hasUnread: false } } })) };
+    view.rerender(<Workspace state={settled} onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: "k", code: "KeyK", ctrlKey: true });
+    expect(onSelect).toHaveBeenCalledWith(second.sessionKey);
+  });
+
+  it("cycles the exact visible Sessions order with Control+J and ignores project tab order", () => {
     enableDesktopViewport();
     const onSelect = vi.fn();
     const first = { ...fixtureState.sessions[0]!, projection: { ...fixtureState.sessions[0]!.projection, run: "working" as const } };
@@ -410,7 +441,7 @@ describe("Workspace", () => {
     const { container } = render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
     const mobileNavigation = container.querySelector<HTMLDetailsElement>(".mobile-workspace-navigation");
     if (mobileNavigation === null) throw new Error("Mobile Workspace navigation is missing");
-    await userEvent.click(within(mobileNavigation).getByText("Sessions"));
+    await userEvent.click(within(mobileNavigation).getByText("Sessions", { selector: "summary" }));
     expect(mobileNavigation).toHaveAttribute("open");
 
     fireEvent.pointerDown(document.body);

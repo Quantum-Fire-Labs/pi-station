@@ -52,6 +52,7 @@ import { MobileNavigationMenu } from "./MobileNavigationMenu";
 import { WorkspaceActionCancelled, WorkspaceRow } from "./WorkspaceRow";
 import { WorkspaceNavigation } from "./WorkspaceNavigation";
 import { AgentAttention } from "./AgentAttention";
+import { useGlobalSessions } from "./use-global-sessions";
 import { NotificationSettingsPage } from "./NotificationSettings";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -654,6 +655,8 @@ function Sidebar({
   onAddDirectoryAsProject,
   onOpenSessionInWorkspace,
   onActivitySelect,
+  globalSessions,
+  onRemoveGlobalSession,
   onSelectWorkspaceTab,
 }: {
   state: ApplicationState;
@@ -674,6 +677,8 @@ function Sidebar({
   onAddDirectoryAsProject: (directory: string) => void;
   onOpenSessionInWorkspace: (session: SessionSummary) => void;
   onActivitySelect: (session: SessionSummary) => void;
+  globalSessions: readonly SessionSummary[];
+  onRemoveGlobalSession: (key: SessionKey) => void;
   onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
 }) {
   const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId);
@@ -691,7 +696,7 @@ function Sidebar({
         </div>
       </header>
       <div className="workspace-sidebar-navigation">
-        <AgentAttention sessions={state.sessions} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
+        <AgentAttention sessions={globalSessions} heading="Sessions" persistent onRemove={onRemoveGlobalSession} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
           if (session !== undefined) onActivitySelect(session);
         }} />
@@ -846,6 +851,7 @@ export function Workspace({
   onOpenQuickSession,
   embeddedSession = false,
 }: WorkspaceProps) {
+  const globalSessions = useGlobalSessions(applicationState, !embeddedSession);
   const activeWorkspace = applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
     ?? applicationState.workspaces?.find((workspace) => workspace.closedAt === undefined);
   const workspaceMru = useRef<readonly string[]>(readWorkspaceMru());
@@ -1610,6 +1616,7 @@ export function Workspace({
     const project = target === undefined
       ? undefined
       : state.projects.find((candidate) => candidate.projectId === target.projectId);
+    globalSessions.restore(sessionKey);
     if (target?.projection.availability === "closed") {
       const workingDirectory = project?.displayPath ?? target.displayPath;
       if (workingDirectory === undefined) return;
@@ -1986,11 +1993,11 @@ export function Workspace({
       const key = event.key.toLowerCase();
       if (key !== "j" && key !== "k") return;
       const options = [...document.querySelectorAll<HTMLButtonElement>(
-        ".sidebar [data-activity-session='true'][data-session-identity]",
+        `.sidebar [data-activity-session='true'][data-session-identity]${event.shiftKey ? "[data-unread='true']" : ""}`,
       )];
-      if (options.length === 0) return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      if (options.length === 0) return;
       const currentIdentity = state.selectedSessionKey === undefined
         ? undefined
         : `${state.selectedSessionKey.hostId}:${state.selectedSessionKey.piSessionId}`;
@@ -2612,6 +2619,8 @@ export function Workspace({
   );
   const sidebar = (
     <Sidebar
+      globalSessions={globalSessions.sessions}
+      onRemoveGlobalSession={globalSessions.remove}
       state={state}
       onQuickSession={onOpenQuickSession}
       onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}
@@ -2698,7 +2707,7 @@ export function Workspace({
     <details ref={mobileWorkspaceNavigationRef} className="mobile-workspace-navigation">
       <summary>Sessions</summary>
       <div className="mobile-workspace-navigation-panel">
-        <AgentAttention sessions={state.sessions} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
+        <AgentAttention sessions={globalSessions.sessions} heading="Sessions" persistent onRemove={globalSessions.remove} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
           if (session === undefined) return;
           afterSharedMarkdownCheck(() => {
