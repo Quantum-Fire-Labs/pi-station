@@ -3,14 +3,16 @@ import type {
   SharedFileInfo,
   ThinkingLevel,
   TimelineAttachment,
+  Workspace,
+  WorkspaceState,
 } from "@pi-station/application-protocol";
 
 /** UI projection derived from the normalized /v2 application protocol. */
 export interface SessionKey { readonly hostId: string; readonly piSessionId: string }
 export type ProjectId = string;
 export type CapabilityId = string;
-export interface SavedWorkspace { readonly id: string; readonly name: string; readonly projectIds: readonly ProjectId[]; readonly closedProjectIds?: readonly ProjectId[]; readonly lastSession?: { readonly projectId: ProjectId; readonly sessionId: string }; readonly createdAt: string; readonly updatedAt: string }
-export interface WorkspaceCollection { readonly workspaces: readonly SavedWorkspace[]; readonly activeWorkspaceId: string }
+export type SavedWorkspace = Workspace;
+export type WorkspaceCollection = WorkspaceState;
 
 export interface ProjectSummary { readonly projectId: ProjectId; readonly name: string; readonly displayPath: string; readonly available: boolean; readonly closed?: boolean; readonly createdAt: string; readonly updatedAt: string }
 export interface ProjectBookmark { readonly projectId: ProjectId; readonly position: number }

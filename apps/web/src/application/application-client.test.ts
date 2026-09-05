@@ -528,7 +528,7 @@ describe("Pi Station incremental Session summaries", () => {
       const path = fetchPath(input);
       if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
       if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [session], bookmarks: [] }));
-      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [{ id: "workspace", name: "Default", projectIds: ["project"], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }], activeWorkspaceId: "workspace" }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [{ id: "workspace", name: "Default", tabs: [{ id: "tab", kind: "session", projectId: "project", sessionId: "session-with-file" }], activeTabId: "tab", projectIds: ["project"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "workspace" }));
       if (path === "/v2/projects/project/sessions/session-with-file/shared-files") return Promise.resolve(Response.json({
         version: 2, sharedFiles: [{ name: "result.txt", url: "/shared/session-with-file/result.txt", size: 6, modifiedAt: 2 }],
       }));
@@ -562,8 +562,8 @@ describe("Pi Station incremental Session summaries", () => {
       const path = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
       if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [], bookmarks: [] }));
-      if (path === "/v2/projects/project/close" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project", closed: true }], bookmarks: [], workspaces: [{ id: "workspace", name: "Main", projectIds: ["project"], closedProjectIds: ["project"], bookmarkedProjectIds: [] }], activeWorkspaceId: "workspace" }));
-      if (path === "/v2/projects/project/open" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [], workspaces: [{ id: "workspace", name: "Main", projectIds: ["project"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "workspace" }));
+      if (path === "/v2/projects/project/close" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project", closed: true }], bookmarks: [] }));
+      if (path === "/v2/projects/project/open" && init?.method === "POST") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/project" }], bookmarks: [] }));
       return Promise.reject(new Error(`Unexpected request: ${path}`));
     });
     globalThis.fetch = fetchMock;
@@ -573,10 +573,136 @@ describe("Pi Station incremental Session summaries", () => {
 
     await client.setProjectClosed("project", true);
     expect(client.snapshot.projects[0]?.closed).toBe(true);
-    expect(client.snapshot.workspaces?.[0]?.closedProjectIds).toEqual(["project"]);
+    expect(client.snapshot.workspaces).toEqual([]);
     await client.setProjectClosed("project", false);
     expect(client.snapshot.projects[0]?.closed).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith("/v2/projects/project/close", expect.objectContaining({ method: "POST", body: "{}" }));
+  });
+
+  it("keeps Workspace selection in this browser and restores its selected Session", async () => {
+    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
+    const sessions = [saved("one", "2026-01-02T00:00:00.000Z"), saved("two", "2026-01-01T00:00:00.000Z")];
+    const workspaces = [
+      { id: "one", name: "One", tabs: [{ id: "tab-one", kind: "session", projectId: "project", sessionId: "one" }], activeTabId: "tab-one", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] },
+      { id: "two", name: "Two", tabs: [{ id: "tab-two", kind: "session", projectId: "project", sessionId: "two" }], activeTabId: "tab-two", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] },
+    ];
+    const fetchMock = vi.fn<typeof fetch>((input) => {
+      const path = fetchPath(input);
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/work" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions, bookmarks: [] }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces, activeWorkspaceId: "one" }));
+      if (path.endsWith("/two")) return Promise.resolve(Response.json({ version: 2, eventCursor: 0, session: sessions[1], phase: "idle", timeline: [], settings: { modelInventory: [], supportedThinkingLevels: ["off"] } }));
+      if (path.endsWith("/one")) return Promise.resolve(Response.json({ version: 2, eventCursor: 0, session: sessions[0], phase: "idle", timeline: [], settings: { modelInventory: [], supportedThinkingLevels: ["off"] } }));
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    globalThis.fetch = fetchMock;
+    const client = new ApplicationClient();
+    client.connect();
+    await vi.waitFor(() => expect(client.snapshot.selectedSessionKey?.piSessionId).toBe("one"));
+
+    await client.activateWorkspace("two");
+    await vi.waitFor(() => expect(client.snapshot.selectedSessionKey?.piSessionId).toBe("two"));
+    expect(storage.get("pi-station:active-workspace-id")).toBe("two");
+    expect(fetchMock.mock.calls.some(([input]) => fetchPath(input).includes("/activate"))).toBe(false);
+    client.stop();
+  });
+
+  it("does not select a global Session when the active Workspace is empty", async () => {
+    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    globalThis.fetch = vi.fn<typeof fetch>((input) => {
+      const path = fetchPath(input);
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/work" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [saved("global", "2026-01-01T00:00:00.000Z")], bookmarks: [] }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [{ id: "empty", name: "Empty", tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "empty" }));
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    const client = new ApplicationClient();
+    client.connect();
+    await vi.waitFor(() => expect(client.snapshot.connection).toBe("ready"));
+    expect(client.snapshot.selectedSessionKey).toBeUndefined();
+    client.stop();
+  });
+
+  it("keeps an explicit Session selection during startup instead of restoring a Workspace tab", async () => {
+    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    const sessions = [saved("deep-link", "2026-01-02T00:00:00.000Z"), saved("tab", "2026-01-01T00:00:00.000Z")];
+    globalThis.fetch = vi.fn<typeof fetch>((input) => {
+      const path = fetchPath(input);
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/work" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions, bookmarks: [] }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [{ id: "workspace", name: "Workspace", tabs: [{ id: "tab", kind: "session", projectId: "project", sessionId: "tab" }], activeTabId: "tab", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "workspace" }));
+      const session = sessions.find(({ id }) => path.endsWith(`/${id}`));
+      if (session !== undefined) return Promise.resolve(Response.json({ version: 2, eventCursor: 0, session, phase: "idle", timeline: [], settings: { modelInventory: [], supportedThinkingLevels: ["off"] } }));
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    const client = new ApplicationClient();
+    client.select({ hostId: "project", piSessionId: "deep-link" });
+    client.connect();
+    await vi.waitFor(() => expect(client.snapshot.connection).toBe("ready"));
+    expect(client.snapshot.selectedSessionKey?.piSessionId).toBe("deep-link");
+    client.stop();
+  });
+
+  it("moves from a closed Workspace to an open empty Workspace and clears its Session", async () => {
+    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    const session = saved("selected", "2026-01-01T00:00:00.000Z");
+    const selected = { id: "selected", name: "Selected", tabs: [{ id: "tab", kind: "session", projectId: "project", sessionId: "selected" }], activeTabId: "tab", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] };
+    const fallback = { id: "fallback", name: "Fallback", tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] };
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const path = fetchPath(input);
+      if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/work" }], bookmarks: [] }));
+      if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [session], bookmarks: [] }));
+      if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [selected, fallback], activeWorkspaceId: "selected" }));
+      if (path === "/v2/projects/project/sessions/selected") return Promise.resolve(Response.json({ version: 2, eventCursor: 0, session, phase: "idle", timeline: [], settings: { modelInventory: [], supportedThinkingLevels: ["off"] } }));
+      if (path === "/v2/workspaces/selected/close" && init?.method === "POST") return Promise.resolve(Response.json({ workspaces: [{ ...selected, closedAt: "2026-01-01T00:00:00.000Z" }, fallback], activeWorkspaceId: "fallback" }));
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    globalThis.fetch = fetchMock;
+    const client = new ApplicationClient();
+    client.connect();
+    await vi.waitFor(() => expect(client.snapshot.selectedSessionKey?.piSessionId).toBe("selected"));
+    await client.closeWorkspace("selected");
+    expect(client.snapshot.activeWorkspaceId).toBe("fallback");
+    expect(client.snapshot.selectedSessionKey).toBeUndefined();
+    client.stop();
+  });
+
+  it("returns the Workspace created by this request, not another new Workspace", async () => {
+    const workspace = { name: "Workspace", tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] };
+    const fetchMock = vi.fn(() => Promise.resolve(Response.json({
+      workspaces: [{ ...workspace, id: "unrelated" }, { ...workspace, id: "created" }],
+      activeWorkspaceId: "unrelated", createdWorkspaceId: "created",
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApplicationClient();
+    expect(await client.createWorkspace("My task")).toBe("created");
+    expect(fetchMock).toHaveBeenCalledWith("/v2/workspaces", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "My task" }) }));
+  });
+
+  it("uses explicit Workspace tab, close, and restore routes", async () => {
+    const workspace = { id: "workspace", name: "Workspace", tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] };
+    const state = { workspaces: [workspace], activeWorkspaceId: "workspace" };
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(Response.json(state)));
+    globalThis.fetch = fetchMock;
+    const client = new ApplicationClient();
+
+    await client.openSessionInWorkspace("workspace", "project/one", "session one");
+    await client.selectWorkspaceTab("workspace", "tab one");
+    await client.reorderWorkspaceTabs("workspace", ["tab-two", "tab-one"]);
+    await client.closeWorkspaceTab("workspace", "tab one");
+    await client.closeWorkspace("workspace");
+    await client.restoreWorkspace("workspace");
+
+    expect(fetchMock.mock.calls.map(([path, init]) => [path, init?.method, init?.body])).toEqual([
+      ["/v2/workspaces/workspace/tabs", "POST", JSON.stringify({ projectId: "project/one", sessionId: "session one" })],
+      ["/v2/workspaces/workspace/tabs/tab%20one/activate", "POST", "{}"],
+      ["/v2/workspaces/workspace/tabs", "PUT", JSON.stringify({ tabIds: ["tab-two", "tab-one"] })],
+      ["/v2/workspaces/workspace/tabs/tab%20one", "DELETE", undefined],
+      ["/v2/workspaces/workspace/close", "POST", "{}"],
+      ["/v2/workspaces/workspace/restore", "POST", "{}"],
+    ]);
   });
 
   it("opens and removes a Project through Workspace membership endpoints", async () => {
@@ -589,7 +715,7 @@ describe("Pi Station incremental Session summaries", () => {
       if (path === "/v2/sessions") return Promise.resolve(Response.json({ sequence: 0, sessions: [], bookmarks: [] }));
       if (path === "/v2/workspaces") return Promise.resolve(Response.json({ workspaces: [], activeWorkspaceId: undefined }));
       if (path === "/v2/workspaces/workspace-two/projects/project/open" && init?.method === "POST") return Promise.resolve(Response.json(openCollection));
-      if (path === "/v2/workspaces/workspace-two/projects/project/open" && init?.method === "DELETE") return Promise.resolve(Response.json(removedCollection));
+      if (path === "/v2/workspaces/workspace-two/projects/project" && init?.method === "DELETE") return Promise.resolve(Response.json(removedCollection));
       return Promise.reject(new Error(`Unexpected request: ${path}`));
     });
     globalThis.fetch = fetchMock;
@@ -602,7 +728,7 @@ describe("Pi Station incremental Session summaries", () => {
     expect(client.snapshot.workspaces).toEqual(openCollection.workspaces);
 
     await client.removeProjectFromWorkspace("workspace-two", "project");
-    expect(fetchMock).toHaveBeenCalledWith("/v2/workspaces/workspace-two/projects/project/open", { method: "DELETE" });
+    expect(fetchMock).toHaveBeenCalledWith("/v2/workspaces/workspace-two/projects/project", { method: "DELETE" });
     expect(client.snapshot.workspaces).toEqual(removedCollection.workspaces);
   });
 

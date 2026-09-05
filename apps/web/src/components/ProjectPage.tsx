@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Folder,
   Plus,
+  Search,
 } from "lucide-react";
 import type { ProjectSummary, SessionKey, SessionSummary } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
@@ -55,6 +56,7 @@ export function ProjectPage({
   onConfigureDevelopmentServer: (configuration?: { command: string; previewPort?: number }) => string | undefined;
 }) {
   const [view, setView] = useState<"sessions" | "scheduled-jobs" | "settings">("sessions");
+  const [sessionQuery, setSessionQuery] = useState("");
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(project.name);
   const [nameSaving, setNameSaving] = useState(false);
@@ -120,6 +122,13 @@ export function ProjectPage({
     && session.projection.capabilities.includes("session.close")
   ));
   const workingCount = closable.filter((session) => session.projection.run === "working").length;
+  const sessionMatchesQuery = (session: SessionSummary): boolean => {
+    const search = sessionQuery.trim().toLocaleLowerCase();
+    return search.length === 0 || (session.name || "Untitled Session").toLocaleLowerCase().includes(search);
+  };
+  const visibleBookmarked = bookmarked.filter(sessionMatchesQuery);
+  const visibleRunning = running.filter(sessionMatchesQuery);
+  const visibleClosed = closed.filter(sessionMatchesQuery);
 
   useEffect(() => {
     if (mutation?.status === "succeeded") setMutationRequestId(undefined);
@@ -131,6 +140,7 @@ export function ProjectPage({
 
   useEffect(() => {
     setView("sessions");
+    setSessionQuery("");
     setEditingName(false);
     setName(project.name);
     setNameError("");
@@ -193,22 +203,7 @@ export function ProjectPage({
               <Plus data-icon="inline-start" aria-hidden="true" />
               New Session
             </Button>
-            <Button
-              type="button"
-              size="lg"
-              variant="outline"
-              disabled={savingProjectState}
-              onClick={() => {
-                setSavingProjectState(true);
-                setProjectStateError(undefined);
-                void onSetProjectClosed(project.closed !== true)
-                  .catch((reason: unknown) => setProjectStateError(reason instanceof Error ? reason.message : "Project state could not be changed"))
-                  .finally(() => setSavingProjectState(false));
-              }}
-            >
-              {savingProjectState ? (project.closed === true ? "Opening…" : "Closing…") : (project.closed === true ? "Open Project" : "Close Project")}
-            </Button>
-            {projectStateError && <p className="new-session-error" role="alert">{projectStateError}</p>}
+
           </div>
         </section>
 
@@ -222,13 +217,20 @@ export function ProjectPage({
           }}
         >
           <TabsList className="project-page-tabs-list" variant="line" aria-label={`${project.name} sections`}>
-            <TabsTrigger value="sessions">Sessions</TabsTrigger>
+            <TabsTrigger value="sessions">Previous Sessions</TabsTrigger>
             <TabsTrigger value="scheduled-jobs">Scheduled Jobs</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="sessions" className="project-page-tab-content">
-            <section className="project-page-section project-sessions-section" aria-label="Sessions">
+            <section className="project-page-section project-sessions-section" aria-label="Previous Sessions">
+              <div className="project-sessions-heading">
+                <div><h2>Previous Sessions</h2><p>Open a recent Session or start a new one.</p></div>
+                <div className="project-session-search">
+                  <Search aria-hidden="true" />
+                  <Input value={sessionQuery} onChange={(event) => setSessionQuery(event.target.value)} placeholder="Search Previous Sessions" aria-label="Search Previous Sessions" />
+                </div>
+              </div>
               <div className="project-sessions-toolbar">
                 <AlertDialog open={confirmCloseAll} onOpenChange={setConfirmCloseAll}>
                   <AlertDialogTrigger
@@ -268,10 +270,10 @@ export function ProjectPage({
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
-              {bookmarked.length > 0 && (
+              {visibleBookmarked.length > 0 && (
                 <SessionGroup
                   title="Bookmarked"
-                  sessions={bookmarked}
+                  sessions={visibleBookmarked}
                   onOpen={onOpenSession}
                   bookmarked
                   saving={saving}
@@ -285,8 +287,8 @@ export function ProjectPage({
               )}
               <SessionGroup
                 title="Open"
-                sessions={running}
-                empty="No Sessions are open in this Project."
+                sessions={visibleRunning}
+                empty={sessionQuery.trim() === "" ? "No Sessions are open in this Project." : "No matching open Sessions."}
                 onOpen={onOpenSession}
                 saving={saving}
                 onBookmark={(session, value) => track(
@@ -296,9 +298,9 @@ export function ProjectPage({
                   onReorderSessionBookmark(session.sessionKey, direction),
                 )}
               />
-              {closed.length > 0 && (
+              {visibleClosed.length > 0 && (
                 <ClosedSessionGroup
-                  sessions={closed}
+                  sessions={visibleClosed}
                   open={closedOpen}
                   onOpenChange={setClosedOpen}
                   saving={saving}
@@ -410,6 +412,30 @@ export function ProjectPage({
                       {serverRequest?.status === "succeeded" && <p role="status">Development Server configuration saved.</p>}
                       {serverError && <p className="new-session-error" role="alert">{serverError}</p>}
                     </form>
+                  </CardContent>
+                </Card>
+
+                <Card className="project-settings-card gap-0 bg-transparent py-0">
+                  <CardHeader>
+                    <CardTitle><h3>Project availability</h3></CardTitle>
+                    <CardDescription>Hide this Project from active views without removing it.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={savingProjectState}
+                      onClick={() => {
+                        setSavingProjectState(true);
+                        setProjectStateError(undefined);
+                        void onSetProjectClosed(project.closed !== true)
+                          .catch((reason: unknown) => setProjectStateError(reason instanceof Error ? reason.message : "Project state could not be changed"))
+                          .finally(() => setSavingProjectState(false));
+                      }}
+                    >
+                      {savingProjectState ? (project.closed === true ? "Opening…" : "Closing…") : (project.closed === true ? "Open Project" : "Close Project")}
+                    </Button>
+                    {projectStateError && <p className="new-session-error" role="alert">{projectStateError}</p>}
                   </CardContent>
                 </Card>
 

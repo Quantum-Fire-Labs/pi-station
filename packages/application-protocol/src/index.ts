@@ -17,14 +17,17 @@ export type { Project } from "./projects.js"
 export {
   isWorkspace,
   isWorkspaceCreateMutation,
+  isWorkspaceOpenSessionMutation,
+  isWorkspaceReorderTabsMutation,
+  isWorkspaceSessionTab,
   isWorkspaceUpdateMutation,
-  isWorkspaceSessionMutation,
   isWorkspaceName,
   isWorkspaceState,
   MAX_WORKSPACE_PROJECTS,
+  MAX_WORKSPACE_TABS,
   MAX_WORKSPACES,
 } from "./workspaces.js"
-export type { Workspace, WorkspaceCreateMutation, WorkspaceUpdateMutation, WorkspaceSession, WorkspaceSessionMutation, WorkspaceState } from "./workspaces.js"
+export type { Workspace, WorkspaceCreateResult, WorkspaceCreateMutation, WorkspaceOpenSessionMutation, WorkspaceReorderTabsMutation, WorkspaceSessionTab, WorkspaceUpdateMutation, WorkspaceState } from "./workspaces.js"
 
 export { isSystemTheme } from "./system-theme.js"
 export type { SystemTheme, SystemThemeColors, SystemThemeStyle } from "./system-theme.js"

@@ -47,14 +47,14 @@ describe("Pi Station Project removal", () => {
     }
   })
 
-  it("keeps a Project closed in its Workspace until its Session is explicitly reopened", async () => {
+  it("keeps global Project close state independent from explicit Workspace Session tabs", async () => {
     const test = await setup("closed")
     try {
       await closeProject(test)
       expect((await fetch(`${test.base}/v2/projects/${test.projectId}/sessions/session-1`)).status).toBe(200)
       expect(await projectClosed(test)).toBe(true)
-      const workspaces = await (await fetch(`${test.base}/v2/workspaces`)).json() as { workspaces: Array<{ closedProjectIds: string[] }> }
-      expect(workspaces.workspaces[0]?.closedProjectIds).toEqual([test.projectId])
+      const workspaces = await (await fetch(`${test.base}/v2/workspaces`)).json() as { workspaces: Array<{ tabs: Array<{ sessionId?: string }> }> }
+      expect(workspaces.workspaces[0]?.tabs).toEqual([])
 
       await closeProject(test)
       const reopened = await fetch(`${test.base}/v2/projects/${test.projectId}/sessions/session-1/state`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: "open" }) })

@@ -15,7 +15,6 @@ const pageProps = {
   onProjects: vi.fn(),
   onSettings: vi.fn(),
   onReorderBookmark: vi.fn(),
-  activeWorkspace: { id: "workspace-one", name: "One", projectIds: fixtureState.projects.map(({ projectId }) => projectId), createdAt: "2026-01-01", updatedAt: "2026-01-01" },
 };
 
 describe("ProjectsPage", () => {
@@ -87,21 +86,24 @@ describe("ProjectsPage", () => {
     expect(onSetProjectClosed).toHaveBeenCalledWith(project.projectId, false);
   });
 
-  it("moves and removes global Projects in the active Workspace", async () => {
-    const user = userEvent.setup();
-    const [member, absent] = fixtureState.projects;
-    if (member === undefined || absent === undefined) throw new Error("Project fixtures are missing");
-    const onOpenInWorkspace = vi.fn(() => Promise.resolve());
-    const onRemoveFromWorkspace = vi.fn(() => Promise.resolve());
-    const activeWorkspace = { ...pageProps.activeWorkspace, projectIds: [member.projectId] };
-    render(<ProjectsPage {...pageProps} state={fixtureState} onOpen={vi.fn()} activeWorkspace={activeWorkspace} onOpenInWorkspace={onOpenInWorkspace} onRemoveFromWorkspace={onRemoveFromWorkspace} />);
+  it("keeps a closed bookmarked Project in the Bookmarked group", () => {
+    const project = fixtureState.projects[0]!;
+    render(
+      <ProjectsPage
+        {...pageProps}
+        state={{
+          ...fixtureState,
+          projects: fixtureState.projects.map((item) => item.projectId === project.projectId ? { ...item, closed: true } : item),
+          projectBookmarks: [{ projectId: project.projectId, position: 0 }],
+        }}
+        onOpen={vi.fn()}
+      />,
+    );
 
-    expect(screen.queryByRole("button", { name: `Open ${absent.name}` })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Move to this Workspace" }));
-    expect(onOpenInWorkspace).toHaveBeenCalledWith(absent.projectId);
-
-    await user.click(screen.getByRole("button", { name: "Remove from Workspace" }));
-    expect(onRemoveFromWorkspace).toHaveBeenCalledWith(member.projectId);
+    const bookmarked = screen.getByRole("heading", { name: "Bookmarked" }).closest("section");
+    if (bookmarked === null) throw new Error("Bookmarked section is missing");
+    expect(within(bookmarked).getByRole("heading", { name: project.name })).toBeVisible();
+    expect(within(bookmarked).getByRole("button", { name: "Open Project" })).toBeVisible();
   });
 
   it("opens a Project from its card area without a visible Open Project button", async () => {

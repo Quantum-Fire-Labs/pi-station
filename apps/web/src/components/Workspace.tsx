@@ -1,14 +1,11 @@
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import type { MessageStash } from "@pi-station/application-protocol";
+import type { MessageStash, WorkspaceSessionTab } from "@pi-station/application-protocol";
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   AudioWaveform,
-  Bookmark,
-  ChevronDown,
-  ChevronRight,
   Clock3,
   CornerDownRight,
   Ellipsis,
@@ -34,7 +31,6 @@ import type {
   DevelopmentServerConfiguration,
   ProjectId,
   ProjectSummary,
-  SavedWorkspace,
   SessionKey,
   SessionSummary,
 } from "../application/workspace-model";
@@ -53,7 +49,9 @@ import { Modal } from "./Modal";
 import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
-import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { WorkspaceActionCancelled, WorkspaceRow } from "./WorkspaceRow";
+import { WorkspaceNavigation } from "./WorkspaceNavigation";
+import { AgentAttention } from "./AgentAttention";
 import { NotificationSettingsPage } from "./NotificationSettings";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -99,6 +97,8 @@ interface WorkspaceProps {
   state: ApplicationState;
   client?: ApplicationClient | undefined;
   onSelect: (key: SessionKey) => void;
+  requestedSessionKey?: SessionKey | undefined;
+  onRequestedSessionOpened?: () => void;
   onCommand?: (
     action: ApplicationCommand["action"],
     targetSessionKey?: SessionKey,
@@ -179,7 +179,6 @@ function Dashboard({
   onDashboard,
   onProjects,
   onSettings,
-  onWorkspace,
 }: {
   state: ApplicationState;
   onOpen: (key: SessionKey) => void;
@@ -191,7 +190,6 @@ function Dashboard({
   onDashboard: () => void;
   onProjects: () => void;
   onSettings: () => void;
-  onWorkspace: (id: string) => void;
 }) {
   const [view, setView] = useState<DashboardView>(readDashboardView);
   const [showingClosed, setShowingClosed] = useState<ReadonlySet<string>>(
@@ -258,9 +256,6 @@ function Dashboard({
             onDashboard={onDashboard}
             onProjects={onProjects}
             onSettings={onSettings}
-            workspaces={state.workspaces ?? []}
-            activeWorkspaceId={state.activeWorkspaceId}
-            onWorkspace={onWorkspace}
           />
           <div className="dashboard-heading">
             <h1>Dashboard</h1>
@@ -588,7 +583,6 @@ const sessionTime = (value?: string): number => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const collapsedProjectsKey = "pi-station:collapsed-projects";
 const sessionEditorFilesKey = "pi-station:session-editor-files";
 const composerDraftKey = (identity: string): string => `pi-station:composer-draft:${identity}`;
 
@@ -623,87 +617,21 @@ const writeSessionEditorFiles = (files: Readonly<Record<string, SharedMarkdownFi
   try { localStorage.setItem(sessionEditorFilesKey, JSON.stringify(files)); } catch { /* Restricted storage keeps state in memory. */ }
 };
 
-const readCollapsedProjects = (): ReadonlySet<string> => {
-  try {
-    const stored = localStorage.getItem(collapsedProjectsKey) ?? "[]";
-    const value = JSON.parse(stored) as unknown;
-    if (!Array.isArray(value)) return new Set();
-    return new Set(value.filter((id): id is string => typeof id === "string"));
-  } catch {
-    return new Set();
-  }
-};
-
-const writeCollapsedProjects = (projects: ReadonlySet<string>): void => {
-  try {
-    localStorage.setItem(collapsedProjectsKey, JSON.stringify([...projects]));
-  } catch {
-    // Restricted storage must not prevent local Project controls.
-  }
-};
-
-function SessionRowAccessory({
-  shortcut,
-  shortcutsVisible,
-  children,
-}: {
-  shortcut?: number | undefined;
-  shortcutsVisible: boolean;
-  children?: ReactNode;
-}) {
-  const shortcutIsVisible = shortcutsVisible && shortcut !== undefined;
-  return (
-    <span className="session-row-accessory">
-      <span
-        className="session-row-accessory-content"
-        aria-hidden={shortcutIsVisible || undefined}
-      >
-        {children}
-      </span>
-      {shortcut !== undefined && (
-        <span
-          className="session-row-shortcut"
-          role="img"
-          aria-label={`Shortcut ${shortcut}`}
-          aria-hidden={!shortcutIsVisible || undefined}
-        >
-          {shortcut}
-        </span>
-      )}
-    </span>
-  );
-}
-
-function SessionStatusIndicator({ session }: { session: SessionSummary }) {
-  const status = session.projection.run === "working"
-    ? "working"
-    : session.projection.unread.hasUnread
-      ? "unread"
-      : "idle";
-  const label = `${status[0]?.toUpperCase()}${status.slice(1)} Session`;
-  return <i className={`session-status-indicator status-${status}`} aria-label={label} />;
-}
-
 function Sidebar({
   state,
-  onSelect,
   onDashboard,
-  onNewSession,
   onGeneralNewSession,
+  onNewSession,
   onProjects,
   onSettings,
-  onOpenProject,
-  onSessionContextMenu,
-  onOpenQuickSession,
   activeRoute,
-  activeProjectId,
   shortcutsVisible,
   onCollapse,
-  client,
-  onActivateWorkspace,
+  onCloseWorkspaceTab,
+  onOpenSessionInWorkspace,
+  onSelectWorkspaceTab,
 }: {
   state: ApplicationState;
-  onSelect: (key: SessionKey) => void;
   onDashboard: () => void;
   onNewSession: (project: ProjectSummary) => void;
   onGeneralNewSession: () => void;
@@ -711,410 +639,44 @@ function Sidebar({
   onSettings: () => void;
   onOpenProject: (projectId: ProjectId) => void;
   onSessionContextMenu: (session: SessionSummary, x: number, y: number) => void;
-  onOpenQuickSession: () => void;
   activeRoute: "workspace" | "dashboard" | "new-session" | "projects" | "project" | "add-project" | "settings" | "notifications" | "themes" | "voice-messages" | "session-defaults" | "timezone" | "editor" | "providers" | "update";
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
   onCollapse: () => void;
-  client?: ApplicationClient | undefined;
-  onActivateWorkspace: (id: string) => Promise<void>;
+  onCloseWorkspaceTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
+  onOpenSessionInWorkspace: (session: SessionSummary) => void;
+  onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
 }) {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
-    readCollapsedProjects,
-  );
-  const bookmarkPosition = new Map(
-    state.projectBookmarks.map(({ projectId, position }) => [
-      projectId,
-      position,
-    ]),
-  );
-  let sessionShortcutNumber = 0;
-  const projects = state.projects
-    .filter((project) => project.closed !== true)
-    .filter((project) => (
-      bookmarkPosition.has(project.projectId)
-      || state.sessions.some((session) => (
-        session.projectId === project.projectId
-        && sessionIsOpen(session)
-      ))
-    ))
-    .sort((left, right) => {
-      const leftPosition = bookmarkPosition.get(left.projectId);
-      const rightPosition = bookmarkPosition.get(right.projectId);
-      if (leftPosition !== undefined || rightPosition !== undefined) {
-        return (leftPosition ?? Number.MAX_SAFE_INTEGER)
-          - (rightPosition ?? Number.MAX_SAFE_INTEGER);
-      }
-      return left.name.localeCompare(
-        right.name,
-        undefined,
-        { sensitivity: "base" },
-      ) || left.projectId.localeCompare(right.projectId);
-    });
-  const sessionPosition = new Map(
-    state.sessionBookmarks.map(({ sessionKey, position }) => [
-      sessionIdentity(sessionKey),
-      position,
-    ]),
-  );
-  const sessionIsBookmarked = (
-    projectId: ProjectId,
-    sessionKey: SessionKey,
-  ): boolean => state.sessionBookmarks.some((bookmark) => (
-    bookmark.projectId === projectId
-    && sessionKeysEqual(bookmark.sessionKey, sessionKey)
-  ));
-  const toggleProject = (projectId: string): void => {
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      writeCollapsedProjects(next);
-      return next;
-    });
-  };
-  const compareSessions = (
-    left: SessionSummary,
-    right: SessionSummary,
-  ): number => {
-    const leftLive = sessionIsOpen(left);
-    const rightLive = sessionIsOpen(right);
-    if (leftLive !== rightLive) return leftLive ? -1 : 1;
-
-    const leftPosition = sessionPosition.get(sessionIdentity(left.sessionKey));
-    const rightPosition = sessionPosition.get(sessionIdentity(right.sessionKey));
-    if (leftPosition !== undefined || rightPosition !== undefined) {
-      return (leftPosition ?? Number.MAX_SAFE_INTEGER)
-        - (rightPosition ?? Number.MAX_SAFE_INTEGER);
-    }
-
-    const creationDifference = sessionTime(right.createdAt)
-      - sessionTime(left.createdAt);
-    return creationDifference
-      || sessionIdentity(left.sessionKey).localeCompare(
-        sessionIdentity(right.sessionKey),
-      );
-  };
-  const nestedSessions = (
-    sessions: readonly SessionSummary[],
-  ): readonly { session: SessionSummary; depth: number }[] => {
-    const ordered = [...sessions].sort(compareSessions);
-    const sessionsByIdentity = new Map(ordered.map((session) => [
-      sessionIdentity(session.sessionKey),
-      session,
-    ]));
-    const children = new Map<string, SessionSummary[]>();
-    for (const session of ordered) {
-      const parentIdentity = session.parentSessionKey === undefined
-        ? undefined
-        : sessionIdentity(session.parentSessionKey);
-      if (parentIdentity === undefined || !sessionsByIdentity.has(parentIdentity)) {
-        continue;
-      }
-      children.set(parentIdentity, [
-        ...(children.get(parentIdentity) ?? []),
-        session,
-      ]);
-    }
-
-    const result: { session: SessionSummary; depth: number }[] = [];
-    const visited = new Set<string>();
-    const append = (session: SessionSummary, depth: number): void => {
-      const identity = sessionIdentity(session.sessionKey);
-      if (visited.has(identity)) return;
-      visited.add(identity);
-      result.push({ session, depth });
-      for (const child of children.get(identity) ?? []) append(child, depth + 1);
-    };
-    for (const session of ordered) {
-      const parentIdentity = session.parentSessionKey === undefined
-        ? undefined
-        : sessionIdentity(session.parentSessionKey);
-      if (parentIdentity === undefined || !sessionsByIdentity.has(parentIdentity)) {
-        append(session, 0);
-      }
-    }
-    for (const session of ordered) append(session, 0);
-    return result;
-  };
+  const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId);
   return (
-    <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Projects and Sessions">
+    <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Workspace and Sessions">
       <header className="sidebar-header">
-        <button
-          type="button"
-          className={`sidebar-home${activeRoute === "dashboard" ? " selected" : ""}`}
-          aria-label="Dashboard"
-          aria-current={activeRoute === "dashboard" ? "page" : undefined}
-          onClick={onDashboard}
-        >
-          <svg className="sidebar-brand-mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 12 12 5M5 12h14M19 12l-7 7" />
-            <circle cx="5" cy="12" r="2.5" />
-            <circle cx="12" cy="5" r="2.5" />
-            <circle cx="19" cy="12" r="2.5" />
-            <circle cx="12" cy="19" r="2.5" />
-          </svg>
+        <button type="button" className={`sidebar-home${activeRoute === "dashboard" ? " selected" : ""}`} aria-label="Dashboard" aria-current={activeRoute === "dashboard" ? "page" : undefined} onClick={onDashboard}>
+          <svg className="sidebar-brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 12 5M5 12h14M19 12l-7 7" /><circle cx="5" cy="12" r="2.5" /><circle cx="12" cy="5" r="2.5" /><circle cx="19" cy="12" r="2.5" /><circle cx="12" cy="19" r="2.5" /></svg>
           Pi Station
         </button>
-        <button
-          type="button"
-          aria-label="Hide sidebar"
-          aria-keyshortcuts="Control+B Meta+B"
-          onClick={onCollapse}
-        >
-          <PanelLeftClose aria-hidden="true" size={17} />
-        </button>
+        <button type="button" aria-label="Hide sidebar" aria-keyshortcuts="Control+B Meta+B" onClick={onCollapse}><PanelLeftClose aria-hidden="true" size={17} /></button>
       </header>
-      <WorkspaceSwitcher
-        workspaces={state.workspaces ?? []}
-        activeWorkspaceId={state.activeWorkspaceId}
-        onActivate={onActivateWorkspace}
-        onCreate={(name) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.createWorkspace(name)}
-        onRename={(id, name) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.renameWorkspace(id, name)}
-        onDelete={(id) => client === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.deleteWorkspace(id)}
-        onOpenQuickSession={onOpenQuickSession}
-        onNewSession={onGeneralNewSession}
-      >
-      <nav className="project-list">
-        {projects.map((project) => {
-          const projectSessions = state.sessions.filter(
-            (session) => session.projectId === project.projectId,
-          );
-          const runningCount = projectSessions.filter(sessionIsOpen).length;
-          return <section
-            key={project.projectId}
-            className={`project${project.available ? "" : " unavailable"}`}
-          >
-            <header>
-              <span className="project-title">
-                <button
-                  className="project-collapse-toggle"
-                  aria-expanded={!collapsed.has(project.projectId)}
-                  aria-label={`${collapsed.has(project.projectId) ? "Expand" : "Collapse"} ${project.name}`}
-                  onClick={() => toggleProject(project.projectId)}
-                >
-                  {collapsed.has(project.projectId)
-                    ? <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
-                    : <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} />}
-                </button>
-                <button
-                  className={`project-name-link${activeRoute === "project" && activeProjectId === project.projectId ? " selected" : ""}`}
-                  type="button"
-                  aria-current={activeRoute === "project" && activeProjectId === project.projectId ? "page" : undefined}
-                  onClick={() => onOpenProject(project.projectId)}
-                >
-                  {project.name}
-                </button>
-              </span>
-              <span className="project-actions">
-                <button
-                  aria-label={`New Session in ${project.name}`}
-                  disabled={!project.available}
-                  onClick={() => onNewSession(project)}
-                >
-                  <Plus aria-hidden="true" size={14} strokeWidth={1.5} />
-                </button>
-              </span>
-            </header>
-            {!collapsed.has(project.projectId) && runningCount === 0 && (
-                <p className="project-session-empty">No open Sessions</p>
-              )}
-            {!collapsed.has(project.projectId) && nestedSessions(
-              projectSessions.filter(sessionIsOpen),
-            ).map(({ session, depth }) => {
-                const selected = activeRoute === "workspace"
-                  && state.selectedSessionKey !== undefined
-                  && sessionKeysEqual(
-                    session.sessionKey,
-                    state.selectedSessionKey,
-                  );
-                sessionShortcutNumber += 1;
-                const shortcut = sessionShortcutNumber <= 9 ? sessionShortcutNumber : undefined;
-                return (
-                  <button
-                    className={`session-row${selected ? " selected" : ""}`}
-                    aria-current={selected ? "page" : undefined}
-                    aria-keyshortcuts={shortcut === undefined ? undefined : `Control+${shortcut} Meta+${shortcut}`}
-                    data-session-shortcut={shortcut}
-                    data-session-identity={sessionIdentity(session.sessionKey)}
-                    data-session-depth={depth}
-                    data-unread={session.projection.unread.hasUnread || undefined}
-                    style={{ "--session-depth": depth } as CSSProperties}
-                    key={`${session.sessionKey.hostId}:${session.sessionKey.piSessionId}`}
-                    onClick={() => onSelect(session.sessionKey)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      onSessionContextMenu(session, event.clientX, event.clientY);
-                    }}
-                  >
-                    <SessionStatusIndicator session={session} />
-                    <span className="session-row-name">
-                      {sessionLabel(session)}
-                    </span>
-                    <SessionRowAccessory
-                      shortcut={shortcut}
-                      shortcutsVisible={shortcutsVisible}
-                    >
-                      {sessionIsBookmarked(project.projectId, session.sessionKey) && (
-                        <span
-                          className="session-bookmark-indicator"
-                          role="img"
-                          aria-label="Bookmarked"
-                        >
-                          <Bookmark aria-hidden="true" size={13} strokeWidth={1.6} />
-                        </span>
-                      )}
-                    </SessionRowAccessory>
-                  </button>
-                );
-              })}
-          </section>;
-        })}
-        {state.sessions.some((session) => (
-          !state.projects.some((project) => project.projectId === session.projectId)
-          && state.sessionBookmarks.some((bookmark) => (
-            bookmark.projectId === session.projectId
-            && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)
-          ))
-        )) && (
-          <section className="project bookmarked-sessions">
-            <header>
-              <strong>Bookmarked Sessions</strong>
-            </header>
-            {state.sessions
-              .filter((session) => (
-                !state.projects.some((project) => project.projectId === session.projectId)
-                && state.sessionBookmarks.some((bookmark) => (
-                  bookmark.projectId === session.projectId
-                  && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)
-                ))
-              ))
-              .sort(compareSessions)
-              .map((session) => {
-                const selected = activeRoute === "workspace"
-                  && state.selectedSessionKey !== undefined
-                  && sessionKeysEqual(session.sessionKey, state.selectedSessionKey);
-                sessionShortcutNumber += 1;
-                const shortcut = sessionShortcutNumber <= 9 ? sessionShortcutNumber : undefined;
-                return (
-                  <button
-                    className={`session-row${selected ? " selected" : ""}`}
-                    aria-current={selected ? "page" : undefined}
-                    aria-keyshortcuts={shortcut === undefined ? undefined : `Control+${shortcut} Meta+${shortcut}`}
-                    data-session-shortcut={shortcut}
-                    data-session-identity={sessionIdentity(session.sessionKey)}
-                    data-session-depth={0}
-                    data-unread={session.projection.unread.hasUnread || undefined}
-                    style={{ "--session-depth": 0 } as CSSProperties}
-                    key={sessionIdentity(session.sessionKey)}
-                    onClick={() => onSelect(session.sessionKey)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      onSessionContextMenu(session, event.clientX, event.clientY);
-                    }}
-                  >
-                    <SessionStatusIndicator session={session} />
-                    <span className="session-row-name">{sessionLabel(session)}</span>
-                    <SessionRowAccessory
-                      shortcut={shortcut}
-                      shortcutsVisible={shortcutsVisible}
-                    >
-                      <span
-                        className="session-bookmark-indicator"
-                        role="img"
-                        aria-label="Bookmarked"
-                      >
-                        <Bookmark aria-hidden="true" size={13} strokeWidth={1.6} />
-                      </span>
-                    </SessionRowAccessory>
-                  </button>
-                );
-              })}
-          </section>
-        )}
-        {state.sessions.some((session) => (
-          sessionIsOpen(session)
-          && !state.projects.some((project) => project.projectId === session.projectId)
-          && !state.sessionBookmarks.some((bookmark) => (
-            bookmark.projectId === session.projectId
-            && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)
-          ))
-        )) && (
-          <section className="project other-sessions">
-            <header>
-              <strong>Other Sessions</strong>
-            </header>
-            {state.sessions
-              .filter((session) => (
-                sessionIsOpen(session)
-                && !state.projects.some((project) => project.projectId === session.projectId)
-                && !state.sessionBookmarks.some((bookmark) => (
-                  bookmark.projectId === session.projectId
-                  && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)
-                ))
-              ))
-              .sort((left, right) => (
-                (right.lastActivityAt ?? "").localeCompare(left.lastActivityAt ?? "")
-                || sessionIdentity(left.sessionKey).localeCompare(sessionIdentity(right.sessionKey))
-              ))
-              .map((session) => ({ session, depth: 0 }))
-              .map(({ session, depth }) => {
-                const selected = activeRoute === "workspace"
-                  && state.selectedSessionKey !== undefined
-                  && sessionKeysEqual(session.sessionKey, state.selectedSessionKey);
-                sessionShortcutNumber += 1;
-                const shortcut = sessionShortcutNumber <= 9 ? sessionShortcutNumber : undefined;
-                return (
-                  <button
-                    className={`session-row${selected ? " selected" : ""}`}
-                    aria-current={selected ? "page" : undefined}
-                    aria-keyshortcuts={shortcut === undefined ? undefined : `Control+${shortcut} Meta+${shortcut}`}
-                    data-session-shortcut={shortcut}
-                    data-session-identity={sessionIdentity(session.sessionKey)}
-                    data-session-depth={depth}
-                    data-unread={session.projection.unread.hasUnread || undefined}
-                    style={{ "--session-depth": depth } as CSSProperties}
-                    key={sessionIdentity(session.sessionKey)}
-                    onClick={() => onSelect(session.sessionKey)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      onSessionContextMenu(session, event.clientX, event.clientY);
-                    }}
-                  >
-                    <SessionStatusIndicator session={session} />
-                    <span className="session-row-name">{sessionLabel(session)}</span>
-                    <SessionRowAccessory
-                      shortcut={shortcut}
-                      shortcutsVisible={shortcutsVisible}
-                    >
-                      <small>{session.displayPath?.split("/").pop()}</small>
-                    </SessionRowAccessory>
-                  </button>
-                );
-              })}
-          </section>
-        )}
-      </nav>
-      </WorkspaceSwitcher>
+      <div className="workspace-sidebar-navigation">
+        {activeWorkspace && <WorkspaceNavigation
+          workspace={activeWorkspace}
+          projects={state.projects}
+          sessions={sessionsVisibleInWorkspace(state.sessions)}
+          selectedSessionKey={state.selectedSessionKey}
+          onNewSession={onGeneralNewSession}
+          onNewSessionInProject={onNewSession}
+          onOpenSession={onOpenSessionInWorkspace}
+          onSelectTab={onSelectWorkspaceTab}
+          onCloseTab={onCloseWorkspaceTab}
+        />}
+        <AgentAttention sessions={sessionsVisibleInWorkspace(state.sessions)} onSelect={(key) => {
+          const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
+          if (session !== undefined) onOpenSessionInWorkspace(session);
+        }} />
+      </div>
       <footer>
-        <button
-          className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined}
-          aria-label="Projects"
-          aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined}
-          onClick={onProjects}
-        >
-          <Folder aria-hidden="true" size={17} />
-          <span>Projects</span>
-        </button>
-        <button
-          className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined}
-          aria-label="Settings"
-          aria-current={["settings", "notifications", "themes"].includes(activeRoute) ? "page" : undefined}
-          onClick={onSettings}
-        >
-          <Settings aria-hidden="true" size={17} />
-          <span>Settings</span>
-        </button>
+        <button className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined} aria-label="Projects" aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined} onClick={onProjects}><Folder aria-hidden="true" size={17} /><span>Projects</span></button>
+        <button className={["settings", "notifications", "themes"].includes(activeRoute) ? "selected" : undefined} aria-label="Settings" aria-current={["settings", "notifications", "themes"].includes(activeRoute) ? "page" : undefined} onClick={onSettings}><Settings aria-hidden="true" size={17} /><span>Settings</span></button>
       </footer>
     </aside>
   );
@@ -1223,6 +785,8 @@ export function Workspace({
   state: applicationState,
   client,
   onSelect,
+  requestedSessionKey,
+  onRequestedSessionOpened,
   onCommand,
   onLoadEarlier,
   onUploadImage,
@@ -1248,17 +812,12 @@ export function Workspace({
   embeddedSession = false,
 }: WorkspaceProps) {
   const activeWorkspace = applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
-    ?? applicationState.workspaces?.[0];
-  const workspaceProjectIds = activeWorkspace === undefined ? undefined : new Set(activeWorkspace.projectIds);
-  const closedWorkspaceProjectIds = new Set(activeWorkspace?.closedProjectIds ?? []);
-  const state = embeddedSession
-    ? applicationState
-    : {
-      ...applicationState,
-      projects: (workspaceProjectIds === undefined ? applicationState.projects : applicationState.projects.filter(({ projectId }) => workspaceProjectIds.has(projectId)))
-        .map((project) => activeWorkspace === undefined ? project : { ...project, closed: closedWorkspaceProjectIds.has(project.projectId) }),
-      sessions: sessionsVisibleInWorkspace(applicationState.sessions).filter(({ projectId }) => projectId === undefined || workspaceProjectIds === undefined || workspaceProjectIds.has(projectId)),
-    };
+    ?? applicationState.workspaces?.find((workspace) => workspace.closedAt === undefined);
+  // Projects and saved Sessions are global library data. Explicit tabs control Workspace navigation.
+  const state = embeddedSession ? applicationState : {
+    ...applicationState,
+    sessions: sessionsVisibleInWorkspace(applicationState.sessions),
+  };
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteInitialFlow, setPaletteInitialFlow] = useState<CommandPaletteInitialFlow>("actions");
   const { toast } = useToast();
@@ -1307,6 +866,7 @@ export function Workspace({
   }, [resizingSidebar]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileWorkspaceNavigationRef = useRef<HTMLDetailsElement>(null);
   const editorIdentity = state.selectedSessionKey === undefined
     ? undefined
     : sessionIdentity(state.selectedSessionKey);
@@ -1334,6 +894,12 @@ export function Workspace({
     });
   };
   const [discardSharedMarkdownAction, setDiscardSharedMarkdownAction] = useState<(() => void)>();
+  const discardSharedMarkdownCancel = useRef<(() => void) | undefined>(undefined);
+  const cancelNavigation = (): void => {
+    setDiscardSharedMarkdownAction(undefined);
+    discardSharedMarkdownCancel.current?.();
+    discardSharedMarkdownCancel.current = undefined;
+  };
   const [closeSessionConfirmOpen, setCloseSessionConfirmOpen] = useState(false);
   const [commandApprovalPending, setCommandApprovalPending] = useState(false);
   const [commandApprovalError, setCommandApprovalError] = useState<string>();
@@ -1367,33 +933,33 @@ export function Workspace({
   useEffect(() => {
     if (embeddedSession && state.selectedSessionKey !== undefined) setRouteState("workspace");
   }, [embeddedSession, state.selectedSessionKey]);
-  const afterSharedMarkdownCheck = (action: () => void): void => {
-    if (sharedMarkdownDirty) setDiscardSharedMarkdownAction(() => action);
-    else action();
+  useEffect(() => {
+    mobileWorkspaceNavigationRef.current?.removeAttribute("open");
+  }, [state.activeWorkspaceId, state.selectedSessionKey?.hostId, state.selectedSessionKey?.piSessionId, route]);
+  const afterSharedMarkdownCheck = (action: () => void, onCancel?: () => void): void => {
+    if (sharedMarkdownDirty || images.length > 0 || files.length > 0) {
+      discardSharedMarkdownCancel.current?.();
+      discardSharedMarkdownCancel.current = onCancel;
+      setDiscardSharedMarkdownAction(() => action);
+    } else action();
   };
+  const navigationCheck = useRef(afterSharedMarkdownCheck);
+  navigationCheck.current = afterSharedMarkdownCheck;
   const setRoute = (next: Route): void => afterSharedMarkdownCheck(() => setRouteState(next));
-  const sessionToOpenInWorkspace = (workspace: SavedWorkspace | undefined) => {
-    if (workspace === undefined) return undefined;
-    const closedProjectIds = new Set(workspace.closedProjectIds ?? []);
-    const visibleSessions = sessionsVisibleInWorkspace(applicationState.sessions);
-    const remembered = workspace.lastSession;
-    if (remembered !== undefined && !closedProjectIds.has(remembered.projectId)) {
-      const session = visibleSessions.find(({ projectId, sessionKey }) => projectId === remembered.projectId && sessionKey.piSessionId === remembered.sessionId);
-      if (session !== undefined) return session;
-    }
-    const firstProjectId = workspace.projectIds.find((projectId) => !closedProjectIds.has(projectId));
-    return firstProjectId === undefined ? undefined : visibleSessions.find((session) => session.projectId === firstProjectId);
-  };
+  const guardedWorkspaceAction = (action: () => Promise<void>): Promise<void> => new Promise<void>((resolve, reject) => {
+    afterSharedMarkdownCheck(() => { void Promise.resolve().then(action).then(resolve, reject); }, () => reject(new WorkspaceActionCancelled()));
+  });
   const activateWorkspace = async (id: string): Promise<void> => {
-    if (client === undefined || id === state.activeWorkspaceId) return;
+    if (client === undefined) return;
     const targetWorkspace = applicationState.workspaces?.find((workspace) => workspace.id === id);
-    const firstSession = sessionToOpenInWorkspace(targetWorkspace);
+    const activeTab = targetWorkspace?.tabs?.find((tab) => tab.id === targetWorkspace.activeTabId) ?? targetWorkspace?.tabs?.[0];
+    const targetSession = activeTab === undefined ? undefined : applicationState.sessions.find((session) => session.sessionKey.hostId === activeTab.projectId && session.sessionKey.piSessionId === activeTab.sessionId);
     await client.activateWorkspace(id);
     setDetailsOpen(false);
     setSelectedProjectId(undefined);
-    if (firstSession === undefined) setRouteState("dashboard");
+    if (targetSession === undefined) setRouteState("workspace");
     else {
-      onSelect(firstSession.sessionKey);
+      onSelect(targetSession.sessionKey);
       setRouteState("workspace");
     }
   };
@@ -1418,30 +984,24 @@ export function Workspace({
   useEffect(() => {
     const cycleWorkspace = (event: KeyboardEvent): void => {
       if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat || (event.key !== "[" && event.key !== "]")) return;
-      const workspaces = state.workspaces ?? [];
+      if (document.querySelector("dialog[open], [role='dialog']") !== null) return;
+      const workspaces = (state.workspaces ?? []).filter(({ closedAt }) => closedAt === undefined);
       if (client === undefined || workspaces.length < 2) return;
       const current = Math.max(0, workspaces.findIndex(({ id }) => id === state.activeWorkspaceId));
       const offset = event.key === "]" ? 1 : -1;
       const target = workspaces[(current + offset + workspaces.length) % workspaces.length];
       if (target === undefined) return;
       event.preventDefault();
-      const firstSession = sessionToOpenInWorkspace(target);
-      void client.activateWorkspace(target.id).then(() => {
-        setDetailsOpen(false);
-        setSelectedProjectId(undefined);
-        if (firstSession === undefined) setRouteState("dashboard");
-        else {
-          onSelect(firstSession.sessionKey);
-          setRouteState("workspace");
-        }
-      }).catch((reason: unknown) => toast({
-        message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.",
-        variant: "error",
-      }));
+      navigationCheck.current(() => {
+        void activateWorkspace(target.id).catch((reason: unknown) => toast({
+          message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.",
+          variant: "error",
+        }));
+      });
     };
     window.addEventListener("keydown", cycleWorkspace);
     return () => window.removeEventListener("keydown", cycleWorkspace);
-  }, [applicationState.sessions, client, onSelect, state.activeWorkspaceId, state.workspaces, toast]);
+  }, [applicationState.sessions, client, onSelect, state.activeWorkspaceId, state.workspaces, sharedMarkdownDirty, toast]);
   const selectedSessionIdentity = state.selectedSessionKey === undefined
     ? undefined
     : sessionIdentity(state.selectedSessionKey);
@@ -1613,7 +1173,8 @@ export function Workspace({
   useEffect(() => {
     if (newSessionRequest?.status !== "succeeded") return;
     if (newSessionRequest.result?.status === "succeeded") {
-      openSession(newSessionRequest.result.sessionKey);
+      const createdKey = newSessionRequest.result.sessionKey;
+      afterSharedMarkdownCheck(() => openSession(createdKey));
     }
     setNewSessionProject(undefined);
     setNewSessionRequestId(undefined);
@@ -1627,7 +1188,8 @@ export function Workspace({
     focusComposerForSession.current = isDesktopViewport()
       ? resumeSessionRequest.result.sessionKey
       : undefined;
-    openSession(resumeSessionRequest.result.sessionKey);
+    const resumedKey = resumeSessionRequest.result.sessionKey;
+    afterSharedMarkdownCheck(() => openSession(resumedKey));
     setResumeSessionRequestId(undefined);
   }, [resumeSessionRequest?.result]);
 
@@ -1972,13 +1534,27 @@ export function Workspace({
       .filter((item) => item.kind === "file")
       .map((item) => item.getAsFile())
       .filter((file): file is File => file !== null);
-    if (itemFiles.length === 0) return false;
-    addSelectedAttachments(itemFiles);
-    return true;
+    if (itemFiles.length > 0) {
+      addSelectedAttachments(itemFiles);
+      return true;
+    }
+    const uri = clipboard.getData("text/uri-list").split(/\r?\n/u).find((line) => line.startsWith("file://"));
+    return uri !== undefined && /\.(?:gif|jpe?g|png|webp)(?:$|[?#])/iu.test(uri);
   };
 
-  const openSession = (sessionKey: SessionKey): void => {
+  const openSession = (sessionKey: SessionKey, addToWorkspace = true): void => {
     const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, sessionKey));
+    if (addToWorkspace && client !== undefined && activeWorkspace !== undefined) {
+      const tab = activeWorkspace.tabs.find(({ projectId, sessionId }) => projectId === sessionKey.hostId && sessionId === sessionKey.piSessionId);
+      const operation = tab === undefined
+        ? client.openSessionInWorkspace(activeWorkspace.id, sessionKey.hostId, sessionKey.piSessionId)
+        : client.selectWorkspaceTab(activeWorkspace.id, tab.id);
+      void operation.then(() => openSession(sessionKey, false)).catch((reason: unknown) => toast({
+        message: reason instanceof Error ? reason.message : "Session could not be opened in this Workspace.",
+        variant: "error",
+      }));
+      return;
+    }
     const project = target === undefined
       ? undefined
       : state.projects.find((candidate) => candidate.projectId === target.projectId);
@@ -1989,8 +1565,6 @@ export function Workspace({
       if (requestId !== undefined) setResumeSessionRequestId(requestId);
       return;
     }
-    for (const image of images) discardImage(image);
-    for (const file of files) discardFile(file);
     focusComposerForSession.current = isDesktopViewport() ? sessionKey : undefined;
     onSelect(sessionKey);
     setSubmittedRequestId(undefined);
@@ -2000,6 +1574,25 @@ export function Workspace({
     setDetailsOpen(false);
     setRouteState("workspace");
   };
+
+  const handledSessionRequest = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (requestedSessionKey === undefined) { handledSessionRequest.current = undefined; return; }
+    if (client === undefined || activeWorkspace === undefined || state.connection !== "ready") return;
+    const identity = `${requestedSessionKey.hostId}:${requestedSessionKey.piSessionId}`;
+    if (handledSessionRequest.current === identity) return;
+    const target = state.sessions.find((session) => sessionKeysEqual(session.sessionKey, requestedSessionKey));
+    if (target === undefined) return;
+    handledSessionRequest.current = identity;
+    afterSharedMarkdownCheck(() => {
+      void client.openSessionInWorkspace(activeWorkspace.id, requestedSessionKey.hostId, requestedSessionKey.piSessionId)
+        .then(() => { openSession(requestedSessionKey, false); onRequestedSessionOpened?.(); })
+        .catch((reason: unknown) => {
+          handledSessionRequest.current = undefined;
+          toast({ message: reason instanceof Error ? reason.message : "Session could not be opened.", variant: "error" });
+        });
+    });
+  }, [requestedSessionKey, state.connection, state.sessions, activeWorkspace, client]);
 
   const closeSessionCommand = closeSessionRequestId === undefined
     ? undefined
@@ -2097,6 +1690,8 @@ export function Workspace({
   }, [state.selectedSessionKey]);
 
   useLayoutEffect(() => {
+    // A closed Session remains a readable tab. Closing it must not open unrelated work.
+    if (activeWorkspace !== undefined) return;
     const selectedKey = state.selectedSessionKey;
     if (selectedKey === undefined) {
       handledClosedSelection.current = undefined;
@@ -2145,7 +1740,7 @@ export function Workspace({
     const redirect = parent ?? previouslyViewed ?? sameProject;
 
     if (redirect !== undefined) {
-      openSession(redirect.sessionKey);
+      afterSharedMarkdownCheck(() => openSession(redirect.sessionKey));
     } else if (
       closed?.projectId !== undefined
       && state.projects.some((project) => project.projectId === closed.projectId)
@@ -2155,7 +1750,7 @@ export function Workspace({
     } else {
       setRouteState("dashboard");
     }
-  }, [state.projects, state.selectedSessionKey, state.sessionBookmarks, state.sessions]);
+  }, [activeWorkspace, state.projects, state.selectedSessionKey, state.sessionBookmarks, state.sessions]);
 
   useEffect(() => {
     const tracking = cloneSource.current;
@@ -2303,7 +1898,7 @@ export function Workspace({
       ) return;
 
       const options = [...document.querySelectorAll<HTMLButtonElement>(
-        ".sidebar .session-row[data-session-identity]",
+        ".sidebar .workspace-tab-open[data-session-identity]",
       )];
       const numberMatch = event.code.match(/^(?:Digit|Numpad)([1-9])$/);
       if (numberMatch !== null) {
@@ -2321,7 +1916,7 @@ export function Workspace({
       event.stopImmediatePropagation();
       const currentIdentity = state.selectedSessionKey === undefined
         ? undefined
-        : sessionIdentity(state.selectedSessionKey);
+        : `${state.selectedSessionKey.hostId}:${state.selectedSessionKey.piSessionId}`;
       const currentIndex = options.findIndex(
         (option) => option.dataset.sessionIdentity === currentIdentity,
       );
@@ -2343,7 +1938,7 @@ export function Workspace({
       target.scrollIntoView?.({ block: "nearest" });
     };
     const releaseModifier = (event: KeyboardEvent): void => {
-      if ((event.key === "Meta" || event.key === "Control") && !event.metaKey && !event.ctrlKey) hideShortcuts();
+      if (event.key === "Meta" || event.key === "Control") hideShortcuts();
     };
 
     document.addEventListener("keydown", navigateSessions, true);
@@ -2952,9 +2547,21 @@ export function Workspace({
   const sidebar = (
     <Sidebar
       state={state}
-      client={client}
-      onActivateWorkspace={activateWorkspace}
-      onSelect={openSession}
+      onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}
+      onSelectWorkspaceTab={(tab, session) => afterSharedMarkdownCheck(() => {
+        if (client === undefined || activeWorkspace === undefined) { openSession(session.sessionKey); return; }
+        void client.selectWorkspaceTab(activeWorkspace.id, tab.id)
+          .then(() => openSession(session.sessionKey, false))
+          .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace tab could not be selected.", variant: "error" }));
+      })}
+      onCloseWorkspaceTab={(tab) => afterSharedMarkdownCheck(() => {
+        const workspaceClient = client;
+        if (workspaceClient === undefined || activeWorkspace === undefined) return;
+        void workspaceClient.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
+          message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
+          variant: "error",
+        }));
+      })}
       onDashboard={() => setRoute("dashboard")}
       onGeneralNewSession={() => setRoute("new-session")}
       onProjects={() => setRoute("projects")}
@@ -2962,10 +2569,6 @@ export function Workspace({
       onOpenProject={(projectId) => {
         setSelectedProjectId(projectId);
         setRoute("project");
-      }}
-      onOpenQuickSession={() => {
-        if (onOpenQuickSession !== undefined) onOpenQuickSession();
-        else void client?.openQuickSession();
       }}
       onSessionContextMenu={(session, x, y) => setSessionContextMenu({
         session,
@@ -2976,15 +2579,79 @@ export function Workspace({
       shortcutsVisible={sessionShortcutsVisible}
       onCollapse={() => setSidebarVisible(false)}
       {...(selectedProjectId === undefined ? {} : { activeProjectId: selectedProjectId })}
-      onNewSession={(project) => {
+      onNewSession={(project) => afterSharedMarkdownCheck(() => {
         setNewSessionName("");
         setNewSessionRequestId(undefined);
         setNewSessionProject(project);
-        setRoute("workspace");
-      }}
+        setRouteState("workspace");
+      })}
     />
   );
   const activeSidebarWidth = sidebarVisible ? sidebarWidth : 0;
+  const requireWorkspaceClient = (): ApplicationClient => {
+    if (client === undefined) throw new Error("Workspace changes are unavailable");
+    return client;
+  };
+  const workspaceRow = !embeddedSession && (
+    <WorkspaceRow
+      workspaces={applicationState.workspaces ?? []}
+      activeWorkspaceId={applicationState.activeWorkspaceId}
+      sessions={sessionsVisibleInWorkspace(applicationState.sessions)}
+      onActivate={(id) => id === state.activeWorkspaceId && route === "workspace" ? Promise.resolve() : guardedWorkspaceAction(() => activateWorkspace(id))}
+      onCreate={(name) => guardedWorkspaceAction(async () => {
+        const workspaceClient = requireWorkspaceClient();
+        const createdId = await workspaceClient.createWorkspace(name);
+        await activateWorkspace(createdId);
+      })}
+      onRename={(id, name) => guardedWorkspaceAction(() => requireWorkspaceClient().renameWorkspace(id, name))}
+      onClose={(id) => guardedWorkspaceAction(() => requireWorkspaceClient().closeWorkspace(id))}
+      onRestore={(id) => guardedWorkspaceAction(async () => {
+        await requireWorkspaceClient().restoreWorkspace(id);
+        await activateWorkspace(id);
+      })}
+      onDelete={(id) => guardedWorkspaceAction(() => requireWorkspaceClient().deleteWorkspace(id))}
+    />
+  );
+  const closeMobileWorkspaceNavigation = (): void => { mobileWorkspaceNavigationRef.current?.removeAttribute("open"); };
+  const mobileWorkspaceNavigation = !embeddedSession && activeWorkspace !== undefined && (
+    <details ref={mobileWorkspaceNavigationRef} className="mobile-workspace-navigation">
+      <summary>Sessions</summary>
+      <div className="mobile-workspace-navigation-panel">
+        <WorkspaceNavigation
+          workspace={activeWorkspace}
+          projects={state.projects}
+          sessions={sessionsVisibleInWorkspace(state.sessions)}
+          selectedSessionKey={state.selectedSessionKey}
+          onNewSession={() => setRoute("new-session")}
+          onNewSessionInProject={(project) => afterSharedMarkdownCheck(() => {
+            setNewSessionName("");
+            setNewSessionRequestId(undefined);
+            setNewSessionProject(project);
+            setRouteState("workspace");
+          })}
+          onOpenSession={(session) => afterSharedMarkdownCheck(() => {
+            openSession(session.sessionKey);
+            closeMobileWorkspaceNavigation();
+          })}
+          onSelectTab={(tab, session) => afterSharedMarkdownCheck(() => {
+            if (client === undefined) { openSession(session.sessionKey); return; }
+            void client.selectWorkspaceTab(activeWorkspace.id, tab.id)
+              .then(() => {
+                openSession(session.sessionKey, false);
+                closeMobileWorkspaceNavigation();
+              })
+              .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace tab could not be selected.", variant: "error" }));
+          })}
+          onCloseTab={(tab) => afterSharedMarkdownCheck(() => {
+            void client?.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
+              message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
+              variant: "error",
+            }));
+          })}
+        />
+      </div>
+    </details>
+  );
   const resizeSidebarWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     let next = sidebarWidth;
     if (event.key === "ArrowLeft") next -= 10;
@@ -3062,6 +2729,9 @@ export function Workspace({
   );
   const renderPage = (page: ReactNode): ReactNode => (
     <>
+      <div className="workspace-application">
+      {workspaceRow}
+      {mobileWorkspaceNavigation}
       <main
         className={`workspace${sidebarVisible ? "" : " sidebar-hidden"}`}
         style={{ "--rail": `${activeSidebarWidth}px` } as CSSProperties}
@@ -3102,6 +2772,7 @@ export function Workspace({
           </Suspense>
         </div>
       </main>
+      </div>
       {contextMenu}
       {newSessionModal}
     </>
@@ -3111,7 +2782,7 @@ export function Workspace({
     return renderPage(
       <Dashboard
         state={state}
-        onOpen={openSession}
+        onOpen={(key) => afterSharedMarkdownCheck(() => openSession(key))}
         onOpenProject={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
@@ -3127,7 +2798,6 @@ export function Workspace({
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
         onSettings={() => setRoute("settings")}
-        onWorkspace={(id) => void activateWorkspace(id).catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace could not be opened. Try again.", variant: "error" }))}
       />,
     );
   }
@@ -3172,15 +2842,18 @@ export function Workspace({
     return renderPage(
       <ProjectsPage
         state={applicationState}
-        activeWorkspace={activeWorkspace}
-        onOpenInWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.openProjectInWorkspace(activeWorkspace.id, projectId)}
-        onRemoveFromWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.removeProjectFromWorkspace(activeWorkspace.id, projectId)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
         }}
         onAdd={() => setRoute("add-project")}
-        onNewSession={() => setRoute("new-session")}
+        onNewSession={(project) => afterSharedMarkdownCheck(() => {
+          if (project === undefined) setRoute("new-session");
+          else {
+            setNewSessionProject(project);
+            setRoute("workspace");
+          }
+        })}
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
         onSettings={() => setRoute("settings")}
@@ -3207,7 +2880,7 @@ export function Workspace({
             setNewSessionProject(project);
             setRoute("workspace");
           }}
-          onOpenSession={openSession}
+          onOpenSession={(key) => afterSharedMarkdownCheck(() => openSession(key))}
           onSetProjectBookmark={(bookmarked) => (
             onSetProjectBookmark?.(project.projectId, bookmarked) ?? undefined
           )}
@@ -3242,15 +2915,18 @@ export function Workspace({
     return renderPage(
       <ProjectsPage
         state={applicationState}
-        activeWorkspace={activeWorkspace}
-        onOpenInWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.openProjectInWorkspace(activeWorkspace.id, projectId)}
-        onRemoveFromWorkspace={(projectId) => client === undefined || activeWorkspace === undefined ? Promise.reject(new Error("Workspace changes are unavailable")) : client.removeProjectFromWorkspace(activeWorkspace.id, projectId)}
         onOpen={(projectId) => {
           setSelectedProjectId(projectId);
           setRoute("project");
         }}
         onAdd={() => setRoute("add-project")}
-        onNewSession={() => setRoute("new-session")}
+        onNewSession={(project) => afterSharedMarkdownCheck(() => {
+          if (project === undefined) setRoute("new-session");
+          else {
+            setNewSessionProject(project);
+            setRoute("workspace");
+          }
+        })}
         onDashboard={() => setRoute("dashboard")}
         onProjects={() => setRoute("projects")}
         onSettings={() => setRoute("settings")}
@@ -3297,6 +2973,28 @@ export function Workspace({
           setRoute("workspace");
         }}
       />,
+    );
+  }
+
+  if (!embeddedSession && activeWorkspace !== undefined && activeWorkspace.tabs.length === 0) {
+    const savedSessions = state.sessions.filter(({ quickSession, parentSessionKey }) => quickSession !== true && parentSessionKey === undefined);
+    return renderPage(
+      <main className="workspace-empty" aria-labelledby="workspace-empty-title">
+        <div className="workspace-empty-card">
+          <h1 id="workspace-empty-title">{activeWorkspace.name} is empty</h1>
+          <p>Start new work or open a previous Session in this Workspace.</p>
+          <Button type="button" onClick={() => setRoute("new-session")}><Plus aria-hidden="true" />New Session</Button>
+          <section aria-labelledby="workspace-saved-sessions-title">
+            <h2 id="workspace-saved-sessions-title">Open existing Session</h2>
+            {savedSessions.length === 0 ? <p>No previous Sessions are available.</p> : <div className="workspace-empty-sessions">
+              {savedSessions.map((session) => <button type="button" key={sessionIdentity(session.sessionKey)} onClick={() => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}>
+                <strong>{sessionLabel(session)}</strong>
+                <span>{state.projects.find(({ projectId }) => projectId === session.projectId)?.name ?? "Unknown Project"}</span>
+              </button>)}
+            </div>}
+          </section>
+        </div>
+      </main>,
     );
   }
 
@@ -3348,6 +3046,9 @@ export function Workspace({
       setDetailsOpen(open);
       if (!open) queueMicrotask(() => detailsTriggerRef.current?.focus());
     }}>
+    <div className={`workspace-application${embeddedSession ? " embedded-session" : ""}`}>
+    {workspaceRow}
+    {mobileWorkspaceNavigation}
     <main
       className={`workspace${embeddedSession ? " embedded-session" : ""}${detailsOpen ? " details-open" : ""}${sharedMarkdownFile !== undefined ? " editor-open" : ""}${sidebarVisible && !embeddedSession ? "" : " sidebar-hidden"}`}
       style={{ "--rail": `${embeddedSession ? 0 : activeSidebarWidth}px` } as CSSProperties}
@@ -3915,16 +3616,19 @@ export function Workspace({
       <Modal
         open={discardSharedMarkdownAction !== undefined}
         title="Discard unsaved changes?"
-        description="The changes to this shared Markdown file are not saved."
-        onClose={() => setDiscardSharedMarkdownAction(undefined)}
+        description="Unsaved file changes or message attachments will be discarded. Your message text is kept."
+        onClose={cancelNavigation}
         actions={(
           <>
-            <button type="button" className="modal-button secondary" onClick={() => setDiscardSharedMarkdownAction(undefined)}>Keep editing</button>
+            <button type="button" className="modal-button secondary" onClick={cancelNavigation}>Keep editing</button>
             <button type="button" className="modal-button danger" onClick={() => {
               const action = discardSharedMarkdownAction;
+              discardSharedMarkdownCancel.current = undefined;
               setDiscardSharedMarkdownAction(undefined);
               discardCurrentEditorDraft();
               setCurrentEditorDirty(false);
+              for (const image of images) discardImage(image);
+              for (const file of files) discardFile(file);
               action?.();
             }}>Discard changes</button>
           </>
@@ -4075,7 +3779,6 @@ export function Workspace({
           projectName={selectedProject?.name}
           projectPath={selectedProject?.displayPath}
           projects={state.projects}
-          projectBookmarkIds={state.projectBookmarks.map(({ projectId }) => projectId)}
           workspaces={state.workspaces}
           activeWorkspaceId={state.activeWorkspaceId}
           directoryLists={state.directoryLists}
@@ -4096,15 +3799,16 @@ export function Workspace({
           thinkingLevels={state.selected.details?.supportedThinkingLevels}
           currentModel={state.selected.details?.model}
           currentThinking={state.selected.details?.thinkingLevel}
-          sessions={state.sessions.map((session) => ({
-            id: session.sessionKey.piSessionId,
-            name: sessionLabel(session),
-            projectId: session.projectId,
-            projectName: state.projects.find((project) => project.projectId === session.projectId)?.name,
-            bookmarked: state.sessionBookmarks.some((bookmark) => bookmark.projectId === session.projectId
-              && sessionKeysEqual(bookmark.sessionKey, session.sessionKey)),
-            closed: session.projection.availability === "closed",
-          }))}
+          sessions={state.sessions.flatMap((session) => {
+            const name = session.name?.trim();
+            if (!name) return [];
+            return [{
+              id: session.sessionKey.piSessionId,
+              name,
+              projectName: state.projects.find((project) => project.projectId === session.projectId)?.name,
+              closed: session.projection.availability === "closed",
+            }];
+          })}
           stashes={stashes}
           pending={sessionSettingPending || closeSessionPending || stashPending}
           error={sessionSettingError ?? closeSessionError}
@@ -4147,7 +3851,7 @@ export function Workspace({
           }}
           onOpenSession={(id) => {
             const session = state.sessions.find((candidate) => candidate.sessionKey.piSessionId === id);
-            if (session) openSession(session.sessionKey);
+            if (session) afterSharedMarkdownCheck(() => openSession(session.sessionKey));
           }}
           onSetBookmark={selectedProject === undefined || selectedSummary === undefined
             ? undefined
@@ -4178,6 +3882,7 @@ export function Workspace({
         />
       )}
     </main>
+    </div>
     </Sheet>
     {contextMenu}
     </>

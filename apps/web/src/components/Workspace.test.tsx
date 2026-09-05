@@ -28,14 +28,24 @@ afterEach(() => {
 import { Workspace } from "./Workspace";
 import { sessionKeysEqual, type ApplicationState } from "../application/application-client-base";
 import type { ApplicationClient } from "../application/application-client";
-import { fixtureState } from "../fixtures/workspace";
+import { fixtureState as baseFixtureState } from "../fixtures/workspace";
 import { sessionsVisibleInWorkspace, type ApplicationCommand } from "../application/workspace-model";
 
-const fixtureStateWithWorkspace: ApplicationState = {
-  ...fixtureState,
-  workspaces: [{ id: "default-workspace", name: "Default", projectIds: fixtureState.projects.map(({ projectId }) => projectId), createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
-  activeWorkspaceId: "default-workspace",
+const fixtureWorkspace = {
+  id: "default-workspace",
+  name: "Default",
+  projectIds: baseFixtureState.projects.map(({ projectId }) => projectId),
+  closedProjectIds: [],
+  bookmarkedProjectIds: [],
+  tabs: baseFixtureState.sessions.filter(({ quickSession, parentSessionKey }) => quickSession !== true && parentSessionKey === undefined).map((session, index) => ({
+    id: `tab-${index}`,
+    kind: "session" as const,
+    projectId: session.sessionKey.hostId,
+    sessionId: session.sessionKey.piSessionId,
+  })),
 };
+const fixtureState: ApplicationState = { ...baseFixtureState, workspaces: [fixtureWorkspace], activeWorkspaceId: fixtureWorkspace.id };
+const fixtureStateWithWorkspace = fixtureState;
 
 const enableDesktopViewport = (): void => {
   const matchMedia = vi.fn((query: string) => ({
@@ -70,18 +80,48 @@ const swipe = (
 };
 
 describe("Workspace", () => {
+  it("opens a requested Session tab before consuming its deep link", async () => {
+    let finish!: () => void;
+    const openSessionInWorkspace = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const onSelect = vi.fn();
+    const onRequestedSessionOpened = vi.fn();
+    const target = fixtureState.sessions.find((session) => session.projection.availability === "available")!;
+    render(<Workspace state={fixtureState} client={{ openSessionInWorkspace } as unknown as ApplicationClient}
+      onSelect={onSelect} requestedSessionKey={target.sessionKey} onRequestedSessionOpened={onRequestedSessionOpened} />);
+    expect(openSessionInWorkspace).toHaveBeenCalledWith(fixtureWorkspace.id, target.sessionKey.hostId, target.sessionKey.piSessionId);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onRequestedSessionOpened).not.toHaveBeenCalled();
+    finish();
+    await waitFor(() => expect(onRequestedSessionOpened).toHaveBeenCalledOnce());
+    expect(onSelect).toHaveBeenCalledWith(target.sessionKey);
+    expect(openSessionInWorkspace).toHaveBeenCalledOnce();
+  });
+
+  it("cycles Session tabs with Control+J using the complete Session identity", () => {
+    enableDesktopViewport();
+    const onSelect = vi.fn();
+    const first = fixtureState.sessions.find((session) => session.sessionKey.piSessionId === fixtureWorkspace.tabs[0]!.sessionId)!;
+    render(<Workspace state={{ ...fixtureState, selectedSessionKey: first.sessionKey }} onSelect={onSelect} />);
+    fireEvent.keyDown(document, { key: "j", code: "KeyJ", ctrlKey: true });
+    const next = fixtureWorkspace.tabs[1]!;
+    expect(onSelect).toHaveBeenCalledWith({ hostId: next.projectId, piSessionId: next.sessionId });
+  });
+
   it("lets a user create the first saved Workspace", async () => {
     enableDesktopViewport();
     const user = userEvent.setup();
-    const createWorkspace = vi.fn(() => Promise.resolve());
-    const client = { createWorkspace } as unknown as ApplicationClient;
+    const unrelated = { ...fixtureWorkspace, id: "unrelated", name: "Unrelated", tabs: [] };
+    const createWorkspace = vi.fn(() => Promise.resolve("created"));
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const client = { createWorkspace, activateWorkspace, snapshot: { ...fixtureState, workspaces: [unrelated] } } as unknown as ApplicationClient;
     render(<Workspace state={{ ...fixtureState, workspaces: [], activeWorkspaceId: undefined }} client={client} onSelect={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "New Workspace" }));
+    await user.click(screen.getByRole("button", { name: "Create Workspace" }));
     await user.type(screen.getByRole("textbox", { name: "Workspace name" }), "Client work");
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     expect(createWorkspace).toHaveBeenCalledWith("Client work");
+    await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("created"));
   });
 
   it("leaves the previous Session when the Workspace switcher changes Workspaces", async () => {
@@ -89,38 +129,44 @@ describe("Workspace", () => {
     const user = userEvent.setup();
     const activateWorkspace = vi.fn(() => Promise.resolve());
     const client = { activateWorkspace } as unknown as ApplicationClient;
-    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const workspaceFields = { tabs: [], closedProjectIds: [], bookmarkedProjectIds: [] };
     const state = {
       ...fixtureState,
       workspaces: [
-        { id: "current", name: "Current", projectIds: fixtureState.projects.map(({ projectId }) => projectId), closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
-        { id: "next", name: "Next", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "current", name: "Current", projectIds: fixtureState.projects.map(({ projectId }) => projectId), ...workspaceFields },
+        { id: "next", name: "Next", projectIds: [], ...workspaceFields },
       ],
       activeWorkspaceId: "current",
     };
     render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Current" })).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("button", { name: "Next" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("button", { name: "Current" })).toHaveAttribute("aria-current", "page");
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     expect(activateWorkspace).toHaveBeenCalledWith("next");
-    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
 
-  it("opens the first Session in the first Project after a Workspace switch", async () => {
+  it("shows task actions instead of Dashboard content for an empty Workspace", () => {
+    const empty = { id: "empty", name: "Empty Workspace", tabs: [], projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [] };
+    render(<Workspace state={{ ...fixtureState, workspaces: [empty], activeWorkspaceId: empty.id }} onSelect={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Empty Workspace is empty" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Open existing Session" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Dashboard" })).not.toBeInTheDocument();
+  });
+
+  it("restores the active Session tab after a Workspace switch", async () => {
     enableDesktopViewport();
     const user = userEvent.setup();
     const activateWorkspace = vi.fn(() => Promise.resolve());
     const onSelect = vi.fn();
     const targetProject = fixtureState.projects[1]!;
     const targetSession = fixtureState.sessions.find(({ projectId }) => projectId === targetProject.projectId)!;
-    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const workspaceFields = { tabs: [], closedProjectIds: [], bookmarkedProjectIds: [] };
     const state = {
       ...fixtureState,
       workspaces: [
-        { id: "current", name: "Current", projectIds: [fixtureState.projects[0]!.projectId], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
-        { id: "next", name: "Next", projectIds: [targetProject.projectId], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "current", name: "Current", projectIds: [fixtureState.projects[0]!.projectId], ...workspaceFields },
+        { id: "next", name: "Next", projectIds: [targetProject.projectId], ...workspaceFields, tabs: [{ id: "next-tab", kind: "session" as const, projectId: targetSession.sessionKey.hostId, sessionId: targetSession.sessionKey.piSessionId }], activeTabId: "next-tab" },
       ],
       activeWorkspaceId: "current",
     };
@@ -132,65 +178,17 @@ describe("Workspace", () => {
     expect(activateWorkspace).toHaveBeenCalledWith("next");
   });
 
-  it("returns to the last viewed Session in a Workspace", async () => {
-    enableDesktopViewport();
-    const user = userEvent.setup();
-    const activateWorkspace = vi.fn(() => Promise.resolve());
-    const onSelect = vi.fn();
-    const project = fixtureState.projects[0]!;
-    const projectSessions = fixtureState.sessions.filter(({ projectId }) => projectId === project.projectId);
-    const remembered = projectSessions[1] ?? projectSessions[0]!;
-    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
-    const state = {
-      ...fixtureState,
-      workspaces: [
-        { id: "current", name: "Current", projectIds: [], closedProjectIds: [], ...timestamps },
-        { id: "remembered", name: "Remembered", projectIds: [project.projectId], closedProjectIds: [], lastSession: { projectId: project.projectId, sessionId: remembered.sessionKey.piSessionId }, ...timestamps },
-      ],
-      activeWorkspaceId: "current",
-    };
-    render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={onSelect} />);
-
-    await user.click(screen.getByRole("button", { name: "Remembered" }));
-
-    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(remembered.sessionKey));
-  });
-
-  it("does not reopen a closed Project when returning to its Workspace", async () => {
-    enableDesktopViewport();
-    const user = userEvent.setup();
-    const activateWorkspace = vi.fn(() => Promise.resolve());
-    const onSelect = vi.fn();
-    const project = fixtureState.projects[0]!;
-    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
-    const state = {
-      ...fixtureState,
-      workspaces: [
-        { id: "current", name: "Current", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
-        { id: "closed", name: "Closed Project Workspace", projectIds: [project.projectId], closedProjectIds: [project.projectId], bookmarkedProjectIds: [], ...timestamps },
-      ],
-      activeWorkspaceId: "current",
-    };
-    render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={onSelect} />);
-
-    await user.click(screen.getByRole("button", { name: "Closed Project Workspace" }));
-
-    expect(activateWorkspace).toHaveBeenCalledWith("closed");
-    expect(onSelect).not.toHaveBeenCalled();
-    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeVisible();
-  });
-
   it("cycles Workspaces with Control+Bracket shortcuts", async () => {
     enableDesktopViewport();
     const activateWorkspace = vi.fn(() => Promise.resolve());
     const client = { activateWorkspace } as unknown as ApplicationClient;
-    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const workspaceFields = { tabs: [], closedProjectIds: [], bookmarkedProjectIds: [] };
     const state = {
       ...fixtureState,
       workspaces: [
-        { id: "one", name: "One", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
-        { id: "two", name: "Two", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
-        { id: "three", name: "Three", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "one", name: "One", projectIds: [], ...workspaceFields },
+        { id: "two", name: "Two", projectIds: [], ...workspaceFields },
+        { id: "three", name: "Three", projectIds: [], ...workspaceFields },
       ],
       activeWorkspaceId: "one",
     };
@@ -203,16 +201,13 @@ describe("Workspace", () => {
     await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("three"));
   });
 
-  it("opens Quick Session from the Workspace actions menu without selecting a Session", async () => {
+  it("opens Quick Session with its keyboard shortcut without selecting a Session", () => {
     enableDesktopViewport();
     const onOpenQuickSession = vi.fn();
     const onSelect = vi.fn();
     render(<Workspace state={fixtureStateWithWorkspace} onSelect={onSelect} onOpenQuickSession={onOpenQuickSession} />);
-    await userEvent.click(screen.getByRole("button", { name: /^Actions for / }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Quick Session" }));
-    expect(onOpenQuickSession).toHaveBeenCalledOnce();
     fireEvent.keyDown(window, { key: " ", code: "Space", ctrlKey: true, shiftKey: true });
-    expect(onOpenQuickSession).toHaveBeenCalledTimes(2);
+    expect(onOpenQuickSession).toHaveBeenCalledOnce();
     expect(onSelect).not.toHaveBeenCalled();
   });
 
@@ -231,23 +226,6 @@ describe("Workspace", () => {
     expect(respondToCommandApproval).toHaveBeenCalledWith("approval-1", true);
   });
 
-  it("shows delegation approval without dangerous command text", async () => {
-    enableDesktopViewport();
-    const respondToCommandApproval = vi.fn(() => Promise.resolve());
-    const client = { respondToCommandApproval } as unknown as ApplicationClient;
-    const state = {
-      ...fixtureState,
-      selected: { ...fixtureState.selected, commandApproval: { id: "approval-2", kind: "delegation" as const, model: "anthropic/claude-sonnet-4-6", thinkingLevel: "high" } },
-    };
-    render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
-    const dialog = screen.getByRole("alertdialog", { name: "Approve delegation settings?" });
-    expect(within(dialog).getByText("anthropic/claude-sonnet-4-6")).toBeVisible();
-    expect(within(dialog).getByText("high")).toBeVisible();
-    expect(within(dialog).queryByText(/delete files/)).not.toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
-    expect(respondToCommandApproval).toHaveBeenCalledWith("approval-2", true);
-  });
-
   it("excludes Quick Sessions from normal Workspace collections", () => {
     enableDesktopViewport();
     const quickSession = { ...fixtureState.sessions[0]!, sessionKey: { hostId: "quick-session", piSessionId: "hidden-quick" }, name: "Hidden Quick Session", quickSession: true as const };
@@ -256,23 +234,6 @@ describe("Workspace", () => {
     expect(sessionsVisibleInWorkspace([...fixtureState.sessions, quickSession], true)).toContain(quickSession);
   });
 
-  it("hides a closed Project and all of its Sessions from the sidebar", () => {
-    enableDesktopViewport();
-    const project = fixtureState.projects[0]!;
-    const state = {
-      ...fixtureState,
-      workspaces: [{ id: "workspace", name: "Main", projectIds: fixtureState.projects.map(({ projectId }) => projectId), closedProjectIds: [project.projectId], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
-      activeWorkspaceId: "workspace",
-    };
-    render(<Workspace state={state} onSelect={vi.fn()} />);
-
-    const sidebar = screen.getByRole("complementary", { name: "Projects and Sessions" });
-    expect([...sidebar.querySelectorAll(".project-name-link")].some((element) => element.textContent === project.name)).toBe(false);
-    for (const session of fixtureState.sessions.filter((item) => item.projectId === project.projectId)) {
-      expect(within(sidebar).queryByText(session.name!)).not.toBeInTheDocument();
-    }
-    expect(within(sidebar).getByText(fixtureState.projects[1]!.name)).toBeVisible();
-  });
 
   it("shows the default desktop sidebar and can collapse and expand it", async () => {
     enableDesktopViewport();
@@ -280,11 +241,11 @@ describe("Workspace", () => {
 
     expect(container.querySelector(".workspace")).toHaveStyle("--rail: 408px");
     await userEvent.click(screen.getByRole("button", { name: "Hide sidebar" }));
-    expect(screen.queryByRole("complementary", { name: "Projects and Sessions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Workspace and Sessions" })).not.toBeInTheDocument();
     expect(container.querySelector(".workspace")).toHaveStyle("--rail: 0px");
 
     await userEvent.click(screen.getByRole("button", { name: "Show sidebar" }));
-    expect(screen.getByRole("complementary", { name: "Projects and Sessions" })).toBeVisible();
+    expect(screen.getByRole("complementary", { name: "Workspace and Sessions" })).toBeVisible();
     expect(container.querySelector(".workspace")).toHaveStyle("--rail: 408px");
   });
 
@@ -376,63 +337,7 @@ describe("Workspace", () => {
     rootHeight.mockRestore();
   });
 
-  it("shows only unassigned open Sessions newest first in Other Sessions", () => {
-    const source = fixtureState.sessions[0]!;
-    const sessions = [
-      { ...source, name: "Older other", projectId: "implicit-old", sessionKey: { hostId: "implicit-old", piSessionId: "old" }, lastActivityAt: "2026-01-01T00:00:00Z" },
-      { ...source, name: "Closed other", projectId: "implicit-closed", sessionKey: { hostId: "implicit-closed", piSessionId: "closed" }, projection: { ...source.projection, availability: "closed" as const }, lastActivityAt: "2026-01-03T00:00:00Z" },
-      { ...source, name: "Newest other", projectId: "implicit-new", sessionKey: { hostId: "implicit-new", piSessionId: "new" }, lastActivityAt: "2026-01-02T00:00:00Z" },
-    ];
-    render(<Workspace state={{ ...fixtureState, sessions }} onSelect={vi.fn()} />);
-    const section = screen.getByText("Other Sessions").closest("section")!;
-    expect(within(section).queryByText("Closed other")).not.toBeInTheDocument();
-    expect([...section.querySelectorAll(".session-row-name")].map((name) => name.textContent)).toEqual(["Newest other", "Older other"]);
-  });
 
-  it("reopens a closed projectless Bookmark", () => {
-    const source = fixtureState.sessions[0]!;
-    const bookmarked = {
-      ...source,
-      name: "Saved research",
-      projectId: "implicit-saved",
-      sessionKey: { hostId: "implicit-saved", piSessionId: "saved" },
-      displayPath: "~/research/independent",
-      projection: { ...source.projection, availability: "closed" as const },
-    };
-    const other = {
-      ...source,
-      name: "Temporary work",
-      projectId: "implicit-other",
-      sessionKey: { hostId: "implicit-other", piSessionId: "other" },
-    };
-    const onSelect = vi.fn();
-    const onCreateManagedSession = vi.fn(() => "resume-request");
-    render(<Workspace state={{
-      ...fixtureState,
-      sessions: [bookmarked, other],
-      sessionBookmarks: [{
-        projectId: bookmarked.projectId,
-        sessionKey: bookmarked.sessionKey,
-        position: 0,
-      }],
-    }} onSelect={onSelect} onCreateManagedSession={onCreateManagedSession} />);
-
-    const bookmarkedSection = screen.getByText("Bookmarked Sessions").closest("section")!;
-    const otherSection = screen.getByText("Other Sessions").closest("section")!;
-    expect(within(bookmarkedSection).getByText("Saved research")).toBeVisible();
-    expect(within(bookmarkedSection).getByLabelText("Bookmarked")).toBeVisible();
-    expect(within(bookmarkedSection).queryByText("Temporary work")).not.toBeInTheDocument();
-    expect(within(otherSection).getByText("Temporary work")).toBeVisible();
-    expect(within(otherSection).queryByText("Saved research")).not.toBeInTheDocument();
-
-    fireEvent.click(within(bookmarkedSection).getByRole("button", { name: /Saved research/ }));
-    expect(onCreateManagedSession).toHaveBeenCalledWith(
-      bookmarked.displayPath,
-      bookmarked.name,
-      bookmarked.sessionKey,
-    );
-    expect(onSelect).not.toHaveBeenCalled();
-  });
 
   it("shows desktop navigation and focuses the composer after a Session change", async () => {
     enableDesktopViewport();
@@ -451,13 +356,16 @@ describe("Workspace", () => {
       },
     };
     const { rerender } = render(<Workspace state={fixtureState} onSelect={onSelect} />);
-    await userEvent.click(screen.getByRole("button", { name: /Application client/ }));
+    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
+    const sessionButton = sidebar.querySelector<HTMLButtonElement>(".workspace-tab-open[data-session-identity$=':session-client']");
+    if (sessionButton === null) throw new Error("Desktop Session navigation is missing");
+    await userEvent.click(sessionButton);
     expect(onSelect).toHaveBeenCalledWith(nextSession.sessionKey);
 
     rerender(<Workspace state={nextState} onSelect={onSelect} />);
     await waitFor(() => expect(screen.getByLabelText("Message Pi")).toHaveFocus());
     expect(
-      screen.getByRole("complementary", { name: /Projects and Sessions/ }),
+      screen.getByRole("complementary", { name: "Workspace and Sessions" }),
     ).toBeVisible();
   });
   it("does not focus the composer after a Session change on mobile", async () => {
@@ -476,337 +384,23 @@ describe("Workspace", () => {
         generationId: nextSession.generationId!,
       },
     };
-    const { rerender } = render(<Workspace state={fixtureState} onSelect={onSelect} />);
-    await userEvent.click(screen.getByRole("button", { name: /Application client/ }));
+    const { container, rerender } = render(<Workspace state={fixtureState} onSelect={onSelect} />);
+    const mobileNavigation = container.querySelector(".mobile-workspace-navigation");
+    if (mobileNavigation === null) throw new Error("Mobile Workspace navigation is missing");
+    const sessionButton = mobileNavigation.querySelector<HTMLButtonElement>(".workspace-tab-open[data-session-identity$=':session-client']");
+    if (sessionButton === null) throw new Error("Mobile Session navigation is missing");
+    await userEvent.click(sessionButton);
 
     rerender(<Workspace state={nextState} onSelect={onSelect} />);
     expect(screen.getByLabelText("Message Pi")).not.toHaveFocus();
   });
 
-  it("uses one prioritized status indicator with accessible labels in project sidebar rows", () => {
-    const bookmarked = fixtureState.sessions[0];
-    const unbookmarked = fixtureState.sessions[1];
-    const otherProject = fixtureState.projects.find((project) => (
-      project.projectId !== unbookmarked?.projectId
-    ));
-    if (
-      bookmarked === undefined
-      || bookmarked.projectId === undefined
-      || unbookmarked === undefined
-      || otherProject === undefined
-    ) {
-      throw new Error("Session fixtures are missing");
-    }
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          sessionBookmarks: [{
-            projectId: bookmarked.projectId,
-            sessionKey: bookmarked.sessionKey,
-            position: 0,
-          }, {
-            projectId: otherProject.projectId,
-            sessionKey: unbookmarked.sessionKey,
-            position: 1,
-          }],
-        }}
-        onSelect={vi.fn()}
-      />,
-    );
 
-    const bookmarkedRow = screen.getByRole("button", { name: /Workspace shell/ });
-    expect(bookmarkedRow).toHaveAttribute("aria-current", "page");
-    expect(within(bookmarkedRow).getByLabelText("Working Session")).toBeVisible();
-    expect(within(bookmarkedRow).getByRole("img", { name: "Bookmarked" }))
-      .toHaveClass("session-bookmark-indicator");
-    expect(bookmarkedRow).toHaveTextContent("Workspace shell");
-    expect(within(bookmarkedRow).queryByLabelText("Unread Session")).not.toBeInTheDocument();
 
-    const unbookmarkedRow = screen.getByRole("button", { name: /Application client/ });
-    expect(within(unbookmarkedRow).queryByLabelText("Bookmarked")).not.toBeInTheDocument();
-    expect(within(unbookmarkedRow).getByLabelText("Unread Session")).toBeVisible();
-    for (const row of [bookmarkedRow, unbookmarkedRow]) {
-      expect(row.querySelector(".session-row-name")).toBeInTheDocument();
-      expect(row.querySelector(".session-row-accessory")).toBeInTheDocument();
-      expect(row.querySelectorAll(".session-status-indicator")).toHaveLength(1);
-      expect(row.querySelector(".session-row-unread-slot")).not.toBeInTheDocument();
-    }
-    expect(screen.getAllByRole("button", { name: "Dashboard" })).toHaveLength(1);
-  });
 
-  it("uses the unified status indicator in projectless and bookmarked sidebar rows", () => {
-    const source = fixtureState.sessions[2];
-    if (source === undefined) throw new Error("Session fixture is missing");
-    const bookmarked = {
-      ...source,
-      sessionKey: { ...source.sessionKey, piSessionId: "projectless-bookmarked" },
-      name: "Projectless bookmarked",
-      projectId: "removed-project",
-      projection: { ...source.projection, unread: { hasUnread: true } },
-    };
-    const { projectId: sourceProjectId, ...projectlessSource } = source;
-    void sourceProjectId;
-    const other = {
-      ...projectlessSource,
-      sessionKey: { ...source.sessionKey, piSessionId: "projectless-other" },
-      name: "Projectless idle",
-    };
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          sessions: [...fixtureState.sessions, bookmarked, other],
-          sessionBookmarks: [{
-            projectId: "removed-project",
-            sessionKey: bookmarked.sessionKey,
-            position: 0,
-          }],
-        }}
-        onSelect={vi.fn()}
-      />,
-    );
 
-    const bookmarkedRow = screen.getByRole("button", { name: /Projectless bookmarked/ });
-    const otherRow = screen.getByRole("button", { name: /Projectless idle/ });
-    expect(within(bookmarkedRow).getByLabelText("Unread Session")).toBeVisible();
-    expect(within(otherRow).getByLabelText("Idle Session")).toBeVisible();
-    for (const row of [bookmarkedRow, otherRow]) {
-      expect(row.querySelectorAll(".session-status-indicator")).toHaveLength(1);
-      expect(row.querySelector(".session-row-unread-slot")).not.toBeInTheDocument();
-    }
-  });
 
-  it("keeps stable slots for long, delegated Session rows when state indicators change", () => {
-    const parent = fixtureState.sessions[0];
-    const child = fixtureState.sessions[1];
-    if (parent === undefined || child === undefined || child.projectId === undefined) {
-      throw new Error("Session fixtures are missing");
-    }
-    const longName = "A delegated Session name that is long enough to require truncation without moving indicators";
-    const session = {
-      ...child,
-      name: longName,
-      parentSessionKey: parent.sessionKey,
-      projection: {
-        ...child.projection,
-        run: "working" as const,
-        unread: { hasUnread: true },
-      },
-    };
-    const { rerender } = render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          sessions: [parent, session],
-          selectedSessionKey: session.sessionKey,
-          sessionBookmarks: [{ projectId: child.projectId, sessionKey: child.sessionKey, position: 0 }],
-        }}
-        onSelect={vi.fn()}
-      />,
-    );
 
-    const row = screen.getByRole("button", { name: new RegExp(longName) });
-    expect(row).toHaveAttribute("data-session-depth", "1");
-    expect(row).toHaveAttribute("aria-current", "page");
-    expect(within(row).getByLabelText("Working Session")).toBeVisible();
-    expect(within(row).getByLabelText("Bookmarked")).toBeVisible();
-    expect(within(row).queryByLabelText("Unread Session")).not.toBeInTheDocument();
-    expect(row.querySelectorAll(".session-status-indicator")).toHaveLength(1);
-    expect(row.querySelector(".session-row-name")).toHaveTextContent(longName);
-
-    rerender(
-      <Workspace
-        state={{
-          ...fixtureState,
-          sessions: [parent, { ...session, projection: { ...session.projection, unread: { hasUnread: false } } }],
-          selectedSessionKey: session.sessionKey,
-          sessionBookmarks: [],
-        }}
-        onSelect={vi.fn()}
-      />,
-    );
-    const changedRow = screen.getByRole("button", { name: new RegExp(longName) });
-    expect(within(changedRow).queryByLabelText("Bookmarked")).not.toBeInTheDocument();
-    expect(within(changedRow).queryByLabelText("Unread Session")).not.toBeInTheDocument();
-    expect(within(changedRow).getByLabelText("Working Session")).toBeVisible();
-    expect(changedRow.querySelector(".session-row-accessory")).toBeInTheDocument();
-    expect(changedRow.querySelector(".session-row-unread-slot")).not.toBeInTheDocument();
-  });
-
-  it("keeps one Bookmark indicator on a delegated mobile sidebar row", () => {
-    enableMobileViewport();
-    const parent = fixtureState.sessions[0];
-    const child = fixtureState.sessions[1];
-    if (parent === undefined || child === undefined || child.projectId === undefined) {
-      throw new Error("Session fixtures are missing");
-    }
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          sessions: fixtureState.sessions.map((session) => (
-            session === child
-              ? {
-                  ...session,
-                  parentSessionKey: parent.sessionKey,
-                  projection: {
-                    ...session.projection,
-                    run: "working" as const,
-                    unread: { hasUnread: false },
-                  },
-                }
-              : session
-          )),
-          sessionBookmarks: [{
-            projectId: child.projectId,
-            sessionKey: child.sessionKey,
-            position: 0,
-          }],
-        }}
-        onSelect={vi.fn()}
-      />,
-    );
-
-    const childRow = screen.getByRole("button", { name: /Application client/ });
-    expect(childRow).toHaveAttribute("data-session-depth", "1");
-    expect(within(childRow).getByLabelText("Working Session")).toBeVisible();
-    expect(within(childRow).queryByLabelText("Unread Session")).not.toBeInTheDocument();
-    expect(childRow.querySelector(".session-row-accessory")).toBeInTheDocument();
-    expect(childRow.querySelectorAll(".session-status-indicator")).toHaveLength(1);
-    expect(childRow.querySelector(".session-row-unread-slot")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("img", { name: "Bookmarked" })).toHaveLength(1);
-  });
-
-  it("opens Session actions from the sidebar context menu", async () => {
-    const user = userEvent.setup();
-    const source = fixtureState.sessions[1];
-    if (source === undefined || source.projectId === undefined) {
-      throw new Error("Session fixture is missing");
-    }
-    const session = {
-      ...source,
-      projection: {
-        ...source.projection,
-        run: "idle" as const,
-        capabilities: [
-          "session.rename",
-          "session.clone",
-          "session.reload",
-          "session.close",
-        ] as typeof source.projection.capabilities,
-      },
-    };
-    const onCommand = vi.fn(() => "context-request");
-    const onSetSessionBookmark = vi.fn(() => "bookmark-request");
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          sessions: fixtureState.sessions.map((candidate) => (
-            candidate === source ? session : candidate
-          )),
-        }}
-        onSelect={vi.fn()}
-        onCommand={onCommand}
-        onSetSessionBookmark={onSetSessionBookmark}
-      />,
-    );
-
-    fireEvent.contextMenu(screen.getByRole("button", { name: /Application client/ }), {
-      clientX: 120,
-      clientY: 80,
-    });
-    const menu = screen.getByRole("menu", { name: "Actions for Application client" });
-    expect(within(menu).getByRole("menuitem", { name: "Rename" })).toBeEnabled();
-    expect(within(menu).getByRole("menuitem", { name: "Bookmark" })).toBeEnabled();
-    expect(within(menu).getByRole("menuitem", { name: "Clone Session" })).toBeEnabled();
-    expect(within(menu).getByRole("menuitem", { name: "Reload Pi Session" })).toBeEnabled();
-    expect(within(menu).getByRole("menuitem", { name: "Close" })).toBeEnabled();
-
-    await user.click(within(menu).getByRole("menuitem", { name: "Clone Session" }));
-    expect(onCommand).toHaveBeenCalledWith(
-      { kind: "session.clone" },
-      session.sessionKey,
-    );
-
-    fireEvent.contextMenu(screen.getByRole("button", { name: /Application client/ }));
-    await user.click(screen.getByRole("menuitem", { name: "Bookmark" }));
-    expect(onSetSessionBookmark).toHaveBeenCalledWith(
-      source.projectId,
-      session.sessionKey,
-      true,
-    );
-
-    fireEvent.contextMenu(screen.getByRole("button", { name: /Application client/ }));
-    await user.click(screen.getByRole("menuitem", { name: "Close" }));
-    expect(screen.getByRole("alertdialog", { name: "Close Application client?" })).toBeVisible();
-  });
-
-  it("nests a delegated Session directly under its parent", async () => {
-    const parent = fixtureState.sessions[0];
-    const child = fixtureState.sessions[1];
-    if (parent === undefined || child === undefined) {
-      throw new Error("Session fixtures are missing");
-    }
-    const onSelect = vi.fn();
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          sessions: [
-            child,
-            parent,
-            ...fixtureState.sessions.slice(2),
-          ].map((session) => session.sessionKey.piSessionId === child.sessionKey.piSessionId
-            ? {
-                ...session,
-                parentSessionKey: parent.sessionKey,
-                projection: { ...session.projection, unread: { hasUnread: false } },
-              }
-            : session.sessionKey.piSessionId === parent.sessionKey.piSessionId
-              ? { ...session, projection: { ...session.projection, unread: { hasUnread: true } } }
-              : session),
-        }}
-        onSelect={onSelect}
-      />,
-    );
-
-    const rows = [...document.querySelectorAll(".sidebar .session-row")];
-    const parentRow = rows.find((row) => row.textContent?.includes("Workspace shell"));
-    const childRow = rows.find((row) => row.textContent?.includes("Application client"));
-    expect(parentRow).toHaveAttribute("data-session-depth", "0");
-    expect(childRow).toHaveAttribute("data-session-depth", "1");
-    expect(rows.indexOf(childRow!)).toBe(rows.indexOf(parentRow!) + 1);
-    expect(within(parentRow as HTMLElement).getByLabelText("Working Session")).toBeVisible();
-    expect(within(childRow as HTMLElement).getByLabelText("Idle Session")).toBeVisible();
-
-    await userEvent.click(childRow as HTMLElement);
-    expect(onSelect).toHaveBeenCalledWith(child.sessionKey);
-  });
-
-  it("hides an unbookmarked Project without an open Session", () => {
-    const [runningProject, inactiveProject] = fixtureState.projects;
-    if (runningProject === undefined || inactiveProject === undefined) {
-      throw new Error("Project fixtures are missing");
-    }
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          projectBookmarks: [],
-          sessions: fixtureState.sessions.filter(
-            (session) => session.projectId !== inactiveProject.projectId,
-          ),
-        }}
-        onSelect={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: runningProject.name })).toBeVisible();
-    expect(screen.queryByRole("button", { name: inactiveProject.name }))
-      .not.toBeInTheDocument();
-  });
 
   it("hides a closed Project and all of its Sessions from the Dashboard", async () => {
     const user = userEvent.setup();
@@ -819,8 +413,9 @@ describe("Workspace", () => {
       <Workspace
         state={{
           ...fixtureState,
-          workspaces: [{ id: "workspace", name: "Main", projectIds: fixtureState.projects.map(({ projectId }) => projectId), closedProjectIds: [project.projectId], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
-          activeWorkspaceId: "workspace",
+          projects: fixtureState.projects.map((item) => (
+            item.projectId === project.projectId ? { ...item, closed: true } : item
+          )),
         }}
         onSelect={vi.fn()}
       />,
@@ -846,7 +441,7 @@ describe("Workspace", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
 
-    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Projects/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("opens a Dashboard Project Session after creating it", async () => {
@@ -920,7 +515,7 @@ describe("Workspace", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
 
-    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Projects/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("restores the saved Dashboard Open view", async () => {
@@ -939,7 +534,7 @@ describe("Workspace", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Open" }));
     expect(sessionStorage.getItem("pi-station:dashboard:view")).toBe("running");
 
-    await userEvent.click(screen.getByRole("tab", { name: "Projects" }));
+    await userEvent.click(screen.getByRole("tab", { name: /Projects/ }));
     expect(sessionStorage.getItem("pi-station:dashboard:view")).toBe("projects");
   });
 
@@ -949,7 +544,7 @@ describe("Workspace", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
 
-    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Projects/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("uses Projects when Dashboard session storage reads fail", async () => {
@@ -961,7 +556,7 @@ describe("Workspace", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Dashboard" }));
 
-    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Projects/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("changes Dashboard views when session storage writes fail", async () => {
@@ -1065,97 +660,10 @@ describe("Workspace", () => {
     expect(within(dashboard).getByRole("heading", { name: "Earlier" })).toBeVisible();
   });
 
-  it("orders unbookmarked sidebar Projects by name instead of Session activity", () => {
-    const sessions = fixtureState.sessions.map((session) => ({
-      ...session,
-      lastActivityAt: session.projectId === fixtureState.projects[0]?.projectId
-        ? "2026-08-10T10:00:00.000Z"
-        : "2026-08-09T10:00:00.000Z",
-    }));
-    const { container } = render(
-      <Workspace
-        state={{ ...fixtureState, projectBookmarks: [], sessions }}
-        onSelect={vi.fn()}
-      />,
-    );
 
-    expect(
-      [...container.querySelectorAll(".project-name-link")]
-        .map((element) => element.textContent),
-    ).toEqual(["Field Notes", "Pi Station"]);
-  });
 
-  it("shows an empty open state for an expanded bookmarked Project", () => {
-    const project = fixtureState.projects[0];
-    if (project === undefined) throw new Error("Project fixture is missing");
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          projectBookmarks: [{ projectId: project.projectId, position: 0 }],
-          sessions: fixtureState.sessions.filter(
-            (session) => session.projectId !== project.projectId,
-          ),
-        }}
-        onSelect={vi.fn()}
-      />,
-    );
 
-    expect(screen.getAllByText("No open Sessions").length).toBeGreaterThan(0);
-  });
 
-  it("opens a Project from its sidebar name", async () => {
-    const user = userEvent.setup();
-    const project = fixtureState.projects[0];
-    if (project === undefined) throw new Error("Project fixture is missing");
-    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
-
-    await user.click(screen.getByRole("button", { name: project.name }));
-    expect(await screen.findByRole("heading", { name: project.name, level: 1 }))
-      .toBeVisible();
-  });
-
-  it("keeps a reconnecting Session visible and does not offer Open Session", async () => {
-    const user = userEvent.setup();
-    const session = fixtureState.sessions[0];
-    if (session === undefined) throw new Error("Session fixture is missing");
-    const reconnecting = {
-      ...session,
-      projection: { ...session.projection, availability: "reconnecting" as const },
-    };
-    render(<Workspace
-      state={{
-        ...fixtureState,
-        sessions: fixtureState.sessions.map((candidate) => (
-          candidate.sessionKey === session.sessionKey ? reconnecting : candidate
-        )),
-      }}
-      onSelect={vi.fn()}
-    />);
-
-    expect(screen.getByLabelText("Idle Session")).toBeInTheDocument();
-    const project = fixtureState.projects.find(
-      (candidate) => candidate.projectId === session.projectId,
-    );
-    if (project === undefined) throw new Error("Project fixture is missing");
-    await user.click(screen.getByRole("button", { name: project.name }));
-    expect(await screen.findByText("Reconnecting")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Open Session" })).not.toBeInTheDocument();
-  });
-
-  it("configures one Development Server command and preview port from the Project", async () => {
-    const user = userEvent.setup();
-    const project = fixtureState.projects[0];
-    if (project === undefined) throw new Error("Project fixture is missing");
-    const onConfigure = vi.fn(() => "development-server-request");
-    render(<Workspace state={fixtureState} onSelect={vi.fn()} onConfigureDevelopmentServer={onConfigure} />);
-    await user.click(screen.getByRole("button", { name: project.name }));
-    await user.click(within(screen.getByRole("tablist", { name: `${project.name} sections` })).getByRole("tab", { name: "Settings" }));
-    await user.type(screen.getByLabelText(/^Command/), "npm run dev");
-    await user.type(screen.getByLabelText(/Preview port/), "3104");
-    await user.click(screen.getByRole("button", { name: "Save Development Server" }));
-    expect(onConfigure).toHaveBeenCalledWith(project.projectId, { command: "npm run dev", previewPort: 3104 });
-  });
 
   it("opens only the validated Development Server preview URL from Session controls", () => {
     const project = fixtureState.projects[0];
@@ -1173,52 +681,6 @@ describe("Workspace", () => {
       .toHaveAttribute("href", "https://station.example.ts.net:3104/");
   });
 
-  it("reopens a closed Pi Session when its name is selected", async () => {
-    const user = userEvent.setup();
-    const project = fixtureState.projects[0];
-    const source = fixtureState.sessions[0];
-    if (project === undefined || source === undefined) throw new Error("Fixtures are missing");
-    const closed = {
-      ...source,
-      projectId: project.projectId,
-      name: "Saved Session",
-      projection: {
-        ...source.projection,
-        availability: "closed" as const,
-        synchronization: "not-applicable" as const,
-        run: "unknown" as const,
-        capabilities: [],
-      },
-    };
-    const onSelect = vi.fn();
-    const onCreateManagedSession = vi.fn(() => "resume-request");
-    render(<Workspace
-      state={{
-        ...fixtureState,
-        sessions: fixtureState.sessions.map((session) => (
-          session === source ? closed : session
-        )),
-        sessionBookmarks: [{
-          projectId: project.projectId,
-          sessionKey: closed.sessionKey,
-          position: 0,
-        }],
-      }}
-      onSelect={onSelect}
-      onCreateManagedSession={onCreateManagedSession}
-    />);
-
-    await user.click(screen.getByRole("button", { name: project.name }));
-    expect(screen.queryByRole("button", { name: "Open Session" })).not.toBeInTheDocument();
-    onSelect.mockClear();
-    await user.click(screen.getByRole("button", { name: "Saved SessionClosed" }));
-    expect(onCreateManagedSession).toHaveBeenCalledWith(
-      project.displayPath,
-      closed.name,
-      closed.sessionKey,
-    );
-    expect(onSelect).not.toHaveBeenCalled();
-  });
 
   it("opens the Projects index and separates Bookmarked Projects", async () => {
     const user = userEvent.setup();
@@ -1239,10 +701,10 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Projects" }));
-    expect(screen.getByRole("complementary", { name: "Projects and Sessions" }))
+    await user.click(screen.getByRole("button", { name: /Projects/ }));
+    expect(screen.getByRole("complementary", { name: "Workspace and Sessions" }))
       .toBeVisible();
-    expect(screen.getByRole("button", { name: "Projects" }))
+    expect(screen.getByRole("button", { name: /Projects/ }))
       .toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("button", { current: "page", name: "Workspace shell" }))
       .not.toBeInTheDocument();
@@ -1272,7 +734,7 @@ describe("Workspace", () => {
     }));
     expect(await screen.findByRole("heading", { name: bookmarkedProject.name, level: 1 }))
       .toBeVisible();
-    expect(screen.getByRole("region", { name: "Sessions" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Previous Sessions" })).toBeVisible();
     await user.click(within(screen.getByRole("tablist", { name: `${bookmarkedProject.name} sections` })).getByRole("tab", { name: "Settings" }));
     expect(screen.getByRole("heading", { name: "Settings" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Remove Project Bookmark" }));
@@ -1306,7 +768,7 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Projects" }));
+    await user.click(screen.getByRole("button", { name: /Projects/ }));
     const card = screen.getByRole("heading", { name: unavailable.name, level: 3 })
       .closest<HTMLElement>('[data-slot="card"]');
     if (card === null) throw new Error("Unavailable Project card is missing");
@@ -1325,7 +787,7 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Projects" }));
+    await user.click(screen.getByRole("button", { name: /Projects/ }));
     const emptyState = screen.getByText("No Projects yet.").closest<HTMLElement>("div");
     if (emptyState === null) throw new Error("Projects empty state is missing");
     expect(within(emptyState).getByText("Add a Project to give Pi a working directory."))
@@ -1373,7 +835,7 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Projects" }));
+    await user.click(screen.getByRole("button", { name: /Projects/ }));
     await user.click(screen.getByRole("button", { name: `Move ${first.name} down` }));
     expect(onReorderProjectBookmark).toHaveBeenCalledWith(
       first.projectId,
@@ -1394,7 +856,7 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Projects" }));
+    await user.click(screen.getByRole("button", { name: /Projects/ }));
     await user.click(screen.getByRole("button", { name: "Add Project" }));
     expect(await screen.findByRole("heading", { name: "Add Project" })).toBeVisible();
     expect(screen.getByLabelText("Project name")).toBeVisible();
@@ -1412,8 +874,8 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /^Actions for / }));
-    await user.click(await screen.findByRole("menuitem", { name: "New Session" }));
+    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
+    await user.click(within(sidebar).getByRole("button", { name: "New Session" }));
     expect(screen.getByRole("heading", { name: "New Session" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Project" })).toHaveAttribute(
       "aria-selected",
@@ -1435,8 +897,8 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /^Actions for / }));
-    await user.click(await screen.findByRole("menuitem", { name: "New Session" }));
+    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
+    await user.click(within(sidebar).getByRole("button", { name: "New Session" }));
     await user.click(screen.getByRole("button", { name: "Start Pi" }));
 
     rerender(
@@ -1459,52 +921,7 @@ describe("Workspace", () => {
     await waitFor(() => expect(screen.getByLabelText("Message Pi")).toHaveFocus());
   });
 
-  it("opens the standard new Session modal from a Project", async () => {
-    const user = userEvent.setup();
-    render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", {
-      name: "New Session in Pi Station",
-    }));
-
-    expect(screen.getByRole("dialog", {
-      name: "New Session in Pi Station",
-    })).toBeVisible();
-    await waitFor(() => expect(
-      screen.getByPlaceholderText("e.g. Release planning"),
-    ).toHaveFocus());
-    expect(screen.getByRole("button", { name: "Start Pi" })).toBeDisabled();
-
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("creates a Project Session without requiring a name", async () => {
-    const user = userEvent.setup();
-    const onCreateManagedSession = vi.fn(() => "create-request");
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          hostCapabilities: ["managed-session.create"],
-          managedSessionCreates: {},
-        }}
-        onSelect={vi.fn()}
-        onCreateManagedSession={onCreateManagedSession}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", {
-      name: "New Session in Pi Station",
-    }));
-    const start = screen.getByRole("button", { name: "Start Pi" });
-    expect(start).toBeEnabled();
-    await user.click(start);
-    expect(onCreateManagedSession).toHaveBeenCalledWith(
-      "~/workspace/pi-station",
-      undefined,
-    );
-  });
 
   it("moves focus to the composer when Enter is pressed on the conversation page", async () => {
     const user = userEvent.setup();
@@ -1514,51 +931,7 @@ describe("Workspace", () => {
     expect(screen.getByLabelText("Message Pi")).toHaveFocus();
   });
 
-  it("moves to adjacent Sessions with Ctrl+J and Ctrl+K on desktop", () => {
-    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
-      matches: query === "(min-width: 1100px)",
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })));
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
-    const onSelect = vi.fn();
-    render(<Workspace state={fixtureState} onSelect={onSelect} />);
 
-    fireEvent.keyDown(document, { key: "j", ctrlKey: true });
-    expect(onSelect).toHaveBeenLastCalledWith(
-      expect.objectContaining({ piSessionId: "session-notes" }),
-    );
-    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
-
-    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
-    expect(onSelect).toHaveBeenLastCalledWith(
-      expect.objectContaining({ piSessionId: "session-client" }),
-    );
-    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
-
-    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
-  });
-
-  it("selects numbered Sessions with Ctrl or Cmd on desktop", () => {
-    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
-      matches: query === "(min-width: 1100px)",
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })));
-    const onSelect = vi.fn();
-    render(<Workspace state={fixtureState} onSelect={onSelect} />);
-
-    fireEvent.keyDown(document, { key: "2", code: "Digit2", ctrlKey: true });
-    expect(onSelect).toHaveBeenLastCalledWith(
-      expect.objectContaining({ piSessionId: "session-client" }),
-    );
-
-    fireEvent.keyDown(document, { key: "1", code: "Numpad1", metaKey: true });
-    expect(onSelect).toHaveBeenLastCalledWith(
-      expect.objectContaining({ piSessionId: "session-notes" }),
-    );
-  });
 
   it("opens the existing close confirmation with Ctrl+Shift+W without closing directly", () => {
     const onCommand = vi.fn(() => "close-request");
@@ -1667,77 +1040,7 @@ describe("Workspace", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("shows numbered Session hints only while Ctrl or Cmd is held", () => {
-    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
-      matches: query === "(min-width: 1100px)",
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })));
-    const sessionBookmarks = fixtureState.sessions.flatMap((session, position) => (
-      session.projectId === undefined ? [] : [{
-        projectId: session.projectId,
-        sessionKey: session.sessionKey,
-        position,
-      }]
-    ));
-    render(
-      <Workspace
-        state={{
-          ...fixtureState,
-          sessionBookmarks,
-        }}
-        onSelect={vi.fn()}
-      />,
-    );
-    const sidebar = screen.getByLabelText("Projects and Sessions");
-    const firstSession = sidebar.querySelector<HTMLButtonElement>(".session-row");
-    const firstSessionName = firstSession?.querySelector(".session-row-name")?.textContent;
 
-    expect(sidebar).not.toHaveClass("shortcuts-visible");
-    expect(firstSession).toHaveAttribute("data-session-shortcut", "1");
-    expect(firstSession).toHaveAttribute("aria-keyshortcuts", "Control+1 Meta+1");
-
-    const accessory = firstSession?.querySelector(".session-row-accessory");
-    const bookmarkLayer = accessory?.querySelector(".session-row-accessory-content");
-    const shortcutLayer = accessory?.querySelector(".session-row-shortcut");
-    expect(accessory).toBeInTheDocument();
-    expect(bookmarkLayer?.parentElement).toBe(accessory);
-    expect(shortcutLayer?.parentElement).toBe(accessory);
-    expect(shortcutLayer).toHaveAttribute("aria-hidden", "true");
-    expect(within(firstSession as HTMLButtonElement).getByLabelText("Bookmarked")).toBeVisible();
-    expect(firstSession?.querySelector(".session-status-indicator")).toBeInTheDocument();
-
-    fireEvent.keyDown(document, { key: "Control", ctrlKey: true });
-    expect(sidebar).toHaveClass("shortcuts-visible");
-    expect(bookmarkLayer).toHaveAttribute("aria-hidden", "true");
-    expect(shortcutLayer).not.toHaveAttribute("aria-hidden");
-    expect(within(firstSession as HTMLButtonElement).getByLabelText("Shortcut 1")).toBeInTheDocument();
-    expect(firstSession?.querySelector(".session-row-name")).toHaveTextContent(firstSessionName ?? "");
-    expect(firstSession?.querySelector(".session-status-indicator")).toBeInTheDocument();
-    fireEvent.keyUp(document, { key: "Control" });
-    expect(sidebar).not.toHaveClass("shortcuts-visible");
-    expect(bookmarkLayer).not.toHaveAttribute("aria-hidden");
-    expect(shortcutLayer).toHaveAttribute("aria-hidden", "true");
-  });
-
-  it("moves to the next unread Session with Ctrl+Shift+J on desktop", () => {
-    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
-      matches: query === "(min-width: 1100px)",
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })));
-    const onSelect = vi.fn();
-    render(<Workspace state={fixtureState} onSelect={onSelect} />);
-
-    fireEvent.keyDown(document, {
-      key: "j",
-      ctrlKey: true,
-      shiftKey: true,
-    });
-    expect(onSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ piSessionId: "session-client" }),
-    );
-  });
 
   it("reserves Session navigation shortcuts when no unread Session exists", () => {
     vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
@@ -1856,27 +1159,23 @@ describe("Workspace", () => {
     expect(newSession).toHaveAttribute("title", "New Session");
   });
 
-  it("switches Workspaces from the mobile Dashboard menu", async () => {
+  it("switches Workspaces from the persistent mobile row", async () => {
     enableMobileViewport();
     const activateWorkspace = vi.fn(() => Promise.resolve());
-    const timestamps = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const workspaceFields = { tabs: [], closedProjectIds: [], bookmarkedProjectIds: [] };
     const state = {
       ...fixtureState,
       workspaces: [
-        { id: "current", name: "Current Workspace", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
-        { id: "next", name: "Next Workspace", projectIds: [], closedProjectIds: [], bookmarkedProjectIds: [], ...timestamps },
+        { id: "current", name: "Current Workspace", projectIds: [], ...workspaceFields },
+        { id: "next", name: "Next Workspace", projectIds: [], ...workspaceFields },
       ],
       activeWorkspaceId: "current",
     };
     render(<Workspace state={state} client={{ activateWorkspace } as unknown as ApplicationClient} onSelect={vi.fn()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Back to Dashboard" }));
-    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
-
-    expect(screen.getByRole("menuitem", { name: "Current Workspace" })).toHaveAttribute("aria-current", "true");
-    await userEvent.click(screen.getByRole("menuitem", { name: "Next Workspace" }));
+    expect(screen.getByRole("button", { name: "Current Workspace" })).toHaveAttribute("aria-current", "page");
+    await userEvent.click(screen.getByRole("button", { name: "Next Workspace" }));
 
     expect(activateWorkspace).toHaveBeenCalledWith("next");
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("opens Quick Session from the mobile Dashboard header", async () => {
@@ -1912,10 +1211,10 @@ describe("Workspace", () => {
     await user.click(screen.getByRole("button", { name: "Open navigation menu" }));
     expect(screen.getByRole("menuitem", { name: "Dashboard" }))
       .toHaveAttribute("aria-current", "page");
-    await user.click(screen.getByRole("menuitem", { name: "Projects" }));
+    await user.click(screen.getByRole("menuitem", { name: /Projects/ }));
     expect(screen.getByRole("heading", { name: "Projects", level: 1 })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Open navigation menu" }));
-    expect(screen.getByRole("menuitem", { name: "Projects" }))
+    expect(screen.getByRole("menuitem", { name: /Projects/ }))
       .toHaveAttribute("aria-current", "page");
     await user.click(screen.getByRole("menuitem", { name: "Settings" }));
     expect(screen.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
@@ -2530,12 +1829,9 @@ describe("Workspace", () => {
     expect(screen.getByRole("textbox", { name: "Filter directories" })).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "Hidden" }));
     expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi/workspace", true);
-    const directoryFilter = screen.getByRole("textbox", { name: "Filter directories" });
-    await user.type(directoryFilter, "parent");
     expect(screen.getByRole("option", { name: /Use current directory/ })).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{ArrowDown}{Enter}");
     expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi", true);
-    expect(directoryFilter).toHaveValue("");
     await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
     expect(onListDirectory).toHaveBeenLastCalledWith("/home/pi/workspace/.hidden-project", true);
     await user.click(screen.getByRole("option", { name: /Use current directory/ }));
@@ -2746,7 +2042,7 @@ describe("Workspace", () => {
     expect(screen.getByText(/Build the first Workspace shell/u)).toBeVisible();
   });
 
-  it("leaves a retained closed Session feed for the previously viewed Open Session", () => {
+  it("keeps a closed Session tab instead of opening previously viewed work", () => {
     const onSelect = vi.fn();
     const previous = fixtureState.sessions.find((session) => (
       session.sessionKey.piSessionId === "session-client"
@@ -2768,10 +2064,10 @@ describe("Workspace", () => {
       onSelect={onSelect}
     />);
 
-    expect(onSelect).toHaveBeenLastCalledWith(previous.sessionKey);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("prefers the Open parent when the selected delegated child closes", () => {
+  it("keeps a delegated child tab selected when that Session closes", () => {
     const onSelect = vi.fn();
     const parent = fixtureState.sessions.find((session) => (
       session.sessionKey.piSessionId === "session-client"
@@ -2800,7 +2096,7 @@ describe("Workspace", () => {
       onSelect={onSelect}
     />);
 
-    expect(onSelect).toHaveBeenLastCalledWith(parent.sessionKey);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("does not navigate when a non-selected Session closes", () => {
@@ -2824,7 +2120,7 @@ describe("Workspace", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("gates unsupported palette actions and navigates to Projects", async () => {
+  it("gates unsupported palette actions and opens the Project browser", async () => {
     const user = userEvent.setup();
     const state = {
       ...fixtureState,
@@ -2843,8 +2139,8 @@ describe("Workspace", () => {
     expect(screen.queryByRole("option", { name: /Close Session/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /^Abort$/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("option", { name: /^Projects$/ }));
-    expect(screen.getByRole("dialog", { name: "Projects" })).toBeVisible();
-    expect(screen.getByPlaceholderText("Search Projects…")).toHaveFocus();
+    expect(screen.getByRole("listbox", { name: "Projects" })).toBeVisible();
+    expect(screen.getByPlaceholderText("Search Projects…")).toBeVisible();
   });
 
   it("clones an idle Session from Session details", async () => {

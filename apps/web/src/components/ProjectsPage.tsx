@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from "react";
 import { ArrowDown, ArrowUp, Folder, Plus, Search } from "lucide-react";
-import type { ProjectId, SavedWorkspace } from "../application/workspace-model";
+import type { ProjectId, ProjectSummary } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
 import { Badge } from "./ui/badge";
@@ -18,22 +18,16 @@ export function ProjectsPage({
   onSettings,
   onReorderBookmark,
   onSetProjectClosed = () => Promise.reject(new Error("Project state changes are unavailable")),
-  activeWorkspace,
-  onOpenInWorkspace,
-  onRemoveFromWorkspace,
 }: {
   state: ApplicationState;
   onOpen: (projectId: ProjectId) => void;
   onAdd: () => void;
-  onNewSession: () => void;
+  onNewSession: (project?: ProjectSummary) => void;
   onDashboard: () => void;
   onProjects: () => void;
   onSettings: () => void;
   onReorderBookmark: (projectId: ProjectId, direction: "up" | "down") => string | undefined;
   onSetProjectClosed?: (projectId: ProjectId, closed: boolean) => Promise<void>;
-  activeWorkspace?: SavedWorkspace | undefined;
-  onOpenInWorkspace?: ((projectId: ProjectId) => Promise<void>) | undefined;
-  onRemoveFromWorkspace?: ((projectId: ProjectId) => Promise<void>) | undefined;
 }) {
   const [query, setQuery] = useState("");
   const [mutationRequestId, setMutationRequestId] = useState<string>();
@@ -44,9 +38,7 @@ export function ProjectsPage({
   const error = mutation?.result?.status === "rejected" || mutation?.result?.status === "retryable"
     ? mutation.result.error.message
     : undefined;
-  const workspaceProjectIds = new Set(activeWorkspace?.projectIds ?? state.projects.map(({ projectId }) => projectId));
   const positions = new Map(state.projectBookmarks
-    .filter(({ projectId }) => workspaceProjectIds.has(projectId))
     .map((bookmark) => [bookmark.projectId, bookmark.position]));
   const matchesQuery = (project: ApplicationState["projects"][number]): boolean => {
     const search = query.trim().toLocaleLowerCase();
@@ -55,7 +47,7 @@ export function ProjectsPage({
       || project.displayPath.toLocaleLowerCase().includes(search);
   };
   const bookmarked = state.projects
-    .filter((project) => project.closed !== true && positions.has(project.projectId) && matchesQuery(project))
+    .filter((project) => positions.has(project.projectId) && matchesQuery(project))
     .sort((left, right) => (positions.get(left.projectId) ?? Number.MAX_SAFE_INTEGER) - (positions.get(right.projectId) ?? Number.MAX_SAFE_INTEGER));
   const other = state.projects
     .filter((project) => !positions.has(project.projectId) && matchesQuery(project))
@@ -68,16 +60,6 @@ export function ProjectsPage({
       .catch((reason: unknown) => setProjectError(reason instanceof Error ? reason.message : "Project state could not be changed"))
       .finally(() => setProjectSaving(undefined));
   };
-  const changeMembership = (projectId: ProjectId, member: boolean): void => {
-    const action = member ? onRemoveFromWorkspace : onOpenInWorkspace;
-    if (action === undefined) return;
-    setProjectSaving(projectId);
-    setProjectError(undefined);
-    void action(projectId)
-      .catch((reason: unknown) => setProjectError(reason instanceof Error ? reason.message : "Workspace membership could not be changed"))
-      .finally(() => setProjectSaving(undefined));
-  };
-
   return (
     <main className="projects-index projects-index-page">
       <div className="projects-page-shell">
@@ -89,7 +71,7 @@ export function ProjectsPage({
           <div className="projects-page-header-actions">
             <Button type="button" onClick={onAdd}><Plus data-icon="inline-start" aria-hidden="true" />Add Project</Button>
           </div>
-          <MobileNavigationMenu current="projects" onNewSession={onNewSession} onNewProject={onAdd} onDashboard={onDashboard} onProjects={onProjects} onSettings={onSettings} />
+          <MobileNavigationMenu current="projects" onNewSession={() => onNewSession()} onNewProject={onAdd} onDashboard={onDashboard} onProjects={onProjects} onSettings={onSettings} />
         </header>
 
         {state.projects.length === 0 ? (
@@ -107,11 +89,11 @@ export function ProjectsPage({
             </div>
             {hasResults ? (
               <>
-                {bookmarked.length > 0 && <ProjectGroup title="Bookmarked" projects={bookmarked} onOpen={onOpen} saving={saving} workspaceProjectIds={workspaceProjectIds} onChangeMembership={changeMembership} onReorder={(projectId, direction) => {
+                {bookmarked.length > 0 && <ProjectGroup title="Bookmarked" projects={bookmarked} onOpen={onOpen} onNewSession={onNewSession} saving={saving} onReorder={(projectId, direction) => {
                   const requestId = onReorderBookmark(projectId, direction);
                   if (requestId !== undefined) setMutationRequestId(requestId);
-                }} {...(projectSaving === undefined ? {} : { projectSaving })} />}
-                {other.length > 0 && <ProjectGroup title="Other Projects" projects={other} onOpen={onOpen} saving={saving} workspaceProjectIds={workspaceProjectIds} onChangeMembership={changeMembership} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
+                }} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
+                {other.length > 0 && <ProjectGroup title="Other Projects" projects={other} onOpen={onOpen} onNewSession={onNewSession} saving={saving} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
               </>
             ) : (
               <div className="projects-page-no-results"><Search aria-hidden="true" /><strong>No matching Projects</strong><span>Try a different name or path.</span></div>
@@ -128,16 +110,15 @@ const compareProjects = (left: ApplicationState["projects"][number], right: Appl
   left.name.localeCompare(right.name, undefined, { sensitivity: "base" }) || left.projectId.localeCompare(right.projectId)
 );
 
-function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSaving, onSetClosed, workspaceProjectIds, onChangeMembership }: {
+function ProjectGroup({ title, projects, onOpen, onNewSession, saving, onReorder, projectSaving, onSetClosed }: {
   title: string;
   projects: ApplicationState["projects"];
   onOpen: (projectId: ProjectId) => void;
+  onNewSession: (project: ProjectSummary) => void;
   saving: boolean;
   onReorder?: (projectId: ProjectId, direction: "up" | "down") => void;
   projectSaving?: ProjectId;
   onSetClosed?: (projectId: ProjectId, closed: boolean) => void;
-  workspaceProjectIds: ReadonlySet<ProjectId>;
-  onChangeMembership?: ((projectId: ProjectId, member: boolean) => void) | undefined;
 }) {
   const headingId = `projects-${title.toLowerCase().replaceAll(" ", "-")}`;
   return (
@@ -146,24 +127,17 @@ function ProjectGroup({ title, projects, onOpen, saving, onReorder, projectSavin
       <Card className="projects-page-list bg-transparent" role="list">
         {projects.map((project, index) => (
           <div className={`projects-page-row${project.available ? "" : " unavailable"}`} key={project.projectId} role="listitem">
-            <div className="projects-page-row-open" {...(workspaceProjectIds.has(project.projectId) ? {
-              role: "button", tabIndex: 0, "aria-label": `${project.closed === true ? "View" : "Open"} ${project.name}`,
-              onClick: () => onOpen(project.projectId),
-              onKeyDown: (event: KeyboardEvent) => {
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                onOpen(project.projectId);
-              },
-            } : {})}>
+            <div className="projects-page-row-open" role="button" tabIndex={0} aria-label={`${project.closed === true ? "View" : "Open"} ${project.name}`} onClick={() => onOpen(project.projectId)} onKeyDown={(event: KeyboardEvent) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onOpen(project.projectId);
+            }}>
               <span className="projects-page-row-icon"><Folder aria-hidden="true" size={18} /></span>
               <div className="projects-page-row-copy"><h3>{project.name}</h3><span title={project.displayPath}>{project.displayPath}</span></div>
             </div>
             <div className="projects-page-row-status">{project.available ? <Badge variant="outline">Available</Badge> : <Badge variant="outline">Unavailable</Badge>}</div>
             <div className="projects-page-row-actions">
-              {onChangeMembership !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onChangeMembership(project.projectId, workspaceProjectIds.has(project.projectId))}>
-                {projectSaving === project.projectId ? "Saving…" : workspaceProjectIds.has(project.projectId) ? "Remove from Workspace" : "Move to this Workspace"}
-              </Button>}
-              {workspaceProjectIds.has(project.projectId) && project.closed === true && onSetClosed !== undefined && <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button>}
+              {project.closed === true && onSetClosed !== undefined ? <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button> : <Button type="button" disabled={!project.available} onClick={() => onNewSession(project)}><Plus data-icon="inline-start" aria-hidden="true" />New Session</Button>}
               {onReorder !== undefined && <span className="projects-page-order" role="group" aria-label={`Change ${project.name} order`}>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} up`} disabled={saving || index === 0} onClick={() => onReorder(project.projectId, "up")}><ArrowUp aria-hidden="true" /></Button>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} down`} disabled={saving || index === projects.length - 1} onClick={() => onReorder(project.projectId, "down")}><ArrowDown aria-hidden="true" /></Button>

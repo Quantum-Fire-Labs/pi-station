@@ -46,9 +46,9 @@ describe("ProjectPage navigation", () => {
 
     const tabs = screen.getByRole("tablist", { name: `${project.name} sections` });
     expect(tabs).toHaveAttribute("data-slot", "tabs-list");
-    expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("region", { name: "Sessions" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Sessions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Previous Sessions" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("region", { name: "Previous Sessions" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Previous Sessions" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
 
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
@@ -75,11 +75,12 @@ describe("ProjectPage navigation", () => {
     expect(screen.getByRole("button", { name: "New Session" })).toBeDisabled();
   });
 
-  it("opens and closes the Project from the hero actions", async () => {
+  it("opens and closes the Project from secondary Settings", async () => {
     const user = userEvent.setup();
     const onSetProjectClosed = vi.fn().mockResolvedValue(undefined);
     const { rerender } = renderProjectPage({ onSetProjectClosed });
 
+    await user.click(screen.getByRole("tab", { name: "Settings" }));
     await user.click(screen.getByRole("button", { name: "Close Project" }));
     expect(onSetProjectClosed).toHaveBeenCalledWith(true);
 
@@ -98,7 +99,7 @@ describe("ProjectPage navigation", () => {
     const nextProject = fixtureState.projects[1]!;
     rerender(<ProjectPage {...baseProps} project={nextProject} />);
 
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true"));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Previous Sessions" })).toHaveAttribute("aria-selected", "true"));
     expect(screen.getByRole("heading", { name: nextProject.name, level: 1 })).toBeVisible();
     expect(screen.queryByLabelText("Project name")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
@@ -216,9 +217,9 @@ describe("ProjectPage Settings", () => {
     expect(screen.getByRole("heading", { name: "Project details" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Development Server" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Project Bookmark" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Close Project" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Project availability" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Remove Project" })).toBeVisible();
-    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(4);
+    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(5);
 
     await user.click(screen.getByRole("button", { name: "Edit" }));
     const input = screen.getByLabelText("Project name");
@@ -289,7 +290,7 @@ describe("ProjectPage structure", () => {
     expect(screen.getByRole("tablist")).toHaveAttribute("aria-label", `${project.name} sections`);
     for (const control of [
       screen.getByRole("link", { name: "Projects" }),
-      screen.getByRole("tab", { name: "Sessions" }),
+      screen.getByRole("tab", { name: "Previous Sessions" }),
       screen.getByRole("tab", { name: "Scheduled Jobs" }),
       screen.getByRole("tab", { name: "Settings" }),
     ]) {
