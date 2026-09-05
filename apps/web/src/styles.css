@@ -447,7 +447,7 @@ textarea:focus-visible {
 .sidebar-expand-control {
   position: fixed;
   z-index: 32;
-  top: 12px;
+  top: calc(var(--workspace-top-offset, 0px) + 12px);
   left: 12px;
   border: 1px solid var(--line);
   background: var(--page);
