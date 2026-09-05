@@ -4870,6 +4870,7 @@ body.sidebar-resizing {
   line-height: 1.5;
 }
 :root[data-theme-id="omarchy-system"] .message.user .message-body,
+:root[data-theme-id="omarchy-system"] .follow-up-queue li > span,
 :root[data-theme-id="omarchy-system"] .message.scheduled-job .message-body {
   font-size: 0.93rem;
   line-height: 1.45;

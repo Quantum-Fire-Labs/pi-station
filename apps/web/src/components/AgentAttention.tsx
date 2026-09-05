@@ -130,9 +130,8 @@ function AgentButton({ session, onSelect, navigationIndex, selected = false, rem
   return (
     <div className={`${navigationIndex === undefined ? "" : "workspace-tab"}${selected ? " selected" : ""}`}>
       <button className={`agent-attention__agent${activity ? " agent-attention__agent--activity" : ""}${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${status}`} aria-current={selected ? "page" : undefined} data-session-identity={navigationIndex === undefined ? undefined : keyOf(session.sessionKey)} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={navigationIndex !== undefined && session.projection.unread.hasUnread ? "true" : undefined}>
-        {activity && <i className={`agent-attention__marker agent-attention__marker--${status.toLowerCase()}`} aria-hidden="true" />}
         <span className="agent-attention__identity"><span className="agent-attention__name">{label}</span>{context && <small>{context}</small>}</span>
-        <span className={`agent-attention__status agent-attention__status--${status.toLowerCase()}`} aria-hidden="true">{status}</span>
+        <span className={`agent-attention__status agent-attention__status--${status.toLowerCase()}`} aria-hidden="true"><i className={`agent-attention__marker agent-attention__marker--${status.toLowerCase()}`} />{status}</span>
       </button>
       {removable && <button type="button" className="workspace-tab-close" aria-label={`Remove ${label} tab`} title="Remove tab (does not close Session)" onClick={() => onCloseTab?.(session.sessionKey)}>×</button>}
     </div>
