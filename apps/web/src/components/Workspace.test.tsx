@@ -368,6 +368,18 @@ describe("Workspace", () => {
       screen.getByRole("complementary", { name: "Workspace and Sessions" }),
     ).toBeVisible();
   });
+  it("closes the mobile Sessions disclosure when the user presses outside it", async () => {
+    enableMobileViewport();
+    const { container } = render(<Workspace state={fixtureState} onSelect={vi.fn()} />);
+    const mobileNavigation = container.querySelector<HTMLDetailsElement>(".mobile-workspace-navigation");
+    if (mobileNavigation === null) throw new Error("Mobile Workspace navigation is missing");
+    await userEvent.click(within(mobileNavigation).getByText("Sessions"));
+    expect(mobileNavigation).toHaveAttribute("open");
+
+    fireEvent.pointerDown(document.body);
+    expect(mobileNavigation).not.toHaveAttribute("open");
+  });
+
   it("does not focus the composer after a Session change on mobile", async () => {
     enableMobileViewport();
     const onSelect = vi.fn();

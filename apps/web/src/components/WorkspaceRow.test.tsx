@@ -60,6 +60,9 @@ describe("WorkspaceRow", () => {
     expect(css).toMatch(/::-webkit-scrollbar\s*{[^}]*display:\s*none/s);
     expect(css).toMatch(/min-width:\s*140px/);
     expect(css).toMatch(/max-width:\s*240px/);
+    expect(css).toMatch(/\.workspace-row-name\s*{[^}]*font-size:\s*11px/s);
+    expect(css).toMatch(/\.workspace-row-closed\s*{[^}]*font-size:\s*11px/s);
+    expect(css).toMatch(/overscroll-behavior-x:\s*contain/);
     expect(css).not.toMatch(/\.workspace-row-status\s*{[^}]*display:\s*none/s);
     expect(css).not.toMatch(/var\(--(?:background|foreground|border|primary|ring|destructive|muted-foreground)\)/);
     expect(css).toContain("background: var(--raised)");

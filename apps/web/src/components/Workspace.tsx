@@ -939,6 +939,14 @@ export function Workspace({
   useEffect(() => {
     mobileWorkspaceNavigationRef.current?.removeAttribute("open");
   }, [state.activeWorkspaceId, state.selectedSessionKey?.hostId, state.selectedSessionKey?.piSessionId, route]);
+  useEffect(() => {
+    const closeMobileNavigationOutside = (event: PointerEvent): void => {
+      const navigation = mobileWorkspaceNavigationRef.current;
+      if (navigation?.hasAttribute("open") === true && !navigation.contains(event.target as Node)) navigation.removeAttribute("open");
+    };
+    document.addEventListener("pointerdown", closeMobileNavigationOutside);
+    return () => document.removeEventListener("pointerdown", closeMobileNavigationOutside);
+  }, []);
   const afterSharedMarkdownCheck = (action: () => void, onCancel?: () => void): void => {
     if (sharedMarkdownDirty || images.length > 0 || files.length > 0) {
       discardSharedMarkdownCancel.current?.();
@@ -2638,6 +2646,7 @@ export function Workspace({
             setNewSessionRequestId(undefined);
             setNewSessionProject(project);
             setRouteState("workspace");
+            closeMobileWorkspaceNavigation();
           })}
           onOpenSession={(session) => afterSharedMarkdownCheck(() => {
             openSession(session.sessionKey);
