@@ -101,7 +101,7 @@ describe("Pi Station incremental Session summaries", () => {
     expect(summary?.projection.run).toBe("idle");
   });
 
-  it("suppresses delegated child unread state in snapshots and incremental updates", () => {
+  it("projects delegated child unread state in snapshots and incremental updates", () => {
     const child = {
       ...saved("child", "2026-01-02T00:00:00.000Z"),
       parentSessionId: "parent",
@@ -115,9 +115,9 @@ describe("Pi Station incremental Session summaries", () => {
     expect(parentSessionId).toBe("parent");
     const formerChild = upsertSessionSummary([nested!], former)[0];
 
-    expect(working?.projection.unread).toEqual({ hasUnread: false });
-    expect(completed?.projection.unread).toEqual({ hasUnread: false });
-    expect(nested?.projection.unread).toEqual({ hasUnread: false });
+    expect(working?.projection.unread).toEqual({ hasUnread: true, latestUnreadTurnId: "attention-child" });
+    expect(completed?.projection.unread).toEqual({ hasUnread: true, latestUnreadTurnId: "attention-child" });
+    expect(nested?.projection.unread).toEqual({ hasUnread: true, latestUnreadTurnId: "attention-child" });
     expect(formerChild?.projection.unread).toEqual({ hasUnread: true, latestUnreadTurnId: "attention-child" });
   });
 
@@ -129,13 +129,18 @@ describe("Pi Station incremental Session summaries", () => {
     expect(changed[0]?.projectId).toBe("other");
   });
 
-  it("marks selected unread attention read only when the Session is visible", async () => {
+  it("keeps a completed delegated child unread until that child is visible", async () => {
     class FakeEventSource {
       addEventListener(): void {}
       close(): void {}
     }
     globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
-    const unread = { ...saved("one", "2026-01-02T00:00:00.000Z"), unread: { hasUnread: true, latestAttentionId: "attention-1" } };
+    const unread = {
+      ...saved("one", "2026-01-02T00:00:00.000Z"),
+      parentSessionId: "parent",
+      delegationStatus: "completed" as const,
+      unread: { hasUnread: true, latestAttentionId: "attention-1" },
+    };
     const fetchMock = vi.fn<typeof fetch>((input, init) => {
       const path = fetchPath(input);
       if (path === "/v2/projects") return Promise.resolve(Response.json({ projects: [{ id: "project", root: "/work" }], bookmarks: [] }));

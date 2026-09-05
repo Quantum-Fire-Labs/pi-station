@@ -68,9 +68,7 @@ export class SessionAttentionStore {
     const records = await this.#normalized()
     return sessions.map((session) => ({
       ...session,
-      unread: session.parentSessionId === undefined
-        ? unreadState(records.records.find((item) => item.sessionId === session.id))
-        : { hasUnread: false },
+      unread: unreadState(records.records.find((item) => item.sessionId === session.id)),
     }))
   }
 

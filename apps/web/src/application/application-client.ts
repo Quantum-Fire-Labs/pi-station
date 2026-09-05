@@ -1326,7 +1326,7 @@ function projectionFor(session: SavedSession, phase: SessionPhase): SessionSumma
     synchronization: "synchronized",
     run: phase === "working" ? "working" : "idle",
     queue: { state: "empty", knownCount: 0 },
-    unread: session.parentSessionId === undefined && session.unread?.hasUnread === true
+    unread: session.unread?.hasUnread === true
       ? { hasUnread: true, ...(session.unread.latestAttentionId === undefined ? {} : { latestUnreadTurnId: session.unread.latestAttentionId }) }
       : { hasUnread: false },
     management: { kind: "unmanaged" },
