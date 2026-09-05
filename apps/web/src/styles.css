@@ -491,7 +491,7 @@ body.sidebar-resizing {
 .workspace-tab-close { width: 28px; border: 0; background: transparent; color: transparent; }
 .workspace-tab:hover > .workspace-tab-close, .workspace-tab-close:focus-visible { color: var(--muted); }
 .workspace-tabs-empty, .workspace-session-library p { margin: 8px; color: var(--faint); font-size: 11px; }
-.workspace-navigation-action { display: flex; min-height: 34px; align-items: center; gap: 7px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); padding: 5px 8px; font-size: 11px; text-align: left; }
+.workspace-navigation-action { display: flex; min-height: 34px; align-items: center; gap: 7px; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; background: transparent; color: var(--muted); padding: 5px 8px; font-size: 11px; text-align: left; }
 .workspace-navigation-action:hover { background: var(--raised); color: var(--text); }
 .workspace-session-library { max-height: 180px; overflow-y: auto; border-top: 1px solid var(--line); padding-top: 4px; }
 .workspace-session-library button { display: grid; width: 100%; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 7px; border: 0; border-radius: 5px; background: transparent; color: var(--text); padding: 6px 8px; text-align: left; }
