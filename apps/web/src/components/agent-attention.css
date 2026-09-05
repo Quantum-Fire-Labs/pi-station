@@ -18,6 +18,12 @@
 .workspace-sidebar-navigation > .agent-attention[aria-label="Global Sessions"] { padding-left: 0; }
 .agent-attention[aria-label="Global Sessions"] .agent-attention__heading { gap: 6px; }
 .agent-attention[aria-label="Global Sessions"] .global-session-row .agent-attention__agent { padding-left: 19px; }
+.mobile-workspace-navigation-panel { display: flex; flex-direction: column; }
+.mobile-workspace-navigation-panel > .agent-attention { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.mobile-global-projects { display: flex; align-items: center; gap: 8px; flex: none; min-height: 44px; border: 0; border-top: 1px solid var(--line); padding: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.global-session-tree > .delegated-children { padding: 0 0 2px 27px; }
+.global-session-tree .delegated-branch > .selected { background: var(--raised); }
+.global-session-tree .delegated-branch > div > .agent-attention__agent { min-height: 44px; padding-right: 50px; border-radius: 0; }
 .global-session-row { display: flex; align-items: stretch; min-width: 0; }
 .global-session-row > div { flex: 1; min-width: 0; }
 .global-session-row .agent-attention__agent { min-height: 44px; border-radius: 0; }

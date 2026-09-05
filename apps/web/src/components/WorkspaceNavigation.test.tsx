@@ -140,7 +140,7 @@ describe("WorkspaceNavigation", () => {
     const child: SessionSummary = { ...session("child", "Child"), parentSessionKey: parent.sessionKey, projection: { ...projection, unread: { hasUnread: true } } };
     const actions = renderNavigation([parent, child]);
     expect(screen.getByText("Parent").closest("button")).toHaveAttribute("data-session-shortcut", "1");
-    await userEvent.click(screen.getByRole("button", { name: "1 agent" }));
+    await userEvent.click(screen.getByRole("button", { name: "1 agent · 1 unread" }));
     const childButton = screen.getByRole("button", { name: "Child: Unread" });
     expect(childButton).toHaveClass("workspace-tab-open");
     expect(childButton).toHaveAttribute("data-session-identity", "project-1:child");

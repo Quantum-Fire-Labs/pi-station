@@ -23,6 +23,27 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
 }
 
 describe("AgentAttention", () => {
+  it("nests delegates in visible navigation order and reveals a selected grandchild", () => {
+    const root = session("parent");
+    const child = session("child", { parentSessionKey: root.sessionKey });
+    const grandchild = session("grandchild", { parentSessionKey: child.sessionKey, delegationStatus: "working" });
+    const all = [root, child, grandchild];
+    const onSelect = vi.fn();
+    const onRemove = vi.fn();
+    const view = render(<AgentAttention sessions={[root]} allSessions={all} onSelect={onSelect} onRemove={onRemove} persistent heading="Sessions" selectedSessionKey={root.sessionKey} />);
+    expect(document.querySelectorAll("[data-activity-session]")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "1 agent" }));
+    expect(document.querySelectorAll("[data-activity-session]")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "1 agent · 1 working" }));
+    expect([...document.querySelectorAll("[data-activity-session]")].map((node) => node.getAttribute("data-session-identity"))).toEqual(["host:parent", "host:child", "host:grandchild"]);
+    fireEvent.click(screen.getByRole("button", { name: "grandchild: Working" }));
+    expect(onSelect).toHaveBeenCalledWith(grandchild.sessionKey);
+    expect(screen.queryByRole("button", { name: "Remove child from Sessions" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "1 agent" }));
+    expect(screen.queryByRole("button", { name: "grandchild: Working" })).toBeNull();
+    view.rerender(<AgentAttention sessions={[root]} allSessions={all} onSelect={onSelect} onRemove={onRemove} persistent heading="Sessions" selectedSessionKey={grandchild.sessionKey} />);
+    expect(screen.getByRole("button", { name: "grandchild: Working" }).getAttribute("aria-current")).toBe("page");
+  });
   it("deduplicates top-level activity and preserves its source order", () => {
     const working = session("working", { projection: { ...session("x").projection, run: "working" } });
     const idle = session("idle");

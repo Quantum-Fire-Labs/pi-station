@@ -16,6 +16,20 @@ const state: ApplicationState = { ...fixtureState, sessions: [root], selectedSes
 const empty: GlobalSessionList = { version: 1, order: [], dismissed: [] };
 
 describe("Global Sessions", () => {
+  it("restores the parent when a delegated Session is explicitly opened", () => {
+    const child = { ...root, sessionKey: { ...root.sessionKey, piSessionId: "child" }, parentSessionKey: root.sessionKey };
+    const value = { ...state, sessions: [idle, child], selectedSessionKey: child.sessionKey };
+    const hook = renderHook(() => useGlobalSessions(value));
+    expect(hook.result.current.sessions).toEqual([idle]);
+    act(() => hook.result.current.remove(root.sessionKey));
+    expect(hook.result.current.sessions).toEqual([]);
+    act(() => hook.result.current.restore(child.sessionKey));
+    expect(hook.result.current.sessions).toEqual([idle]);
+  });
+  it("does not guess an orphan delegate's parent", () => {
+    const child = { ...root, sessionKey: { ...root.sessionKey, piSessionId: "orphan" }, parentSessionKey: root.sessionKey };
+    expect(reconcileGlobalSessions(empty, { ...state, sessions: [child], selectedSessionKey: child.sessionKey }).order).toEqual([]);
+  });
   it("keeps completion and read Sessions in place across remounts and Workspace changes", () => {
     const hook = renderHook(({ value }) => useGlobalSessions(value), { initialProps: { value: state } });
     expect(hook.result.current.sessions.map((session) => session.sessionKey)).toEqual([root.sessionKey]);

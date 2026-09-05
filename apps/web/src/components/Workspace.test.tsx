@@ -47,6 +47,8 @@ const fixtureWorkspace = {
 const fixtureState: ApplicationState = { ...baseFixtureState, workspaces: [fixtureWorkspace], activeWorkspaceId: fixtureWorkspace.id };
 const fixtureStateWithWorkspace = fixtureState;
 
+const projectsButton = () => within(screen.getByRole("complementary", { name: "Workspace and Sessions" })).getByRole("button", { name: "Projects" });
+
 const enableDesktopViewport = (): void => {
   const matchMedia = vi.fn((query: string) => ({
     matches: query === "(min-width: 1100px)",
@@ -87,15 +89,17 @@ describe("Workspace", () => {
     const target = fixtureState.sessions[0]!;
     render(<Workspace state={fixtureState} onSelect={onSelect} onCommand={onCommand} />);
     const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
-    const tabsBefore = sidebar.querySelectorAll(".workspace-tab-open").length;
+    const tabsBefore = JSON.stringify(fixtureState.workspaces);
+    expect(sidebar.querySelector(".workspace-navigation")).toBeNull();
     await userEvent.click(within(sidebar).getByRole("button", { name: `Remove ${target.name} from Sessions` }));
-    expect(sidebar.querySelectorAll(".workspace-tab-open")).toHaveLength(tabsBefore);
+    expect(JSON.stringify(fixtureState.workspaces)).toBe(tabsBefore);
     expect(within(sidebar).queryByRole("button", { name: `Remove ${target.name} from Sessions` })).not.toBeInTheDocument();
     expect(onCommand).not.toHaveBeenCalled();
     expect(onSelect).not.toHaveBeenCalled();
-    const tab = [...sidebar.querySelectorAll<HTMLButtonElement>(".workspace-tab-open")].find((button) => button.textContent?.includes(target.name!))!;
-    await userEvent.click(tab);
-    expect(within(sidebar).getByRole("button", { name: `Remove ${target.name} from Sessions` })).toBeVisible();
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Projects" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open Pi Station" }));
+    await userEvent.click(await screen.findByRole("button", { name: `${target.name} Working` }));
+    expect(within(screen.getByRole("complementary", { name: "Workspace and Sessions" })).getByRole("button", { name: `Remove ${target.name} from Sessions` })).toBeVisible();
     expect(onSelect).toHaveBeenCalledWith(target.sessionKey);
   });
   it("opens a requested Session tab before consuming its deep link", async () => {
@@ -113,6 +117,24 @@ describe("Workspace", () => {
     await waitFor(() => expect(onRequestedSessionOpened).toHaveBeenCalledOnce());
     expect(onSelect).toHaveBeenCalledWith(target.sessionKey);
     expect(openSessionInWorkspace).toHaveBeenCalledOnce();
+  });
+
+  it("navigates expanded delegates and removes the duplicate Project sidebar", () => {
+    enableDesktopViewport();
+    const onSelect = vi.fn();
+    const parent = fixtureState.sessions[0]!;
+    const next = fixtureState.sessions[1]!;
+    const child = { ...parent, name: "Nested review", sessionKey: { ...parent.sessionKey, piSessionId: "nested-review" }, parentSessionKey: parent.sessionKey };
+    render(<Workspace state={{ ...fixtureState, sessions: [parent, child, next], selectedSessionKey: parent.sessionKey }} onSelect={onSelect} />);
+    const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
+    expect(sidebar.querySelector(".workspace-navigation")).toBeNull();
+    expect(within(sidebar).queryByText("Previous Sessions")).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "j", ctrlKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith(next.sessionKey);
+    fireEvent.click(within(sidebar).getByRole("button", { name: "1 agent · 1 working" }));
+    fireEvent.keyDown(document, { key: "j", ctrlKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith(child.sessionKey);
+    expect(within(sidebar).getByRole("button", { name: "Projects" })).toBeVisible();
   });
 
   it("keeps idle Sessions in keyboard order after completion and tab removal", () => {
@@ -425,7 +447,7 @@ describe("Workspace", () => {
     };
     const { rerender } = render(<Workspace state={fixtureState} onSelect={onSelect} />);
     const sidebar = screen.getByRole("complementary", { name: "Workspace and Sessions" });
-    const sessionButton = sidebar.querySelector<HTMLButtonElement>(".workspace-tab-open[data-session-identity$=':session-client']");
+    const sessionButton = sidebar.querySelector<HTMLButtonElement>("[data-activity-session][data-session-identity$=':session-client']");
     if (sessionButton === null) throw new Error("Desktop Session navigation is missing");
     await userEvent.click(sessionButton);
     expect(onSelect).toHaveBeenCalledWith(nextSession.sessionKey);
@@ -467,7 +489,7 @@ describe("Workspace", () => {
     const { container, rerender } = render(<Workspace state={fixtureState} onSelect={onSelect} />);
     const mobileNavigation = container.querySelector(".mobile-workspace-navigation");
     if (mobileNavigation === null) throw new Error("Mobile Workspace navigation is missing");
-    const sessionButton = mobileNavigation.querySelector<HTMLButtonElement>(".workspace-tab-open[data-session-identity$=':session-client']");
+    const sessionButton = mobileNavigation.querySelector<HTMLButtonElement>("[data-activity-session][data-session-identity$=':session-client']");
     if (sessionButton === null) throw new Error("Mobile Session navigation is missing");
     await userEvent.click(sessionButton);
 
@@ -781,10 +803,10 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Projects/ }));
+    await user.click(projectsButton());
     expect(screen.getByRole("complementary", { name: "Workspace and Sessions" }))
       .toBeVisible();
-    expect(screen.getByRole("button", { name: /Projects/ }))
+    expect(projectsButton())
       .toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("button", { current: "page", name: "Workspace shell" }))
       .not.toBeInTheDocument();
@@ -848,7 +870,7 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Projects/ }));
+    await user.click(projectsButton());
     const card = screen.getByRole("heading", { name: unavailable.name, level: 3 })
       .closest<HTMLElement>('[data-slot="card"]');
     if (card === null) throw new Error("Unavailable Project card is missing");
@@ -867,7 +889,7 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Projects/ }));
+    await user.click(projectsButton());
     const emptyState = screen.getByText("No Projects yet.").closest<HTMLElement>("div");
     if (emptyState === null) throw new Error("Projects empty state is missing");
     expect(within(emptyState).getByText("Save a directory here for easy access, or open a directory without adding a Project."))
@@ -915,7 +937,7 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Projects/ }));
+    await user.click(projectsButton());
     await user.click(screen.getByRole("button", { name: `Move ${first.name} down` }));
     expect(onReorderProjectBookmark).toHaveBeenCalledWith(
       first.projectId,
@@ -936,7 +958,7 @@ describe("Workspace", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Projects/ }));
+    await user.click(projectsButton());
     await user.click(screen.getByRole("button", { name: "Add Project" }));
     expect(await screen.findByRole("heading", { name: "Add Project" })).toBeVisible();
     expect(screen.getByLabelText("Project name")).toBeVisible();
