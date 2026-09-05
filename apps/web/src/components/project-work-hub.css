@@ -12,9 +12,6 @@
 .projects-index-page .projects-page-row-copy { flex: 1; min-width: 0; }
 .projects-index-page .projects-page-row-copy h3 { font-size: 14px; font-weight: 600; }
 .projects-index-page .projects-page-row-copy > span { font-size: 11px; }
-.project-recent-work { display: grid; align-content: center; gap: 7px; flex: 0 1 260px; min-width: 0; color: var(--muted); font-size: 12px; }
-.project-recent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-recent-work > small { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 10px; color: var(--faint); }
 .project-work-status { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
 .projects-index-page .project-work-status > i, .project-page-view .project-work-status > i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
 .project-work-status.status-working { color: var(--accent2); }
@@ -40,7 +37,6 @@
 @media (max-width: 700px) {
   .projects-index-page .projects-page-row { display: grid; grid-template-columns: minmax(0, 1fr); }
   .projects-index-page .projects-page-row-open { flex-wrap: wrap; gap: 8px 12px; padding: 8px 0; }
-  .projects-index-page .project-recent-work { flex-basis: 100%; margin-left: 30px; }
   .projects-index-page .projects-page-row-actions { justify-content: flex-start; padding: 0 0 6px 30px; }
   .projects-index-page .projects-page-row-actions button { min-height: 44px; }
   .projects-sort { width: 100%; }

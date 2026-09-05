@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./project-work-hub.css";
+import "./project-accordion.css";
 import {
   ArrowDown,
   ArrowUp,
@@ -200,13 +201,15 @@ export function ProjectPage({
           <div className="project-page-hero-actions">
             <Button
               type="button"
-              size="lg"
-              className="project-page-new-session"
+              size="icon"
+              variant="ghost"
+              aria-label="New Session"
+              title={`New Session in ${project.name}`}
+              className="project-page-new-session project-new-session-icon"
               onClick={onNewSession}
               disabled={!project.available}
             >
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              New Session
+              <Plus aria-hidden="true" size={16} />
             </Button>
 
           </div>

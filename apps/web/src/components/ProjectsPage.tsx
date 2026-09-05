@@ -1,7 +1,8 @@
 import { useState, type KeyboardEvent } from "react";
 import "./project-work-hub.css";
-import { ArrowDown, ArrowUp, Folder, Plus, Search } from "lucide-react";
-import type { ProjectId, ProjectSummary } from "../application/workspace-model";
+import "./project-accordion.css";
+import { ArrowDown, ArrowUp, ChevronRight, Folder, Plus, Search } from "lucide-react";
+import type { ProjectId, ProjectSummary, SessionKey, SessionSummary } from "../application/workspace-model";
 import type { ApplicationState } from "../application/application-client-base";
 import { activityDate, sessionActivityTime, sessionWorkStatus } from "./project-work-summary";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
@@ -16,6 +17,7 @@ export function ProjectsPage({
   onAdd,
   onNewSession,
   onOpenDirectory = () => onNewSession(),
+  onOpenSession,
   onDashboard,
   onProjects,
   onSettings,
@@ -27,6 +29,7 @@ export function ProjectsPage({
   onAdd: () => void;
   onNewSession: (project?: ProjectSummary) => void;
   onOpenDirectory?: () => void;
+  onOpenSession?: (key: SessionKey) => void;
   onDashboard: () => void;
   onProjects: () => void;
   onSettings: () => void;
@@ -35,9 +38,19 @@ export function ProjectsPage({
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("recent");
+  const [expanded, setExpanded] = useState<ReadonlySet<ProjectId>>(new Set());
+  const toggleExpanded = (id: ProjectId): void => setExpanded((previous) => {
+    const next = new Set(previous);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const recentSessions = new Map<ProjectId, SessionSummary[]>();
   const latestSessions = new Map<ProjectId, ApplicationState["sessions"][number]>();
   for (const session of state.sessions) {
-    if (session.projectId === undefined || session.parentSessionKey !== undefined) continue;
+    if (session.projectId === undefined || session.parentSessionKey !== undefined || session.quickSession === true) continue;
+    const projectSessions = recentSessions.get(session.projectId) ?? [];
+    projectSessions.push(session);
+    recentSessions.set(session.projectId, projectSessions);
     const previous = latestSessions.get(session.projectId);
     if (previous === undefined || sessionActivityTime(session) > sessionActivityTime(previous)) latestSessions.set(session.projectId, session);
   }
@@ -106,11 +119,11 @@ export function ProjectsPage({
             </div>
             {hasResults ? (
               <>
-                {bookmarked.length > 0 && <ProjectGroup latestSessions={latestSessions} title="Bookmarked" projects={bookmarked} onOpen={onOpen} onNewSession={onNewSession} saving={saving} onReorder={(projectId, direction) => {
+                {bookmarked.length > 0 && <ProjectGroup expanded={expanded} onToggle={toggleExpanded} recentSessions={recentSessions} onOpenSession={onOpenSession} latestSessions={latestSessions} title="Bookmarked" projects={bookmarked} onOpen={onOpen} onNewSession={onNewSession} saving={saving} onReorder={(projectId, direction) => {
                   const requestId = onReorderBookmark(projectId, direction);
                   if (requestId !== undefined) setMutationRequestId(requestId);
                 }} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
-                {other.length > 0 && <ProjectGroup latestSessions={latestSessions} title="Other Projects" projects={other} onOpen={onOpen} onNewSession={onNewSession} saving={saving} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
+                {other.length > 0 && <ProjectGroup expanded={expanded} onToggle={toggleExpanded} recentSessions={recentSessions} onOpenSession={onOpenSession} latestSessions={latestSessions} title="Other Projects" projects={other} onOpen={onOpen} onNewSession={onNewSession} saving={saving} {...(projectSaving === undefined ? {} : { projectSaving })} onSetClosed={setClosed} />}
               </>
             ) : (
               <div className="projects-page-no-results"><Search aria-hidden="true" /><strong>No matching Projects</strong><span>Try a different name or path.</span></div>
@@ -123,24 +136,44 @@ export function ProjectsPage({
   );
 }
 
-function ProjectRecentWork({ session }: { session: ApplicationState["sessions"][number] | undefined }) {
-  if (session === undefined) return <span className="project-recent-work"><small>No Sessions yet</small></span>;
-  const status = sessionWorkStatus(session);
-  const time = sessionActivityTime(session);
-  return <span className="project-recent-work">
-    <span className="project-recent-name">{session.name || "Untitled Session"}</span>
-    <small><span className={`project-work-status status-${status.toLowerCase()}`}><i aria-hidden="true" />{status}</span><time dateTime={time === 0 ? undefined : new Date(time).toISOString()} title={time === 0 ? undefined : new Date(time).toLocaleString()}>{activityDate(time)}</time></small>
-  </span>;
+function ProjectActivityDate({ session }: { session: SessionSummary | undefined }) {
+  const time = session === undefined ? 0 : sessionActivityTime(session);
+  return <time className="project-activity-date" dateTime={time === 0 ? undefined : new Date(time).toISOString()} title={time === 0 ? undefined : `Last activity: ${new Date(time).toLocaleString()}`}>{activityDate(time)}</time>;
+}
+
+function RecentSessions({ sessions, onOpenSession, onViewAll, projectName }: {
+  sessions: readonly SessionSummary[];
+  onOpenSession: ((key: SessionKey) => void) | undefined;
+  onViewAll: () => void;
+  projectName: string;
+}) {
+  const recent = [...sessions].sort((left, right) => sessionActivityTime(right) - sessionActivityTime(left) || left.sessionKey.piSessionId.localeCompare(right.sessionKey.piSessionId)).slice(0, 5);
+  return <>
+    {recent.length === 0 ? <p>No Sessions yet.</p> : <ul aria-label={`Recent Sessions in ${projectName}`}>{recent.map((session) => {
+      const status = sessionWorkStatus(session);
+      const openable = ["available", "reconnecting", "closed"].includes(session.projection.availability);
+      return <li key={session.sessionKey.piSessionId}><button type="button" className="project-recent-session" disabled={!openable || onOpenSession === undefined} onClick={() => onOpenSession?.(session.sessionKey)}>
+        <span className="project-recent-session-name">{session.name || "Untitled Session"}</span>
+        <span className={`project-work-status status-${status.toLowerCase()}`}><i aria-hidden="true" />{status}</span>
+        <ProjectActivityDate session={session} />
+      </button></li>;
+    })}</ul>}
+    <button type="button" className="project-view-all" onClick={onViewAll}>View all sessions</button>
+  </>;
 }
 
 const compareProjects = (left: ApplicationState["projects"][number], right: ApplicationState["projects"][number]): number => (
   left.name.localeCompare(right.name, undefined, { sensitivity: "base" }) || left.projectId.localeCompare(right.projectId)
 );
 
-function ProjectGroup({ title, projects, latestSessions, onOpen, onNewSession, saving, onReorder, projectSaving, onSetClosed }: {
+function ProjectGroup({ title, projects, latestSessions, recentSessions, expanded, onToggle, onOpenSession, onOpen, onNewSession, saving, onReorder, projectSaving, onSetClosed }: {
   title: string;
   projects: ApplicationState["projects"];
   latestSessions: ReadonlyMap<ProjectId, ApplicationState["sessions"][number]>;
+  recentSessions: ReadonlyMap<ProjectId, readonly SessionSummary[]>;
+  expanded: ReadonlySet<ProjectId>;
+  onToggle: (id: ProjectId) => void;
+  onOpenSession: ((key: SessionKey) => void) | undefined;
   onOpen: (projectId: ProjectId) => void;
   onNewSession: (project: ProjectSummary) => void;
   saving: boolean;
@@ -155,6 +188,8 @@ function ProjectGroup({ title, projects, latestSessions, onOpen, onNewSession, s
       <Card className="projects-page-list bg-transparent" role="list">
         {projects.map((project, index) => (
           <div className={`projects-page-row${project.available ? "" : " unavailable"}`} key={project.projectId} role="listitem">
+            <div className="project-accordion-heading">
+            <button className="project-disclosure" type="button" aria-label={`Recent Sessions in ${project.name}`} aria-expanded={expanded.has(project.projectId)} aria-controls={`recent-${project.projectId}`} onClick={() => onToggle(project.projectId)}><ChevronRight aria-hidden="true" size={16} /></button>
             <div className="projects-page-row-open" role="button" tabIndex={0} aria-label={`${project.closed === true ? "View" : "Open"} ${project.name}`} onClick={() => onOpen(project.projectId)} onKeyDown={(event: KeyboardEvent) => {
               if (event.key !== "Enter" && event.key !== " ") return;
               event.preventDefault();
@@ -162,14 +197,18 @@ function ProjectGroup({ title, projects, latestSessions, onOpen, onNewSession, s
             }}>
               <span className="projects-page-row-icon"><Folder aria-hidden="true" size={18} /></span>
               <div className="projects-page-row-copy"><h3>{project.name}</h3><span title={project.displayPath}>{project.displayPath}</span>{!project.available && <Badge variant="outline">Unavailable</Badge>}</div>
-              <ProjectRecentWork session={latestSessions.get(project.projectId)} />
+              <ProjectActivityDate session={latestSessions.get(project.projectId)} />
             </div>
             <div className="projects-page-row-actions">
-              {project.closed === true && onSetClosed !== undefined ? <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button> : <Button type="button" disabled={!project.available} onClick={() => onNewSession(project)}><Plus data-icon="inline-start" aria-hidden="true" />New Session</Button>}
+              {project.closed === true && onSetClosed !== undefined ? <Button type="button" variant="outline" disabled={projectSaving !== undefined} onClick={() => onSetClosed(project.projectId, false)}>{projectSaving === project.projectId ? "Opening…" : "Open Project"}</Button> : <Button type="button" variant="ghost" size="icon" className="project-new-session-icon" aria-label={`New Session in ${project.name}`} title={`New Session in ${project.name}`} disabled={!project.available} onClick={() => onNewSession(project)}><Plus aria-hidden="true" size={16} /></Button>}
               {onReorder !== undefined && <span className="projects-page-order" role="group" aria-label={`Change ${project.name} order`}>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} up`} disabled={saving || index === 0} onClick={() => onReorder(project.projectId, "up")}><ArrowUp aria-hidden="true" /></Button>
                 <Button type="button" variant="ghost" size="icon" aria-label={`Move ${project.name} down`} disabled={saving || index === projects.length - 1} onClick={() => onReorder(project.projectId, "down")}><ArrowDown aria-hidden="true" /></Button>
               </span>}
+            </div>
+            </div>
+            <div id={`recent-${project.projectId}`} hidden={!expanded.has(project.projectId)} className="project-recent-sessions">
+              {expanded.has(project.projectId) && <RecentSessions sessions={recentSessions.get(project.projectId) ?? []} onOpenSession={onOpenSession} onViewAll={() => onOpen(project.projectId)} projectName={project.name} />}
             </div>
           </div>
         ))}
