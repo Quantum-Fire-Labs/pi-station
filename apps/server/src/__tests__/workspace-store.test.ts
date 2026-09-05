@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { describe, expect, it } from "vitest"
@@ -54,6 +54,52 @@ describe("WorkspaceStore", () => {
     expect(migrated.workspaces[0]?.tabs.map(({ sessionId }) => sessionId)).toEqual(["open"])
     await store.closeTab("one", migrated.workspaces[0]!.tabs[0]!.id, projects, sessions)
     expect((await store.list(projects, [], sessions)).workspaces[0]?.tabs).toEqual([])
+  })
+
+  it("migrates membership version 3 without confusing it with tab version 3", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const path = join(data, "workspaces.json")
+    await writeFile(path, JSON.stringify({
+      version: 3,
+      workspaces: [{ id: "one", name: "One", projectIds: ["project-2", "project-1"], closedProjectIds: ["project-1"], bookmarkedProjectIds: ["project-2"], lastSession: { projectId: "project-2", sessionId: "selected" } }],
+      activeWorkspaceId: "one",
+    }))
+    const sessions = [
+      { id: "first", projectId: "project-1", path: "/first", modifiedAt: "2026-01-01", state: "open" as const },
+      { id: "selected", projectId: "project-2", path: "/selected", modifiedAt: "2026-01-02", state: "open" as const },
+      { id: "closed", projectId: "project-2", path: "/closed", modifiedAt: "2026-01-03", state: "closed" as const },
+      { id: "quick", projectId: "project-2", path: "/quick", modifiedAt: "2026-01-04", state: "open" as const, quickSession: true as const },
+      { id: "child", projectId: "project-2", path: "/child", modifiedAt: "2026-01-05", state: "open" as const, parentSessionId: "selected" },
+    ]
+    const state = await new WorkspaceStore(data).list(projects, [], sessions)
+    expect(state.workspaces[0]?.projectIds).toEqual(["project-2", "project-1"])
+    expect(state.workspaces[0]?.tabs.map(({ sessionId }) => sessionId)).toEqual(["selected", "first"])
+    expect(state.workspaces[0]?.tabs.find(({ id }) => id === state.workspaces[0]?.activeTabId)?.sessionId).toBe("selected")
+    expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ version: 4, workspaces: [{ id: "one" }] })
+  })
+
+  it("preserves valid tab version 3 data and rejects malformed tab data", async () => {
+    const tabData = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const tab = { id: "tab", kind: "session", projectId: "project-2", sessionId: "session" }
+    await writeFile(join(tabData, "workspaces.json"), JSON.stringify({ version: 3, workspaces: [{ id: "one", name: "One", tabs: [tab], activeTabId: "tab", projectIds: ["project-2"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "one" }))
+    expect(await new WorkspaceStore(tabData).list(projects)).toMatchObject({ activeWorkspaceId: "one", workspaces: [{ tabs: [tab], activeTabId: "tab" }] })
+
+    const malformed = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const malformedPath = join(malformed, "workspaces.json")
+    const contents = JSON.stringify({ version: 3, workspaces: [{ id: "one", name: "One", tabs: "invalid", projectIds: ["project-2"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "one" })
+    await writeFile(malformedPath, contents)
+    await expect(new WorkspaceStore(malformed).list(projects)).rejects.toThrow("Stored JSON data is invalid")
+    expect(await readFile(malformedPath, "utf8")).toBe(contents)
+  })
+
+  it("does not write a partial membership version 3 migration when the tab limit is exceeded", async () => {
+    const data = await mkdtemp(join(tmpdir(), "pi-workspaces-"))
+    const path = join(data, "workspaces.json")
+    const contents = JSON.stringify({ version: 3, workspaces: [{ id: "one", name: "One", projectIds: ["project-2"], closedProjectIds: [], bookmarkedProjectIds: [] }], activeWorkspaceId: "one" })
+    await writeFile(path, contents)
+    const sessions = Array.from({ length: 101 }, (_, index) => ({ id: `session-${index}`, projectId: "project-2", path: `/session-${index}`, modifiedAt: "2026-01-01", state: "open" as const }))
+    await expect(new WorkspaceStore(data).list(projects, [], sessions)).rejects.toMatchObject({ code: "limit" })
+    expect(await readFile(path, "utf8")).toBe(contents)
   })
 
   it("uses the central Session source for the first rename operation", async () => {
