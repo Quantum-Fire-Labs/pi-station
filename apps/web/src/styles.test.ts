@@ -8,6 +8,13 @@ const composerControlsSource = readFileSync(resolve(process.cwd(), "src/componen
 const workspaceSource = readFileSync(resolve(process.cwd(), "src/components/Workspace.tsx"), "utf8");
 const workspaceSwitcherSource = readFileSync(resolve(process.cwd(), "src/components/WorkspaceSwitcher.tsx"), "utf8");
 const dialogSource = readFileSync(resolve(process.cwd(), "src/components/ui/dialog.tsx"), "utf8");
+const agentAttentionStyles = readFileSync(resolve(process.cwd(), "src/components/agent-attention.css"), "utf8");
+
+describe("Agent Activity layout", () => {
+  it("keeps Activity rows compact while the list uses the available sidebar space", () => {
+    expect(agentAttentionStyles).toMatch(/\.agent-attention__list--activity\s*\{[^}]*flex: 1;[^}]*grid-auto-rows: min-content;[^}]*align-content: start;/s);
+  });
+});
 
 describe("composer width", () => {
   it("uses a separate 960px composer width and keeps the Timeline width", () => {

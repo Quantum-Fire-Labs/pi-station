@@ -23,7 +23,7 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
 }
 
 describe("AgentAttention", () => {
-  it("deduplicates agents and puts failed and ready-review activity before working", () => {
+  it("deduplicates top-level activity and preserves its source order", () => {
     const working = session("working", { projection: { ...session("x").projection, run: "working" } });
     const idle = session("idle");
     const unreadFailed = session("unread-failed", {
@@ -34,10 +34,25 @@ describe("AgentAttention", () => {
 
     expect(screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
       null,
-      "unread-failed: Failed",
       "working: Working",
+      "unread-failed: Failed",
     ]);
     expect(screen.queryByText("idle")).not.toBeInTheDocument();
+  });
+
+  it("excludes delegates and keeps the selected top-level idle Session", () => {
+    const parent = session("parent");
+    const child = session("child", { parentSessionKey: parent.sessionKey, delegationStatus: "working" });
+    expect(agentActivitySessions([parent, child], parent.sessionKey).map(({ sessionKey }) => sessionKey.piSessionId)).toEqual(["parent"]);
+  });
+
+  it("keeps existing rows stable when working becomes unread and appends new activity", () => {
+    const first = session("first", { projection: { ...session("x").projection, run: "working" } });
+    const second = session("second", { projection: { ...session("x").projection, run: "working" } });
+    const previous = agentActivitySessions([first, second]).map(({ sessionKey }) => `host:${sessionKey.piSessionId}`);
+    const firstUnread = { ...first, projection: { ...first.projection, run: "idle" as const, unread: { hasUnread: true } } };
+    const third = session("third", { delegationStatus: "failed" });
+    expect(agentActivitySessions([third, second, firstUnread], undefined, previous).map(({ sessionKey }) => sessionKey.piSessionId)).toEqual(["first", "second", "third"]);
   });
 
   it("returns the complete Session key when selected", () => {

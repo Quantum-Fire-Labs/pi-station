@@ -97,14 +97,51 @@ describe("Workspace", () => {
     expect(openSessionInWorkspace).toHaveBeenCalledOnce();
   });
 
-  it("cycles Session tabs with Control+J using the complete Session identity", () => {
+  it("cycles the exact visible Activity order with Control+J and ignores project tab order", () => {
     enableDesktopViewport();
     const onSelect = vi.fn();
-    const first = fixtureState.sessions.find((session) => session.sessionKey.piSessionId === fixtureWorkspace.tabs[0]!.sessionId)!;
-    render(<Workspace state={{ ...fixtureState, selectedSessionKey: first.sessionKey }} onSelect={onSelect} />);
+    const first = { ...fixtureState.sessions[0]!, projection: { ...fixtureState.sessions[0]!.projection, run: "working" as const } };
+    const second = { ...fixtureState.sessions[1]!, projection: { ...fixtureState.sessions[1]!.projection, unread: { hasUnread: true } } };
+    const tabs = [
+      { id: "second-tab", kind: "session" as const, projectId: second.sessionKey.hostId, sessionId: second.sessionKey.piSessionId },
+      { id: "first-tab", kind: "session" as const, projectId: first.sessionKey.hostId, sessionId: first.sessionKey.piSessionId },
+    ];
+    render(<Workspace state={{ ...fixtureState, sessions: [first, second], selectedSessionKey: first.sessionKey, workspaces: [{ ...fixtureWorkspace, tabs, activeTabId: "first-tab" }] }} onSelect={onSelect} />);
     fireEvent.keyDown(document, { key: "j", code: "KeyJ", ctrlKey: true });
-    const next = fixtureWorkspace.tabs[1]!;
-    expect(onSelect).toHaveBeenCalledWith({ hostId: next.projectId, piSessionId: next.sessionId });
+    expect(onSelect).toHaveBeenCalledWith(second.sessionKey);
+  });
+
+  it("routes Activity to an open matching Workspace and selects the explicit target", async () => {
+    const target = { ...fixtureState.sessions[1]!, name: "Remote activity", projection: { ...fixtureState.sessions[1]!.projection, run: "working" as const } };
+    const targetTab = { id: "remote-target", kind: "session" as const, projectId: target.sessionKey.hostId, sessionId: target.sessionKey.piSessionId };
+    const current = { ...fixtureWorkspace, tabs: fixtureWorkspace.tabs.slice(0, 1), activeTabId: fixtureWorkspace.tabs[0]!.id };
+    const remote = { ...fixtureWorkspace, id: "remote", name: "Remote", tabs: [targetTab], activeTabId: targetTab.id };
+    const activateWorkspace = vi.fn(() => Promise.resolve());
+    const selectWorkspaceTab = vi.fn(() => Promise.resolve());
+    const onSelect = vi.fn();
+    render(<Workspace state={{ ...fixtureState, sessions: [fixtureState.sessions[0]!, target], workspaces: [current, remote], activeWorkspaceId: current.id }} client={{ activateWorkspace, selectWorkspaceTab } as unknown as ApplicationClient} onSelect={onSelect} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "Remote activity: Working" })[0]!);
+    await waitFor(() => expect(selectWorkspaceTab).toHaveBeenCalledWith("remote", targetTab.id));
+    expect(activateWorkspace).toHaveBeenCalledWith("remote");
+    expect(onSelect).toHaveBeenCalledWith(target.sessionKey);
+  });
+
+  it("guards Activity navigation before Workspace mutation and keeps state when cancelled", async () => {
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:preview") });
+    const target = { ...fixtureState.sessions[1]!, name: "Guarded activity", projection: { ...fixtureState.sessions[1]!.projection, run: "working" as const } };
+    const openSessionInWorkspace = vi.fn(() => Promise.resolve());
+    const onSelect = vi.fn();
+    const { container } = render(<Workspace state={{ ...fixtureState, sessions: [fixtureState.sessions[0]!, target] }} client={{ openSessionInWorkspace } as unknown as ApplicationClient} onSelect={onSelect} onUploadImage={() => Promise.resolve("upload")} />);
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error("Attachment input is missing");
+    fireEvent.change(input, { target: { files: [new File(["image"], "guard.png", { type: "image/png" })] } });
+    await screen.findByText("Ready");
+    await userEvent.click(screen.getAllByRole("button", { name: "Guarded activity: Working" })[0]!);
+    expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(openSessionInWorkspace).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalledWith(target.sessionKey);
+    expect(screen.getByText("Ready")).toBeVisible();
   });
 
   it("lets a user create the first saved Workspace", async () => {

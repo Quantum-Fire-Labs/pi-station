@@ -4,7 +4,7 @@
 .agent-attention__heading,
 .delegated-children__summary { margin: 0; font-size: 11px; line-height: 16px; }
 .agent-attention__heading { display: flex; width: 100%; min-height: 32px; align-items: center; gap: 5px; border: 0; background: transparent; padding: 4px 8px 4px 0; color: var(--muted); font-weight: 650; text-align: left; cursor: pointer; }
-.agent-attention__heading > span { flex: 1; letter-spacing: .06em; text-transform: uppercase; }
+.agent-attention__heading > span { flex: 1; letter-spacing: normal; text-transform: none; }
 .agent-attention__heading > small { font-size: 10px; font-weight: 500; }
 .agent-attention__heading:hover { color: var(--text); }
 .agent-attention__heading:focus-visible,
@@ -16,7 +16,7 @@
 @media (pointer: coarse), (max-width: 1099px) { .delegated-children__summary { min-height: 44px; } }
 
 .agent-attention__list { display: grid; gap: 0; margin: 2px 0 0; padding: 0; list-style: none; }
-.agent-attention__list--activity { max-height: 192px; overflow-y: auto; overscroll-behavior: contain; }
+.agent-attention__list--activity { min-height: 0; flex: 1; grid-auto-rows: min-content; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
 .agent-attention__agent { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 6px; border: 0; border-radius: 4px; padding: 4px 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .agent-attention__agent--activity { min-height: 34px; padding-left: 0; }
 .agent-attention__agent:hover,
@@ -25,7 +25,7 @@
 .agent-attention__identity { display: grid; min-width: 0; flex: 1; }
 .agent-attention__identity > small { overflow: hidden; color: var(--muted); font-size: 10px; line-height: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .agent-attention__name { overflow: hidden; font-size: 11px; line-height: 15px; text-overflow: ellipsis; white-space: nowrap; }
-.agent-attention__status { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 0; color: var(--muted); font-size: 10px; line-height: 14px; }
+.agent-attention__status { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 0; color: var(--muted); font-size: 11px; line-height: 14px; }
 .agent-attention__status--failed { color: var(--danger); }
 .agent-attention__status--unread { color: var(--success); }
 .agent-attention__status--working { color: var(--accent2); }
