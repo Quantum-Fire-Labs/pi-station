@@ -217,7 +217,7 @@ describe("Workspace", () => {
     const client = { respondToCommandApproval } as unknown as ApplicationClient;
     const state = {
       ...fixtureState,
-      selected: { ...fixtureState.selected, commandApproval: { id: "approval-1", command: "rm -rf build" } },
+      selected: { ...fixtureState.selected, commandApproval: { id: "approval-1", kind: "command" as const, command: "rm -rf build" } },
     };
     render(<Workspace state={state} client={client} onSelect={vi.fn()} />);
     const dialog = screen.getByRole("alertdialog", { name: "Run recursive rm command?" });

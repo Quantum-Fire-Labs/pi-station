@@ -10,7 +10,7 @@ import {
   type ModelRuntime,
 } from "@earendil-works/pi-coding-agent"
 import { Type } from "typebox"
-import type { Project } from "@pi-station/application-protocol"
+import type { Project, ThinkingLevel } from "@pi-station/application-protocol"
 import type { AgentMessagingBridge } from "./agent-messaging.js"
 import type { SessionMoveAgentBridge } from "./session-moves.js"
 import type { DelegationEvents, DelegationRecord } from "./delegations.js"
@@ -150,14 +150,44 @@ export type RuntimeSessionFactory = (input: {
   readonly delegated?: boolean
 }) => Promise<RuntimeSession>
 
-export function delegatedSessionSettings(parent: RuntimeSession): SessionDefaults {
-  const model = parent.model
-  if (model === undefined) throw new Error("Parent Session has no model")
+export function delegatedSessionSettings(): SessionDefaults {
   return {
-    provider: model.provider,
-    modelId: model.id,
-    thinkingLevel: parent.thinkingLevel,
+    provider: "openai-codex",
+    modelId: "gpt-5.6-sol",
+    thinkingLevel: "low",
   }
+}
+
+export function delegationOverridesRequireApproval(overrides: { readonly model?: unknown; readonly thinkingLevel?: unknown }): boolean {
+  return overrides.model !== undefined || overrides.thinkingLevel !== undefined
+}
+
+export function resolveDelegatedSessionSettings(
+  modelRuntime: Pick<ModelRuntime, "getModel" | "getAvailableSnapshot">,
+  overrides: { readonly model?: string; readonly thinkingLevel?: ThinkingLevel },
+): SessionDefaults {
+  const defaults = delegatedSessionSettings()
+  const requestedModel = overrides.model ?? `${defaults.provider}/${defaults.modelId}`
+  const separator = requestedModel.indexOf("/")
+  if (separator <= 0 || separator === requestedModel.length - 1) {
+    throw new Error(`Delegation model must use provider/model-id format: ${requestedModel}`)
+  }
+  const provider = requestedModel.slice(0, separator)
+  const modelId = requestedModel.slice(separator + 1)
+  const model = modelRuntime.getModel(provider, modelId)
+  if (model === undefined) throw new Error(`Delegation model not found: ${requestedModel}`)
+  if (!modelRuntime.getAvailableSnapshot().some((available) => available.provider === provider && available.id === modelId)) {
+    throw new Error(`Delegation model is unavailable: ${requestedModel}`)
+  }
+  const thinkingLevel = overrides.thinkingLevel ?? defaults.thinkingLevel
+  const standardLevels: readonly ThinkingLevel[] = model.reasoning ? ["off", "minimal", "low", "medium", "high"] : ["off"]
+  const supported = standardLevels.includes(thinkingLevel)
+    ? model.thinkingLevelMap?.[thinkingLevel] !== null
+    : model.thinkingLevelMap?.[thinkingLevel] != null
+  if (!supported) {
+    throw new Error(`Thinking level ${thinkingLevel} is not supported by ${requestedModel}`)
+  }
+  return { provider, modelId, thinkingLevel }
 }
 
 export interface SdkSessionRuntimeOptions {
@@ -518,20 +548,37 @@ async function createSdkSession(input: {
   const delegationTools = input.delegated === true || input.projectId === undefined ? [] : [defineTool({
     name: DELEGATION_TOOL_NAME,
     label: "Delegate",
-    description: "Start an independent Pi Station child Session for a bounded task. The child Session appears nested under this Session and inherits its model and thinking level.",
+    description: "Start an independent Pi Station child Session for a bounded task. The optional model must use provider/model-id format. The optional thinkingLevel can be off, minimal, low, medium, high, xhigh, or max. Each supplied override requires explicit user approval. Omitted arguments use openai-codex/gpt-5.6-sol and low, independently of the parent Session.",
     parameters: Type.Object({
       prompt: Type.String({ description: "Complete, self-contained task instructions" }),
       name: Type.Optional(Type.String({ description: "Short child Session name" })),
+      model: Type.Optional(Type.String({ description: "Child model in provider/model-id format" })),
+      thinkingLevel: Type.Optional(Type.String({ enum: ["off", "minimal", "low", "medium", "high", "xhigh", "max"], description: "Child thinking level" })),
     }, { additionalProperties: false }),
-    execute: async (toolCallId, parameters) => {
+    execute: async (toolCallId, parameters, signal) => {
       if (input.projectId === undefined) throw new Error("Delegation requires a Project")
       if (parent.session === undefined) throw new Error("Delegation requires an active parent Session")
+      const settings = resolveDelegatedSessionSettings(parent.session.modelRuntime, {
+        ...(parameters.model === undefined ? {} : { model: parameters.model }),
+        ...(parameters.thinkingLevel === undefined ? {} : { thinkingLevel: parameters.thinkingLevel as ThinkingLevel }),
+      })
+      if (delegationOverridesRequireApproval(parameters)) {
+        if (options.commandApprovals === undefined) throw new Error("Delegation setting approval is unavailable")
+        const approved = await options.commandApprovals.requestDelegation(
+          { projectId: input.projectId, sessionId: input.sessionId },
+          `${settings.provider}/${settings.modelId}`,
+          settings.thinkingLevel,
+          signal,
+        )
+        if (!approved) throw new Error("Delegation settings were not approved")
+      }
+      signal?.throwIfAborted()
       const record = await delegate({
         projectId: input.projectId,
         parentSessionId: input.sessionId,
         cwd: input.cwd,
         prompt: parameters.prompt,
-        settings: delegatedSessionSettings(parent.session),
+        settings,
         ...(parameters.name === undefined ? {} : { name: parameters.name }),
         onComplete: async (report) => {
           if (parent.session === undefined) return

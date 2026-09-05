@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { CLOSE_DELEGATED_AGENT_TOOL_NAME, createSdkSessionRuntime, DELEGATED_SESSION_EXCLUDED_TOOLS, DELEGATION_TOOL_NAME, delegatedSessionSettings, deliverDelegationReport, MAX_ACTIVE_DELEGATIONS_PER_SESSION, RECOVER_DELEGATED_AGENT_TOOL_NAME, type RuntimeEvent, type RuntimeSession } from "../session-runtime.js"
+import { CLOSE_DELEGATED_AGENT_TOOL_NAME, createSdkSessionRuntime, DELEGATED_SESSION_EXCLUDED_TOOLS, DELEGATION_TOOL_NAME, delegatedSessionSettings, delegationOverridesRequireApproval, deliverDelegationReport, MAX_ACTIVE_DELEGATIONS_PER_SESSION, RECOVER_DELEGATED_AGENT_TOOL_NAME, resolveDelegatedSessionSettings, type RuntimeEvent, type RuntimeSession } from "../session-runtime.js"
 
 function fakeSession(entries: readonly Record<string, unknown>[] = []) {
   let listener: ((event: RuntimeEvent) => void) | undefined
@@ -54,15 +54,44 @@ describe("SDK Session runtime", () => {
     ])
   })
 
-  it("inherits the parent model and thinking level for a delegated child Session", () => {
-    const parent = fakeSession()
-    parent.setThinkingLevel("high")
-
-    expect(delegatedSessionSettings(parent)).toEqual({
-      provider: "openai",
-      modelId: "gpt-a",
-      thinkingLevel: "high",
+  it("uses GPT-5.6 Sol with low thinking for a delegated child Session", () => {
+    expect(delegatedSessionSettings()).toEqual({
+      provider: "openai-codex",
+      modelId: "gpt-5.6-sol",
+      thinkingLevel: "low",
     })
+  })
+
+  it("resolves independent delegation defaults and validates model thinking compatibility", () => {
+    const models = [
+      { provider: "openai-codex", id: "gpt-5.6-sol", reasoning: true, input: ["text"], contextWindow: 1000, maxTokens: 100 },
+      { provider: "anthropic", id: "reasoning", reasoning: true, input: ["text"], contextWindow: 1000, maxTokens: 100, thinkingLevelMap: { low: null, high: "high" } },
+      { provider: "local", id: "plain/model", reasoning: false, input: ["text"], contextWindow: 1000, maxTokens: 100 },
+    ]
+    const modelRuntime = {
+      getModel: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
+      getAvailableSnapshot: () => models,
+    } as never
+
+    expect(resolveDelegatedSessionSettings(modelRuntime, {})).toEqual(delegatedSessionSettings())
+    expect(resolveDelegatedSessionSettings(modelRuntime, { model: "local/plain/model", thinkingLevel: "off" })).toEqual({ provider: "local", modelId: "plain/model", thinkingLevel: "off" })
+    expect(resolveDelegatedSessionSettings(modelRuntime, { thinkingLevel: "high" })).toEqual({ ...delegatedSessionSettings(), thinkingLevel: "high" })
+    expect(() => resolveDelegatedSessionSettings(modelRuntime, { model: "missing" })).toThrow("provider/model-id")
+    expect(() => resolveDelegatedSessionSettings(modelRuntime, { model: "missing/model" })).toThrow("not found")
+    const unavailableRuntime = {
+      getModel: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
+      getAvailableSnapshot: () => [],
+    } as never
+    expect(() => resolveDelegatedSessionSettings(unavailableRuntime, {})).toThrow("is unavailable")
+    expect(() => resolveDelegatedSessionSettings(modelRuntime, { model: "anthropic/reasoning" })).toThrow("low is not supported")
+    expect(() => resolveDelegatedSessionSettings(modelRuntime, { model: "local/plain/model", thinkingLevel: "high" })).toThrow("high is not supported")
+  })
+
+  it("requires approval for each supplied override, including explicit defaults", () => {
+    expect(delegationOverridesRequireApproval({})).toBe(false)
+    expect(delegationOverridesRequireApproval({ model: "openai-codex/gpt-5.6-sol" })).toBe(true)
+    expect(delegationOverridesRequireApproval({ thinkingLevel: "low" })).toBe(true)
+    expect(delegationOverridesRequireApproval({ model: "openai-codex/gpt-5.6-sol", thinkingLevel: "low" })).toBe(true)
   })
 
   it("writes a completed child response through the parent SDK Session as a visible tool-linked follow-up", async () => {

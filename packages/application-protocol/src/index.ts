@@ -77,7 +77,7 @@ export { isCreateMessageStashRequest } from "./message-stashes.js"
 export type { CreateMessageStashRequest, MessageStash, MessageStashFile } from "./message-stashes.js"
 
 export { encodeSse } from "./stream.js"
-export type { JournalEvent, StreamEvent } from "./stream.js"
+export type { ApprovalRequest, JournalEvent, StreamEvent } from "./stream.js"
 
 export {
   isIanaTimezone,

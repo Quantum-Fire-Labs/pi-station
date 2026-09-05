@@ -1,3 +1,4 @@
+import type { ApprovalRequest } from "./stream.js"
 import type { TimelineItem } from "./timeline.js"
 
 export type SessionState = "open" | "closed"
@@ -105,7 +106,7 @@ export interface SessionView {
   readonly settings: SessionSettings
   readonly commandInventory: readonly CommandSummary[]
   readonly sharedFiles: readonly SharedFileInfo[]
-  readonly commandApproval?: { readonly id: string; readonly command: string }
+  readonly commandApproval?: ApprovalRequest
 }
 
 export interface SessionSharedFiles {

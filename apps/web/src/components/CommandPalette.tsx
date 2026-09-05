@@ -41,7 +41,9 @@ interface PaletteAction {
 export interface PaletteSession {
   readonly id: string;
   readonly name: string;
+  readonly projectId?: ProjectId | undefined;
   readonly projectName?: string | undefined;
+  readonly bookmarked?: boolean | undefined;
   readonly closed: boolean;
 }
 
@@ -52,7 +54,8 @@ type Flow =
   | { kind: "rename"; value: string }
   | { kind: "model" }
   | { kind: "thinking" }
-  | { kind: "sessions" }
+  | { kind: "sessions"; projectId?: ProjectId; projectName?: string; projectPath?: string }
+  | { kind: "projects" }
   | { kind: "workspaces" }
   | { kind: "stashes" }
   | { kind: "close" }
@@ -70,6 +73,7 @@ export interface CommandPaletteProps {
   projectName?: string | undefined;
   projectPath?: string | undefined;
   projects?: readonly ProjectSummary[] | undefined;
+  projectBookmarkIds?: readonly ProjectId[] | undefined;
   workspaces?: readonly SavedWorkspace[] | undefined;
   activeWorkspaceId?: string | undefined;
   directoryLists?: ApplicationState["directoryLists"] | undefined;
@@ -152,7 +156,7 @@ export function CommandPalette(props: CommandPaletteProps) {
   const actions = useMemo<readonly PaletteAction[]>(() => {
     const items: PaletteAction[] = [
       { glyph: <LayoutDashboard aria-hidden="true" size={16} />, name: "Dashboard", run: () => closeAfter(props.onDashboard) },
-      { glyph: <FolderKanban aria-hidden="true" size={16} />, name: "Projects", run: () => closeAfter(props.onProjects) },
+      { glyph: <FolderKanban aria-hidden="true" size={16} />, name: "Projects", run: () => { setFlow({ kind: "projects" }); setQuery(""); } },
       { glyph: <FolderPlus aria-hidden="true" size={16} />, name: "Add Project", run: () => openDirectory("project") },
     ];
     if (props.onOpenSession) items.push({ glyph: <History aria-hidden="true" size={16} />, name: "Sessions", run: () => { setFlow({ kind: "sessions" }); setQuery(""); } });
@@ -180,15 +184,27 @@ export function CommandPalette(props: CommandPaletteProps) {
   }).sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" })) : [];
   const locationChoices = ["projects", "directories"] as const;
   const choices = flow.kind === "model" ? props.models ?? [] : flow.kind === "thinking" ? props.thinkingLevels ?? [] : [];
+  const shownPaletteProjects = useMemo(() => {
+    if (flow.kind !== "projects") return [];
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const bookmarked = new Set(props.projectBookmarkIds ?? []);
+    return [...(props.projects ?? [])]
+      .filter((project) => project.name.toLocaleLowerCase().includes(normalizedQuery)
+        || project.displayPath.toLocaleLowerCase().includes(normalizedQuery))
+      .sort((left, right) => Number(bookmarked.has(right.projectId)) - Number(bookmarked.has(left.projectId))
+        || left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+  }, [flow.kind, props.projectBookmarkIds, props.projects, query]);
   const shownSessions = useMemo(() => {
     if (flow.kind !== "sessions") return [];
     const normalizedQuery = query.trim().toLocaleLowerCase();
     return [...(props.sessions ?? [])]
+      .filter((session) => flow.projectId === undefined || session.projectId === flow.projectId)
+      .filter((session) => flow.projectId !== undefined || session.name.trim().length > 0)
       .filter((session) => session.name.toLocaleLowerCase().includes(normalizedQuery))
-      .sort((left, right) => Number(left.closed) - Number(right.closed)
+      .sort((left, right) => sessionPaletteRank(left) - sessionPaletteRank(right)
         || left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
         || (left.projectName ?? "").localeCompare(right.projectName ?? "", undefined, { sensitivity: "base" }));
-  }, [flow.kind, props.sessions, query]);
+  }, [flow, props.sessions, query]);
   const shownWorkspaces = flow.kind === "workspaces" ? (props.workspaces ?? []).filter((workspace) => (
     workspace.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
   )) : [];
@@ -204,7 +220,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     return item.name.toLocaleLowerCase().includes(normalizedQuery) || item.displayPath.toLocaleLowerCase().includes(normalizedQuery);
   });
   const directoryChoiceCount = directory === undefined ? 0 : 1 + (directory.parent === undefined ? 0 : 1) + shownDirectories.length;
-  const count = flow.kind === "actions" ? shownActions.length : flow.kind === "sessions" ? shownSessions.length : flow.kind === "workspaces" ? shownWorkspaces.length : flow.kind === "stashes" ? shownStashes.length : flow.kind === "close" ? closeChoices.length : flow.kind === "new-location" ? locationChoices.length : flow.kind === "new-project" ? shownProjects.length : flow.kind === "new-directory" ? directoryChoiceCount : choices.length;
+  const count = flow.kind === "actions" ? shownActions.length : flow.kind === "projects" ? shownPaletteProjects.length : flow.kind === "sessions" ? shownSessions.length : flow.kind === "workspaces" ? shownWorkspaces.length : flow.kind === "stashes" ? shownStashes.length : flow.kind === "close" ? closeChoices.length : flow.kind === "new-location" ? locationChoices.length : flow.kind === "new-project" ? shownProjects.length : flow.kind === "new-directory" ? directoryChoiceCount : choices.length;
   const createRequest = createRequestId === undefined ? undefined : props.managedSessionCreates?.[createRequestId];
   const projectCreateRequest = projectCreateRequestId === undefined ? undefined : props.projectCreates?.[projectCreateRequestId];
   const starting = createRequest?.status === "starting";
@@ -255,6 +271,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     else if (flow.kind === "add-project-name") setFlow({ kind: "new-directory", purpose: "project" });
     else if (flow.kind === "new-directory") { setFlow(flow.purpose === "project" ? { kind: "actions" } : { kind: "new-location" }); setQuery(""); }
     else if (flow.kind === "new-project") { setFlow({ kind: "new-location" }); setQuery(""); }
+    else if (flow.kind === "sessions" && flow.projectId !== undefined) { setFlow({ kind: "projects" }); setQuery(""); }
     else { setFlow({ kind: "actions" }); setQuery(""); }
   };
   const select = (): void => {
@@ -262,6 +279,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     if (flow.kind === "actions") shownActions[activeIndex]?.run();
     else if (flow.kind === "model") { const model = props.models?.[activeIndex]; if (model) props.onSetModel?.(model.provider, model.modelId); }
     else if (flow.kind === "thinking") { const level = props.thinkingLevels?.[activeIndex]; if (level) props.onSetThinking?.(level); }
+    else if (flow.kind === "projects") { const project = shownPaletteProjects[activeIndex]; if (project?.available) { setFlow({ kind: "sessions", projectId: project.projectId, projectName: project.name, projectPath: project.displayPath }); setQuery(""); } }
     else if (flow.kind === "sessions") { const session = shownSessions[activeIndex]; if (session) closeAfter(() => props.onOpenSession?.(session.id)); }
     else if (flow.kind === "workspaces") { const workspace = shownWorkspaces[activeIndex]; if (workspace) closeAfter(() => props.onSelectWorkspace?.(workspace.id)); }
     else if (flow.kind === "stashes") { const stash = shownStashes[activeIndex]; if (stash) props.onRestoreStash?.(stash); }
@@ -278,11 +296,11 @@ export function CommandPalette(props: CommandPaletteProps) {
         if (flow.purpose === "project") { setProjectName(""); setProjectCreateRequestId(undefined); setNewSessionLaunchError(undefined); setFlow({ kind: "add-project-name", location }); }
         else startNameFlow(location, "new-directory");
       }
-      else if (directory.parent !== undefined && activeIndex === 1) loadDirectory(directory.parent.path);
+      else if (directory.parent !== undefined && activeIndex === 1) { setQuery(""); loadDirectory(directory.parent.path); }
       else {
         const directoryIndex = activeIndex - 1 - (directory.parent === undefined ? 0 : 1);
         const selectedDirectory = shownDirectories[directoryIndex];
-        if (selectedDirectory !== undefined) loadDirectory(selectedDirectory.path);
+        if (selectedDirectory !== undefined) { setQuery(""); loadDirectory(selectedDirectory.path); }
       }
     } else if (flow.kind === "close") {
       if (activeIndex === 0) back();
@@ -301,20 +319,20 @@ export function CommandPalette(props: CommandPaletteProps) {
   });
   const handleKeyDown = (event: ReactKeyboardEvent): void => {
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); back(); return; }
-    const listFlow = flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "close" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "workspaces" || flow.kind === "stashes";
+    const listFlow = flow.kind === "actions" || flow.kind === "projects" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "close" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "workspaces" || flow.kind === "stashes";
     if (listFlow && (event.key === "ArrowDown" || (event.key === "Tab" && !event.shiftKey))) { event.preventDefault(); if (count) setActiveIndex((i) => (i + 1) % count); return; }
     if (listFlow && (event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey))) { event.preventDefault(); if (count) setActiveIndex((i) => (i - 1 + count) % count); return; }
     if (event.key === "Enter" && flow.kind !== "rename" && flow.kind !== "new-name" && flow.kind !== "add-project-name") { event.preventDefault(); select(); }
   };
   const closeSessionName = props.sessionName?.trim();
-  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "sessions" ? "Sessions" : flow.kind === "workspaces" ? "Workspaces" : flow.kind === "stashes" ? "Stashed messages" : flow.kind === "close" ? closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?" : flow.kind === "new-location" ? "Choose location" : flow.kind === "new-project" ? "Choose project" : flow.kind === "new-directory" ? "Choose directory" : flow.kind === "add-project-name" ? "Name your Project" : "Name your Session";
+  const title = flow.kind === "actions" ? "Session actions" : flow.kind === "rename" ? "Rename Session" : flow.kind === "model" ? "Change model" : flow.kind === "thinking" ? "Change thinking level" : flow.kind === "projects" ? "Projects" : flow.kind === "sessions" ? (flow.projectName ?? "Sessions") : flow.kind === "workspaces" ? "Workspaces" : flow.kind === "stashes" ? "Stashed messages" : flow.kind === "close" ? closeSessionName ? `Close ${closeSessionName}?` : "Close this Session?" : flow.kind === "new-location" ? "Choose location" : flow.kind === "new-project" ? "Choose project" : flow.kind === "new-directory" ? "Choose directory" : flow.kind === "add-project-name" ? "Name your Project" : "Name your Session";
   const flowGlyph = flow.kind === "rename" ? <Pencil aria-hidden="true" size={14} /> : flow.kind === "model" ? <Bot aria-hidden="true" size={14} /> : flow.kind === "thinking" ? <Brain aria-hidden="true" size={14} /> : flow.kind === "sessions" ? <History aria-hidden="true" size={14} /> : flow.kind === "workspaces" ? <PanelsTopLeft aria-hidden="true" size={14} /> : flow.kind === "stashes" ? <Archive aria-hidden="true" size={14} /> : flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" ? <Folder aria-hidden="true" size={14} /> : flow.kind === "new-name" || flow.kind === "add-project-name" ? <Plus aria-hidden="true" size={14} /> : <X aria-hidden="true" size={14} />;
-  const listFooter = flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "workspaces" || flow.kind === "stashes";
+  const listFooter = flow.kind === "actions" || flow.kind === "projects" || flow.kind === "model" || flow.kind === "thinking" || flow.kind === "new-location" || flow.kind === "new-project" || flow.kind === "new-directory" || flow.kind === "sessions" || flow.kind === "workspaces" || flow.kind === "stashes";
 
   return <div className="palette-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) back(); }}>
     <section ref={panelRef} className="palette" role="dialog" aria-modal="true" aria-labelledby="palette-title" tabIndex={-1} onKeyDown={handleKeyDown}>
-      {(flow.kind === "actions" || flow.kind === "sessions" || flow.kind === "workspaces") && <label className="palette-search"><Search aria-hidden="true" size={17} /><span id="palette-title" className="sr-only">{title}</span><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "sessions" ? "Search Sessions…" : flow.kind === "workspaces" ? "Search Workspaces…" : "Choose an action…"} aria-label={flow.kind === "workspaces" ? "Search Workspaces" : undefined} aria-controls="palette-results" /><kbd>Esc</kbd></label>}
-      {flow.kind !== "actions" && flow.kind !== "sessions" && flow.kind !== "workspaces" && <header className="palette-flow-header"><button type="button" onClick={back} disabled={props.pending || starting || savingProject} aria-label="Back">{flowGlyph}</button><h2 id="palette-title">{title}</h2><kbd>Esc</kbd></header>}
+      {(flow.kind === "actions" || flow.kind === "projects" || flow.kind === "sessions" || flow.kind === "workspaces") && <label className="palette-search"><Search aria-hidden="true" size={17} /><span id="palette-title" className="sr-only">{title}</span><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "sessions" ? "Search Sessions…" : flow.kind === "projects" ? "Search Projects…" : flow.kind === "workspaces" ? "Search Workspaces…" : "Choose an action…"} aria-label={flow.kind === "workspaces" ? "Search Workspaces" : undefined} aria-controls="palette-results" /><kbd>Esc</kbd></label>}
+      {flow.kind !== "actions" && flow.kind !== "projects" && flow.kind !== "sessions" && flow.kind !== "workspaces" && <header className="palette-flow-header"><button type="button" onClick={back} disabled={props.pending || starting || savingProject} aria-label="Back">{flowGlyph}</button><h2 id="palette-title">{title}</h2><kbd>Esc</kbd></header>}
       {(flow.kind === "new-project" || flow.kind === "new-directory") && <div className="palette-search palette-subsearch"><Search aria-hidden="true" size={17} /><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} placeholder={flow.kind === "new-project" ? "Filter projects…" : "Filter directories…"} aria-label={flow.kind === "new-project" ? "Filter projects" : "Filter directories"} aria-controls="palette-results" />{flow.kind === "new-directory" && <button type="button" className={showHidden ? "active" : ""} aria-pressed={showHidden} disabled={directoryRequest?.status === "loading"} onClick={() => { const hidden = !showHidden; setShowHidden(hidden); loadDirectory(directory?.current.path, hidden); }}>Hidden</button>}</div>}
       {flow.kind === "rename" && <form className="palette-form" onSubmit={(event) => { event.preventDefault(); const value = flow.value.trim(); if (value && !props.pending) props.onRename?.(value); }}><label>Session name<input ref={inputRef} value={flow.value} maxLength={120} onChange={(event) => setFlow({ kind: "rename", value: event.target.value })} /></label><button type="submit" disabled={!flow.value.trim() || props.pending}>{props.pending ? "Saving…" : "Save"}</button></form>}
       {(flow.kind === "actions" || flow.kind === "model" || flow.kind === "thinking") && <div id="palette-results" className="palette-results" role="listbox">
@@ -327,10 +345,15 @@ export function CommandPalette(props: CommandPaletteProps) {
         })}
         {count === 0 && <p className="palette-empty" role="status">No actions match that search.</p>}
       </div>}
+      {flow.kind === "projects" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Projects">
+        {shownPaletteProjects.map((project, index) => <button type="button" key={project.projectId} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} disabled={!project.available} onClick={() => { if (project.available) { setFlow({ kind: "sessions", projectId: project.projectId, projectName: project.name, projectPath: project.displayPath }); setQuery(""); } }}><span className="palette-option-glyph" aria-hidden="true"><FolderKanban size={14} /></span><span className="palette-option-copy"><span className="palette-option-name">{project.name}</span><small>{project.displayPath}{project.available ? "" : " · Unavailable"}</small></span></button>)}
+        {shownPaletteProjects.length === 0 && <p className="palette-empty" role="status">No Projects match that search.</p>}
+      </div>}
+      {flow.kind === "sessions" && flow.projectId !== undefined && <div className="palette-flow-header"><button type="button" onClick={back} aria-label="Back"><ArrowLeft aria-hidden="true" size={14} /></button><h2>{flow.projectName}</h2><small>{flow.projectPath}</small></div>}
       {flow.kind === "sessions" && <div id="palette-results" className="palette-results" role="listbox" aria-label="Sessions">
         {shownSessions.map((session, index) => <button type="button" key={session.id} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={() => closeAfter(() => props.onOpenSession?.(session.id))}>
           <span className="palette-option-glyph" aria-hidden="true"><History size={14} /></span>
-          <span className="palette-option-copy"><span className="palette-option-name">{session.name}</span><small>{[session.projectName, session.closed ? "Closed" : undefined].filter(Boolean).join(" · ")}</small></span>
+          <span className="palette-option-copy"><span className="palette-option-name">{session.name}</span><small>{[flow.projectId === undefined ? session.projectName : undefined, session.bookmarked ? "Bookmarked" : undefined, session.closed ? "Closed" : undefined].filter(Boolean).join(" · ")}</small></span>
         </button>)}
         {count === 0 && <p className="palette-empty" role="status">No named Sessions match that search.</p>}
       </div>}
@@ -377,4 +400,5 @@ export function CommandPalette(props: CommandPaletteProps) {
 }
 
 function DirectoryButton({ index, activeIndex, name, path, onClick }: { index: number; activeIndex: number; name: string; path: string; onClick: () => void }) { return <button type="button" role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active" : ""} onClick={onClick}><Folder aria-hidden="true" size={14} /><span><strong>{name}</strong><small>{path}</small></span></button>; }
+function sessionPaletteRank(session: PaletteSession): number { return session.bookmarked ? 0 : session.closed ? 2 : 1; }
 function titleCase(value: string): string { return value.length ? `${value[0]!.toUpperCase()}${value.slice(1)}` : value; }
