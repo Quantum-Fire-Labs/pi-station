@@ -50,8 +50,8 @@ import { NewSessionPage } from "./NewSessionPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { MobileNavigationMenu } from "./MobileNavigationMenu";
 import { WorkspaceActionCancelled, WorkspaceRow } from "./WorkspaceRow";
-import { WorkspaceNavigation } from "./WorkspaceNavigation";
 import { AgentAttention } from "./AgentAttention";
+import { useGlobalSessions } from "./use-global-sessions";
 import { NotificationSettingsPage } from "./NotificationSettings";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -643,23 +643,18 @@ function Sidebar({
   onDashboard,
   onQuickSession,
   onGeneralNewSession,
-  onNewSession,
   onProjects,
   onSettings,
   activeRoute,
   shortcutsVisible,
   onCollapse,
-  onCloseWorkspaceTab,
-  onCloseProjectTabs,
-  onAddDirectoryAsProject,
-  onOpenSessionInWorkspace,
   onActivitySelect,
-  onSelectWorkspaceTab,
+  globalSessions,
+  onRemoveGlobalSession,
 }: {
   state: ApplicationState;
   onDashboard: () => void;
   onQuickSession?: (() => void) | undefined;
-  onNewSession: (project: ProjectSummary) => void;
   onGeneralNewSession: () => void;
   onProjects: () => void;
   onSettings: () => void;
@@ -669,14 +664,10 @@ function Sidebar({
   activeProjectId?: ProjectId;
   shortcutsVisible: boolean;
   onCollapse: () => void;
-  onCloseWorkspaceTab: (tab: WorkspaceSessionTab, session?: SessionSummary) => void;
-  onCloseProjectTabs: (project: ProjectSummary) => void;
-  onAddDirectoryAsProject: (directory: string) => void;
-  onOpenSessionInWorkspace: (session: SessionSummary) => void;
   onActivitySelect: (session: SessionSummary) => void;
-  onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
+  globalSessions: readonly SessionSummary[];
+  onRemoveGlobalSession: (key: SessionKey) => void;
 }) {
-  const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId);
   return (
     <aside className={`sidebar${shortcutsVisible ? " shortcuts-visible" : ""}`} aria-label="Workspace and Sessions">
       <header className="sidebar-header">
@@ -691,23 +682,11 @@ function Sidebar({
         </div>
       </header>
       <div className="workspace-sidebar-navigation">
-        <AgentAttention sessions={state.sessions} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
+        <AgentAttention sessions={globalSessions} allSessions={state.sessions} heading="Sessions" persistent onRemove={onRemoveGlobalSession} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
           if (session !== undefined) onActivitySelect(session);
         }} />
-        {activeWorkspace && <WorkspaceNavigation
-          workspace={activeWorkspace}
-          projects={state.projects}
-          sessions={sessionsVisibleInWorkspace(state.sessions)}
-          selectedSessionKey={state.selectedSessionKey}
-          onNewSession={onGeneralNewSession}
-          onNewSessionInProject={onNewSession}
-          onOpenSession={onOpenSessionInWorkspace}
-          onSelectTab={onSelectWorkspaceTab}
-          onCloseTab={onCloseWorkspaceTab}
-          onCloseProjectTabs={onCloseProjectTabs}
-          onAddDirectoryAsProject={onAddDirectoryAsProject}
-        />}
+
       </div>
       <footer>
         <button className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined} aria-label="Projects" aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined} onClick={onProjects}><Folder aria-hidden="true" size={17} /><span>Projects</span></button>
@@ -846,6 +825,7 @@ export function Workspace({
   onOpenQuickSession,
   embeddedSession = false,
 }: WorkspaceProps) {
+  const globalSessions = useGlobalSessions(applicationState, !embeddedSession);
   const activeWorkspace = applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
     ?? applicationState.workspaces?.find((workspace) => workspace.closedAt === undefined);
   const workspaceMru = useRef<readonly string[]>(readWorkspaceMru());
@@ -1610,6 +1590,7 @@ export function Workspace({
     const project = target === undefined
       ? undefined
       : state.projects.find((candidate) => candidate.projectId === target.projectId);
+    globalSessions.restore(sessionKey);
     if (target?.projection.availability === "closed") {
       const workingDirectory = project?.displayPath ?? target.displayPath;
       if (workingDirectory === undefined) return;
@@ -1970,12 +1951,12 @@ export function Workspace({
       const eventTarget = event.target;
       if (eventTarget instanceof Element && eventTarget.closest("input, textarea, select, [contenteditable='true']") !== null) return;
       if (paletteOpenRef.current || document.querySelector("[role='dialog'], [role='menu']") !== null) return;
-      const projectOptions = [...document.querySelectorAll<HTMLButtonElement>(
-        ".sidebar .workspace-tab-open[data-session-shortcut]",
+      const visibleOptions = [...document.querySelectorAll<HTMLButtonElement>(
+        ".sidebar [data-activity-session='true'][data-session-identity]",
       )];
       const numberMatch = event.code.match(/^(?:Digit|Numpad)([1-9])$/);
       if (numberMatch !== null) {
-        const target = projectOptions[Number(numberMatch[1]) - 1];
+        const target = visibleOptions[Number(numberMatch[1]) - 1];
         if (target === undefined) return;
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -1986,11 +1967,11 @@ export function Workspace({
       const key = event.key.toLowerCase();
       if (key !== "j" && key !== "k") return;
       const options = [...document.querySelectorAll<HTMLButtonElement>(
-        ".sidebar [data-activity-session='true'][data-session-identity]",
+        `.sidebar [data-activity-session='true'][data-session-identity]${event.shiftKey ? "[data-unread='true']" : ""}`,
       )];
-      if (options.length === 0) return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      if (options.length === 0) return;
       const currentIdentity = state.selectedSessionKey === undefined
         ? undefined
         : `${state.selectedSessionKey.hostId}:${state.selectedSessionKey.piSessionId}`;
@@ -2612,34 +2593,13 @@ export function Workspace({
   );
   const sidebar = (
     <Sidebar
+      globalSessions={globalSessions.sessions}
+      onRemoveGlobalSession={globalSessions.remove}
       state={state}
       onQuickSession={onOpenQuickSession}
-      onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}
       onActivitySelect={(session) => afterSharedMarkdownCheck(() => {
         void openActivitySession(session).catch((reason: unknown) => toast({
           message: reason instanceof Error ? reason.message : "Activity Session could not be opened.",
-          variant: "error",
-        }));
-      })}
-      onSelectWorkspaceTab={(tab, session) => afterSharedMarkdownCheck(() => {
-        if (client === undefined || activeWorkspace === undefined) { openSession(session.sessionKey); return; }
-        void client.selectWorkspaceTab(activeWorkspace.id, tab.id)
-          .then(() => openSession(session.sessionKey, false))
-          .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace tab could not be selected.", variant: "error" }));
-      })}
-      onAddDirectoryAsProject={(directory) => afterSharedMarkdownCheck(() => { setAddProjectInitialDirectory(directory); setRoute("add-project"); })}
-      onCloseWorkspaceTab={(tab) => afterSharedMarkdownCheck(() => {
-        const workspaceClient = client;
-        if (workspaceClient === undefined || activeWorkspace === undefined) return;
-        void workspaceClient.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
-          message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
-          variant: "error",
-        }));
-      })}
-      onCloseProjectTabs={(project) => afterSharedMarkdownCheck(() => {
-        if (client === undefined || activeWorkspace === undefined) return;
-        void client.closeProjectTabs(activeWorkspace.id, project.projectId).catch((reason: unknown) => toast({
-          message: reason instanceof Error ? reason.message : "Project tabs could not be closed.",
           variant: "error",
         }));
       })}
@@ -2660,12 +2620,6 @@ export function Workspace({
       shortcutsVisible={sessionShortcutsVisible}
       onCollapse={() => setSidebarVisible(false)}
       {...(selectedProjectId === undefined ? {} : { activeProjectId: selectedProjectId })}
-      onNewSession={(project) => afterSharedMarkdownCheck(() => {
-        setNewSessionName("");
-        setNewSessionRequestId(undefined);
-        setNewSessionProject(project);
-        setRouteState("workspace");
-      })}
     />
   );
   const activeSidebarWidth = sidebarVisible ? sidebarWidth : 0;
@@ -2698,7 +2652,7 @@ export function Workspace({
     <details ref={mobileWorkspaceNavigationRef} className="mobile-workspace-navigation">
       <summary>Sessions</summary>
       <div className="mobile-workspace-navigation-panel">
-        <AgentAttention sessions={state.sessions} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
+        <AgentAttention sessions={globalSessions.sessions} allSessions={state.sessions} heading="Sessions" persistent onRemove={globalSessions.remove} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
           const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
           if (session === undefined) return;
           afterSharedMarkdownCheck(() => {
@@ -2707,46 +2661,11 @@ export function Workspace({
             }));
           });
         }} />
-        <WorkspaceNavigation
-          workspace={activeWorkspace}
-          projects={state.projects}
-          sessions={sessionsVisibleInWorkspace(state.sessions)}
-          selectedSessionKey={state.selectedSessionKey}
-          onNewSession={() => setRoute("new-session")}
-          onNewSessionInProject={(project) => afterSharedMarkdownCheck(() => {
-            setNewSessionName("");
-            setNewSessionRequestId(undefined);
-            setNewSessionProject(project);
-            setRouteState("workspace");
-            closeMobileWorkspaceNavigation();
-          })}
-          onOpenSession={(session) => afterSharedMarkdownCheck(() => {
-            openSession(session.sessionKey);
-            closeMobileWorkspaceNavigation();
-          })}
-          onSelectTab={(tab, session) => afterSharedMarkdownCheck(() => {
-            if (client === undefined) { openSession(session.sessionKey); return; }
-            void client.selectWorkspaceTab(activeWorkspace.id, tab.id)
-              .then(() => {
-                openSession(session.sessionKey, false);
-                closeMobileWorkspaceNavigation();
-              })
-              .catch((reason: unknown) => toast({ message: reason instanceof Error ? reason.message : "Workspace tab could not be selected.", variant: "error" }));
-          })}
-          onCloseTab={(tab) => afterSharedMarkdownCheck(() => {
-            void client?.closeWorkspaceTab(activeWorkspace.id, tab.id).catch((reason: unknown) => toast({
-              message: reason instanceof Error ? reason.message : "Workspace tab could not be removed.",
-              variant: "error",
-            }));
-          })}
-          onAddDirectoryAsProject={(directory) => afterSharedMarkdownCheck(() => { setAddProjectInitialDirectory(directory); setRoute("add-project"); closeMobileWorkspaceNavigation(); })}
-          onCloseProjectTabs={(project) => afterSharedMarkdownCheck(() => {
-            void client?.closeProjectTabs(activeWorkspace.id, project.projectId).catch((reason: unknown) => toast({
-              message: reason instanceof Error ? reason.message : "Project tabs could not be closed.",
-              variant: "error",
-            }));
-          })}
-        />
+        <button type="button" className="mobile-global-projects" onClick={() => afterSharedMarkdownCheck(() => {
+          setAddProjectInitialDirectory(undefined);
+          setRouteState("projects");
+          closeMobileWorkspaceNavigation();
+        })}><Folder aria-hidden="true" size={17} />Projects</button>
       </div>
     </details>
   );
