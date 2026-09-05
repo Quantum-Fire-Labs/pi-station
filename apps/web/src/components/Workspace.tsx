@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import type { MessageStash, WorkspaceSessionTab } from "@pi-station/application-protocol";
+import type { MessageStash, Workspace as WorkspaceDefinition, WorkspaceSessionTab } from "@pi-station/application-protocol";
 import {
   ArrowDown,
   ArrowLeft,
@@ -584,6 +584,27 @@ const sessionTime = (value?: string): number => {
 };
 
 const sessionEditorFilesKey = "pi-station:session-editor-files";
+const workspaceMruKey = "pi-station:workspace-mru";
+
+export function activityWorkspaceTarget(workspaces: readonly WorkspaceDefinition[], currentWorkspaceId: string | undefined, sessionKey: SessionKey, mru: readonly string[]): { workspace: WorkspaceDefinition; tab: WorkspaceSessionTab } | undefined {
+  const matches = workspaces
+    .filter((workspace) => workspace.closedAt === undefined)
+    .flatMap((workspace) => workspace.tabs
+      .filter((tab) => tab.projectId === sessionKey.hostId && tab.sessionId === sessionKey.piSessionId)
+      .map((tab) => ({ workspace, tab })));
+  const current = matches.find(({ workspace }) => workspace.id === currentWorkspaceId);
+  if (current !== undefined) return current;
+  const mruPosition = new Map(mru.map((id, index) => [id, index]));
+  return matches.sort((left, right) => (mruPosition.get(left.workspace.id) ?? Number.MAX_SAFE_INTEGER) - (mruPosition.get(right.workspace.id) ?? Number.MAX_SAFE_INTEGER))[0];
+}
+
+function readWorkspaceMru(): readonly string[] {
+  try { const value: unknown = JSON.parse(localStorage.getItem(workspaceMruKey) ?? "[]"); return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : []; } catch { return []; }
+}
+
+function writeWorkspaceMru(ids: readonly string[]): void {
+  try { localStorage.setItem(workspaceMruKey, JSON.stringify(ids)); } catch { /* Browser-local navigation state is optional. */ }
+}
 const composerDraftKey = (identity: string): string => `pi-station:composer-draft:${identity}`;
 
 const readComposerDraft = (identity?: string): string => {
@@ -632,6 +653,7 @@ function Sidebar({
   onCloseProjectTabs,
   onAddDirectoryAsProject,
   onOpenSessionInWorkspace,
+  onActivitySelect,
   onSelectWorkspaceTab,
 }: {
   state: ApplicationState;
@@ -651,6 +673,7 @@ function Sidebar({
   onCloseProjectTabs: (project: ProjectSummary) => void;
   onAddDirectoryAsProject: (directory: string) => void;
   onOpenSessionInWorkspace: (session: SessionSummary) => void;
+  onActivitySelect: (session: SessionSummary) => void;
   onSelectWorkspaceTab: (tab: WorkspaceSessionTab, session: SessionSummary) => void;
 }) {
   const activeWorkspace = (state.workspaces ?? []).find(({ id }) => id === state.activeWorkspaceId);
@@ -668,6 +691,10 @@ function Sidebar({
         </div>
       </header>
       <div className="workspace-sidebar-navigation">
+        <AgentAttention sessions={state.sessions} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
+          const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
+          if (session !== undefined) onActivitySelect(session);
+        }} />
         {activeWorkspace && <WorkspaceNavigation
           workspace={activeWorkspace}
           projects={state.projects}
@@ -681,10 +708,6 @@ function Sidebar({
           onCloseProjectTabs={onCloseProjectTabs}
           onAddDirectoryAsProject={onAddDirectoryAsProject}
         />}
-        <AgentAttention sessions={state.sessions} projects={state.projects} onSelect={(key) => {
-          const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
-          if (session !== undefined) onOpenSessionInWorkspace(session);
-        }} />
       </div>
       <footer>
         <button className={activeRoute === "projects" || activeRoute === "add-project" ? "selected" : undefined} aria-label="Projects" aria-current={activeRoute === "projects" || activeRoute === "add-project" ? "page" : undefined} onClick={onProjects}><Folder aria-hidden="true" size={17} /><span>Projects</span></button>
@@ -825,6 +848,14 @@ export function Workspace({
 }: WorkspaceProps) {
   const activeWorkspace = applicationState.workspaces?.find(({ id }) => id === applicationState.activeWorkspaceId)
     ?? applicationState.workspaces?.find((workspace) => workspace.closedAt === undefined);
+  const workspaceMru = useRef<readonly string[]>(readWorkspaceMru());
+  useEffect(() => {
+    const id = applicationState.activeWorkspaceId;
+    const workspace = applicationState.workspaces?.find((candidate) => candidate.id === id);
+    if (id === undefined || workspace === undefined || workspace.closedAt !== undefined) return;
+    workspaceMru.current = [id, ...workspaceMru.current.filter((candidate) => candidate !== id)];
+    writeWorkspaceMru(workspaceMru.current);
+  }, [applicationState.activeWorkspaceId, applicationState.workspaces]);
   // Projects and saved Sessions are global library data. Explicit tabs control Workspace navigation.
   const state = embeddedSession ? applicationState : {
     ...applicationState,
@@ -1596,6 +1627,24 @@ export function Workspace({
     setRouteState("workspace");
   };
 
+  const openActivitySession = async (session: SessionSummary): Promise<void> => {
+    if (client === undefined) { openSession(session.sessionKey, false); return; }
+    const workspaces = applicationState.workspaces ?? [];
+    const match = activityWorkspaceTarget(workspaces, applicationState.activeWorkspaceId, session.sessionKey, workspaceMru.current);
+    if (match !== undefined) {
+      if (match.workspace.id !== applicationState.activeWorkspaceId) await client.activateWorkspace(match.workspace.id);
+      await client.selectWorkspaceTab(match.workspace.id, match.tab.id);
+      openSession(session.sessionKey, false);
+      return;
+    }
+    const currentOpenWorkspace = workspaces.find((workspace) => workspace.id === applicationState.activeWorkspaceId && workspace.closedAt === undefined)
+      ?? workspaces.find((workspace) => workspace.closedAt === undefined);
+    if (currentOpenWorkspace === undefined) throw new Error("No open Workspace is available.");
+    if (currentOpenWorkspace.id !== applicationState.activeWorkspaceId) await client.activateWorkspace(currentOpenWorkspace.id);
+    await client.openSessionInWorkspace(currentOpenWorkspace.id, session.sessionKey.hostId, session.sessionKey.piSessionId);
+    openSession(session.sessionKey, false);
+  };
+
   const handledSessionRequest = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (requestedSessionKey === undefined) { handledSessionRequest.current = undefined; return; }
@@ -1918,12 +1967,15 @@ export function Workspace({
         || document.querySelector("dialog[open]")
       ) return;
 
-      const options = [...document.querySelectorAll<HTMLButtonElement>(
-        ".sidebar .workspace-tab-open[data-session-identity]",
+      const eventTarget = event.target;
+      if (eventTarget instanceof Element && eventTarget.closest("input, textarea, select, [contenteditable='true']") !== null) return;
+      if (paletteOpenRef.current || document.querySelector("[role='dialog'], [role='menu']") !== null) return;
+      const projectOptions = [...document.querySelectorAll<HTMLButtonElement>(
+        ".sidebar .workspace-tab-open[data-session-shortcut]",
       )];
       const numberMatch = event.code.match(/^(?:Digit|Numpad)([1-9])$/);
       if (numberMatch !== null) {
-        const target = options[Number(numberMatch[1]) - 1];
+        const target = projectOptions[Number(numberMatch[1]) - 1];
         if (target === undefined) return;
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -1933,27 +1985,20 @@ export function Workspace({
 
       const key = event.key.toLowerCase();
       if (key !== "j" && key !== "k") return;
+      const options = [...document.querySelectorAll<HTMLButtonElement>(
+        ".sidebar [data-activity-session='true'][data-session-identity]",
+      )];
+      if (options.length === 0) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       const currentIdentity = state.selectedSessionKey === undefined
         ? undefined
         : `${state.selectedSessionKey.hostId}:${state.selectedSessionKey.piSessionId}`;
-      const currentIndex = options.findIndex(
-        (option) => option.dataset.sessionIdentity === currentIdentity,
-      );
-      if (currentIndex < 0 || options.length === 0) return;
-
+      const currentIndex = options.findIndex((option) => option.dataset.sessionIdentity === currentIdentity);
       const step = key === "j" ? 1 : -1;
-      let target: HTMLButtonElement | undefined;
-      for (let offset = 1; offset <= options.length; offset += 1) {
-        const index = (currentIndex + (step * offset) + options.length)
-          % options.length;
-        const candidate = options[index];
-        if (!event.shiftKey || candidate?.dataset.unread === "true") {
-          target = candidate;
-          break;
-        }
-      }
+      const target = currentIndex < 0
+        ? options[key === "j" ? 0 : options.length - 1]
+        : options[(currentIndex + step + options.length) % options.length];
       if (target === undefined || target === options[currentIndex]) return;
       target.click();
       target.scrollIntoView?.({ block: "nearest" });
@@ -2570,6 +2615,12 @@ export function Workspace({
       state={state}
       onQuickSession={onOpenQuickSession}
       onOpenSessionInWorkspace={(session) => afterSharedMarkdownCheck(() => openSession(session.sessionKey))}
+      onActivitySelect={(session) => afterSharedMarkdownCheck(() => {
+        void openActivitySession(session).catch((reason: unknown) => toast({
+          message: reason instanceof Error ? reason.message : "Activity Session could not be opened.",
+          variant: "error",
+        }));
+      })}
       onSelectWorkspaceTab={(tab, session) => afterSharedMarkdownCheck(() => {
         if (client === undefined || activeWorkspace === undefined) { openSession(session.sessionKey); return; }
         void client.selectWorkspaceTab(activeWorkspace.id, tab.id)
@@ -2647,6 +2698,15 @@ export function Workspace({
     <details ref={mobileWorkspaceNavigationRef} className="mobile-workspace-navigation">
       <summary>Sessions</summary>
       <div className="mobile-workspace-navigation-panel">
+        <AgentAttention sessions={state.sessions} projects={state.projects} selectedSessionKey={state.selectedSessionKey} onSelect={(key) => {
+          const session = state.sessions.find((candidate) => sessionKeysEqual(candidate.sessionKey, key));
+          if (session === undefined) return;
+          afterSharedMarkdownCheck(() => {
+            void openActivitySession(session).then(closeMobileWorkspaceNavigation).catch((reason: unknown) => toast({
+              message: reason instanceof Error ? reason.message : "Activity Session could not be opened.", variant: "error",
+            }));
+          });
+        }} />
         <WorkspaceNavigation
           workspace={activeWorkspace}
           projects={state.projects}

@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { SessionKey, SessionSummary } from "../application/workspace-model";
 import "./agent-attention.css";
@@ -12,6 +12,7 @@ export interface AgentAttentionProps {
   readonly heading?: string;
   readonly emptyLabel?: string;
   readonly projects?: readonly { readonly projectId: string; readonly name: string }[];
+  readonly selectedSessionKey?: SessionKey | undefined;
 }
 
 export interface DelegatedChildrenProps {
@@ -48,18 +49,25 @@ export function primaryAgentStatus(session: SessionSummary): AgentAttentionStatu
   return "Idle";
 }
 
-export function agentActivitySessions(sessions: readonly SessionSummary[]): readonly SessionSummary[] {
-  const unique = [...new Map(sessions.map((session) => [keyOf(session.sessionKey), session])).values()]
-    .filter((session) => agentAttentionStatuses(session).length > 0);
-  const priority = (session: SessionSummary) => {
-    const status = primaryAgentStatus(session);
-    return status === "Failed" ? 0 : status === "Unread" ? 1 : 2;
-  };
-  return unique.sort((left, right) => priority(left) - priority(right));
+export function agentActivitySessions(sessions: readonly SessionSummary[], selectedSessionKey?: SessionKey, previousOrder: readonly string[] = []): readonly SessionSummary[] {
+  const eligible = [...new Map(sessions.map((session) => [keyOf(session.sessionKey), session])).values()]
+    .filter((session) => session.quickSession !== true && session.parentSessionKey === undefined)
+    .filter((session) => agentAttentionStatuses(session).length > 0 || (selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)));
+  const previousPosition = new Map(previousOrder.map((identity, index) => [identity, index]));
+  return eligible.sort((left, right) => {
+    const leftPosition = previousPosition.get(keyOf(left.sessionKey));
+    const rightPosition = previousPosition.get(keyOf(right.sessionKey));
+    if (leftPosition !== undefined && rightPosition !== undefined) return leftPosition - rightPosition;
+    if (leftPosition !== undefined) return -1;
+    if (rightPosition !== undefined) return 1;
+    return 0;
+  });
 }
 
-export function AgentAttention({ sessions, onSelect, heading = "Agent Activity", projects = [] }: AgentAttentionProps) {
-  const attention = agentActivitySessions(sessions);
+export function AgentAttention({ sessions, onSelect, heading = "Agent Activity", projects = [], selectedSessionKey }: AgentAttentionProps) {
+  const order = useRef<readonly string[]>([]);
+  const attention = agentActivitySessions(sessions, selectedSessionKey, order.current);
+  order.current = attention.map((session) => keyOf(session.sessionKey));
   const [expanded, setExpanded] = useState(true);
   const headingId = useId();
   const projectNames = new Map(projects.map((project) => [project.projectId, project.name]));
@@ -71,7 +79,11 @@ export function AgentAttention({ sessions, onSelect, heading = "Agent Activity",
         {expanded ? <ChevronDown aria-hidden="true" size={13} /> : <ChevronRight aria-hidden="true" size={13} />}<span id={headingId}>{heading}</span><small>{attention.length}</small>
       </button>
       {expanded && <ul className="agent-attention__list agent-attention__list--activity">
-        {attention.map((session) => <li key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} {...(projectNames.get(session.projectId ?? session.sessionKey.hostId) === undefined ? {} : { context: projectNames.get(session.projectId ?? session.sessionKey.hostId)! })} activity /></li>)}
+        {attention.map((session) => {
+          const projectName = projectNames.get(session.projectId ?? session.sessionKey.hostId);
+          const context = projectName ?? session.displayPath?.trim();
+          return <li key={keyOf(session.sessionKey)}><AgentButton session={session} onSelect={onSelect} selected={selectedSessionKey !== undefined && sameKey(session.sessionKey, selectedSessionKey)} {...(context === undefined ? {} : { context })} activity /></li>;
+        })}
       </ul>}
     </section>
   );
@@ -129,7 +141,7 @@ function AgentButton({ session, onSelect, navigationIndex, selected = false, rem
   const status = primaryAgentStatus(session);
   return (
     <div className={`${navigationIndex === undefined ? "" : "workspace-tab"}${selected ? " selected" : ""}`}>
-      <button className={`agent-attention__agent${activity ? " agent-attention__agent--activity" : ""}${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${status}`} aria-current={selected ? "page" : undefined} data-session-identity={navigationIndex === undefined ? undefined : keyOf(session.sessionKey)} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={navigationIndex !== undefined && session.projection.unread.hasUnread ? "true" : undefined}>
+      <button className={`agent-attention__agent${activity ? " agent-attention__agent--activity" : ""}${navigationIndex === undefined ? "" : " workspace-tab-open"}`} type="button" onClick={() => onSelect(session.sessionKey)} aria-label={`${label}: ${status}`} aria-current={selected ? "page" : undefined} data-activity-session={activity ? "true" : undefined} data-session-identity={activity || navigationIndex !== undefined ? keyOf(session.sessionKey) : undefined} data-session-shortcut={navigationIndex !== undefined && navigationIndex < 10 ? navigationIndex : undefined} data-unread={navigationIndex !== undefined && session.projection.unread.hasUnread ? "true" : undefined}>
         <span className="agent-attention__identity"><span className="agent-attention__name">{label}</span>{context && <small>{context}</small>}</span>
         <span className={`agent-attention__status agent-attention__status--${status.toLowerCase()}`} aria-hidden="true"><i className={`agent-attention__marker agent-attention__marker--${status.toLowerCase()}`} />{status}</span>
       </button>
