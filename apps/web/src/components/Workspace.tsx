@@ -58,7 +58,6 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Sheet, SheetTrigger } from "./ui/sheet";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -623,7 +622,6 @@ function Sidebar({
   onDashboard,
   onQuickSession,
   onGeneralNewSession,
-  onDirectorySession,
   onNewSession,
   onProjects,
   onSettings,
@@ -641,7 +639,6 @@ function Sidebar({
   onQuickSession?: (() => void) | undefined;
   onNewSession: (project: ProjectSummary) => void;
   onGeneralNewSession: () => void;
-  onDirectorySession: () => void;
   onProjects: () => void;
   onSettings: () => void;
   onOpenProject: (projectId: ProjectId) => void;
@@ -664,9 +661,11 @@ function Sidebar({
           <svg className="sidebar-brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 12 5M5 12h14M19 12l-7 7" /><circle cx="5" cy="12" r="2.5" /><circle cx="12" cy="5" r="2.5" /><circle cx="19" cy="12" r="2.5" /><circle cx="12" cy="19" r="2.5" /></svg>
           Pi Station
         </button>
+        <div className="sidebar-header-actions">
         {onQuickSession !== undefined && <button type="button" className="sidebar-quick-session" aria-label="Quick Session" title="Quick Session (Ctrl/⌘+Shift+Space)" aria-keyshortcuts="Control+Shift+Space Meta+Shift+Space" onClick={onQuickSession}><Zap aria-hidden="true" size={16} /></button>}
-        <DropdownMenu><DropdownMenuTrigger className="sidebar-quick-session" aria-label="New Session options" title="New Session options"><Ellipsis aria-hidden="true" size={16} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={onGeneralNewSession}>New Session</DropdownMenuItem><DropdownMenuItem onClick={onDirectorySession}>New Session in Directory</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+        <button type="button" aria-label="New Session" title="New Session" onClick={onGeneralNewSession}><Plus aria-hidden="true" size={16} /></button>
         <button type="button" aria-label="Hide sidebar" aria-keyshortcuts="Control+B Meta+B" onClick={onCollapse}><PanelLeftClose aria-hidden="true" size={17} /></button>
+        </div>
       </header>
       <div className="workspace-sidebar-navigation">
         {activeWorkspace && <WorkspaceNavigation
@@ -2595,7 +2594,6 @@ export function Workspace({
       })}
       onDashboard={() => setRoute("dashboard")}
       onGeneralNewSession={() => setRoute("new-session")}
-      onDirectorySession={() => afterSharedMarkdownCheck(() => setRoute("new-directory-session"))}
       onProjects={() => { setAddProjectInitialDirectory(undefined); setRoute("projects"); }}
       onSettings={() => setRoute("settings")}
       onOpenProject={(projectId) => {

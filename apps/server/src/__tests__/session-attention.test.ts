@@ -33,7 +33,7 @@ describe("Session attention state", () => {
     expect(decorated[0]?.state).toBe("open")
   })
 
-  it("suppresses stored attention for working, completed, and nested delegated children", async () => {
+  it("keeps delegated child attention until that child is read", async () => {
     const attention = await store()
     const sessions = [
       { id: "parent", projectId: "project" },
@@ -49,15 +49,19 @@ describe("Session attention state", () => {
     const decorated = await attention.decorate(sessions)
     expect(decorated.map((session) => [session.id, session.unread])).toEqual([
       ["parent", { hasUnread: true, latestAttentionId: "attention-parent" }],
-      ["working-child", { hasUnread: false }],
-      ["completed-child", { hasUnread: false }],
-      ["nested-child", { hasUnread: false }],
+      ["working-child", { hasUnread: true, latestAttentionId: "attention-working-child" }],
+      ["completed-child", { hasUnread: true, latestAttentionId: "attention-completed-child" }],
+      ["nested-child", { hasUnread: true, latestAttentionId: "attention-nested-child" }],
       ["former-child", { hasUnread: true, latestAttentionId: "attention-former-child" }],
     ])
+
+    await attention.markRead({ projectId: "project", sessionId: "parent" }, "attention-parent")
     await expect(attention.unread({ projectId: "project", sessionId: "completed-child" })).resolves.toEqual({
       hasUnread: true,
       latestAttentionId: "attention-completed-child",
     })
+    await attention.markRead({ projectId: "project", sessionId: "completed-child" }, "attention-completed-child")
+    await expect(attention.unread({ projectId: "project", sessionId: "completed-child" })).resolves.toEqual({ hasUnread: false })
   })
 
   it("persists only SessionKey fields and keeps the record readable", async () => {

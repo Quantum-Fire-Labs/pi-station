@@ -149,7 +149,6 @@ export function WorkspaceNavigation({ workspace, projects, sessions, selectedSes
               return <div className="workspace-session-branch" key={tab.id}>
                 <div className={`workspace-tab${selected ? " selected" : ""}`}>
                 <button type="button" className="workspace-tab-open" disabled={session === undefined} aria-current={selected ? "page" : undefined} data-session-shortcut={shortcut !== undefined && shortcut < 10 ? shortcut : undefined} data-unread={session?.projection.unread.hasUnread === true ? "true" : undefined} data-session-identity={session === undefined ? undefined : identity(session.sessionKey)} onClick={() => { if (session !== undefined) onSelectTab(tab, session); }}>
-                  {session === undefined ? <i className="session-status-indicator status-idle" aria-label="Missing Session" /> : <SessionDot session={session} />}
                   <span><strong>{session === undefined ? "Session unavailable" : label(session)}</strong>{session === undefined ? <small>Referenced Session was not found.</small> : <SessionStatus session={session} />}</span>
                 </button>
                 <button type="button" className="workspace-tab-close" aria-label={`Remove ${session === undefined ? "unavailable Session" : label(session)} tab`} title="Remove tab (does not close Session)" onClick={() => onCloseTab(tab, session)}><X aria-hidden="true" size={14} /></button>
@@ -212,5 +211,5 @@ function statuses(session: SessionSummary): readonly string[] {
   if (session.projection.availability === "closed") return ["Closed"];
   return [];
 }
-function SessionStatus({ session }: { session: SessionSummary }) { const values = statuses(session); return <small className="workspace-tab-status">{values.length === 0 ? "Idle" : values.join(" · ")}</small>; }
+function SessionStatus({ session }: { session: SessionSummary }) { const values = statuses(session); return <small className="workspace-tab-status"><SessionDot session={session} />{values.length === 0 ? "Idle" : values.join(" · ")}</small>; }
 function SessionDot({ session }: { session: SessionSummary }) { const values = statuses(session); const status = values.includes("Failed") ? "failed" : values.includes("Working") ? "working" : values.includes("Unread") ? "unread" : "idle"; return <i className={`session-status-indicator status-${status}`} aria-label={`${values.length === 0 ? "Idle" : values.join(", ")} Session`} style={{ "--session-depth": 0 } as CSSProperties} />; }
